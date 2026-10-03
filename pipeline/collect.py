@@ -477,6 +477,55 @@ POS_W = ["수주", "최대", "흑자", "상향", "호실적", "급증", "신고�
 NEG_W = ["적자", "하향", "급락", "소송", "유상증자", "감자", "부진", "리콜", "횡령", "배임", "제재", "손실", "철회"]
 
 
+POS_W += ["수혜", "기대", "호조", "신제품", "인수", "협력", "mou", "선정", "독점", "특허", "증설", "목표가 상향", "매수", "호실적", "신고가"]
+NEG_W += ["하락", "우려", "악재", "경고", "적발", "중단", "감소", "부담", "매도", "취소", "논란", "조사", "파업", "하회", "쇼크"]
+
+
+def _tone(text):
+    p = [w for w in POS_W if w in text]
+    n = [w for w in NEG_W if w in text]
+    return (1 if len(p) > len(n) else -1 if len(n) > len(p) else 0), p, n
+
+
+def google_news(name, days=7, limit=6):
+    """구글 뉴스 RSS(키 불필요) — 최근 기사 제목·링크·출처·날짜 + 긍정/부정 분류"""
+    q = f'"{name}" 주가 OR 주식 OR 실적 when:{days}d'
+    r = requests.get("https://news.google.com/rss/search", params={"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"},
+                     headers=UA, timeout=10)
+    root = ET.fromstring(r.content)
+    items, seen = [], set()
+    for it in root.iter("item"):
+        title = (it.findtext("title") or "").strip()
+        src = (it.findtext("source") or "").strip()
+        if src and title.endswith(" - " + src):
+            title = title[: -len(" - " + src)]
+        if name not in title:  # 제목에 종목명이 있는 기사만
+            continue
+        key = re.sub(r"\W", "", title)[:30]
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            d = dt.datetime.strptime(it.findtext("pubDate")[:25], "%a, %d %b %Y %H:%M:%S").strftime("%m-%d")
+        except Exception:
+            d = ""
+        tone, p, n = _tone(title)
+        items.append({"t": title, "u": it.findtext("link"), "s": src, "d": d, "tone": tone, "kw": (p + n)[:3]})
+        if len(items) >= limit:
+            break
+    if not items:
+        return None
+    pos = sum(1 for x in items if x["tone"] > 0)
+    neg = sum(1 for x in items if x["tone"] < 0)
+    kws = []
+    for x in items:
+        for k in x["kw"]:
+            if k not in kws:
+                kws.append(k)
+    return {"items": items, "sum": {"n": len(items), "pos": pos, "neg": neg, "kw": kws[:5]},
+            "score": _f(max(-1, min(1, (pos - neg) / max(3, len(items)))), 2)}
+
+
 def naver_news_score(name):
     r = requests.get("https://openapi.naver.com/v1/search/news.json", params={"query": name, "display": 30, "sort": "date"},
                      headers={"X-Naver-Client-Id": NAVER_ID, "X-Naver-Client-Secret": NAVER_SECRET}, timeout=10).json()
@@ -789,6 +838,23 @@ def main():
         if tp:
             x["target"] = tp
             x["upside"] = _f((tp / x["close"] - 1) * 100, 1)
+    # 관련 뉴스(구글 뉴스 RSS, 키 불필요): 후보 + 거래대금 상위 + 호재 공시 종목, 최대 300
+    if not over_budget("관련 뉴스"):
+        pool = {x["code"]: x for x in cand}
+        for x in sorted(stocks, key=lambda z: -(z.get("tvalue") or 0))[:150]:
+            pool.setdefault(x["code"], x)
+        for x in stocks:
+            if x.get("disc_pos"):
+                pool.setdefault(x["code"], x)
+        targets = list(pool.values())[:300]
+        log(f"관련 뉴스 조회 {len(targets)}종목")
+        gn = pmap(google_news, [x["name"] for x in targets], workers=6, label="관련 뉴스", deadline_min=7)
+        for x in targets:
+            r = gn.get(x["name"])
+            if r:
+                x["news"], x["news_sum"] = r["items"], r["sum"]
+                if x.get("news_score") is None:
+                    x["news_score"], x["news_n"] = r["score"], r["sum"]["n"]
     if NAVER_ID and not over_budget("뉴스"):
         log("뉴스 감정점수 조회")
         ns = pmap(naver_news_score, [x["name"] for x in cand], workers=4, label="뉴스", deadline_min=5)
