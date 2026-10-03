@@ -1,0 +1,27 @@
+{
+  "note": "국내 업종 → 미국 지표 매핑 상수표. keywords 중 하나라도 업종명에 포함되면 해당 매핑 적용. beta는 전일 미국 지표 수익률이 아침 업종에 전달되는 민감도(경험값, 백테스트로 보정 권장).",
+  "us_symbols": {
+    "SP500": "S&P500",
+    "NASDAQ": "나스닥",
+    "SOX": "필라델피아 반도체(SOX)",
+    "XLF": "미 금융 ETF(XLF)",
+    "XLE": "미 에너지 ETF(XLE)",
+    "XBI": "미 바이오 ETF(XBI)",
+    "XLY": "미 경기소비재 ETF(XLY)"
+  },
+  "map": [
+    { "sector": "전기·전자/반도체", "keywords": ["전기전자", "전기·전자", "반도체", "IT"], "us": [ { "sym": "SOX", "beta": 0.8 }, { "sym": "NASDAQ", "beta": 0.2 } ], "coupling": "강결합" },
+    { "sector": "IT서비스/인터넷",  "keywords": ["서비스업", "IT 서비스", "IT서비스", "소프트웨어", "인터넷"], "us": [ { "sym": "NASDAQ", "beta": 0.6 } ], "coupling": "중간" },
+    { "sector": "제약/바이오",      "keywords": ["의약품", "제약", "바이오", "의료정밀", "의료·정밀"], "us": [ { "sym": "XBI", "beta": 0.5 } ], "coupling": "중간" },
+    { "sector": "금융",             "keywords": ["금융", "은행", "증권", "보험"], "us": [ { "sym": "XLF", "beta": 0.4 } ], "coupling": "약결합" },
+    { "sector": "에너지/화학",      "keywords": ["화학", "에너지", "정유"], "us": [ { "sym": "XLE", "beta": 0.4 }, { "sym": "SP500", "beta": 0.2 } ], "coupling": "중간" },
+    { "sector": "자동차/운송장비",  "keywords": ["운수장비", "운송장비", "자동차"], "us": [ { "sym": "XLY", "beta": 0.4 }, { "sym": "SP500", "beta": 0.2 } ], "coupling": "중간" },
+    { "sector": "기계/조선/방산",   "keywords": ["기계", "조선", "방산"], "us": [ { "sym": "SP500", "beta": 0.3 } ], "coupling": "약결합" },
+    { "sector": "철강/소재",        "keywords": ["철강", "금속", "비금속"], "us": [ { "sym": "SP500", "beta": 0.3 } ], "coupling": "약결합" },
+    { "sector": "건설",             "keywords": ["건설"], "us": [ { "sym": "SP500", "beta": 0.2 } ], "coupling": "약결합" },
+    { "sector": "유통/소비재",      "keywords": ["유통", "섬유", "의복"], "us": [ { "sym": "XLY", "beta": 0.3 } ], "coupling": "약결합" },
+    { "sector": "생필품/음식료",    "keywords": ["음식료", "음식료품", "담배"], "us": [ { "sym": "SP500", "beta": 0.05 } ], "coupling": "독립" },
+    { "sector": "통신/유틸리티",    "keywords": ["통신", "전기가스", "전기·가스"], "us": [ { "sym": "SP500", "beta": 0.1 } ], "coupling": "독립" }
+  ],
+  "default": { "us": [ { "sym": "SP500", "beta": 0.3 } ], "coupling": "기본" }
+}

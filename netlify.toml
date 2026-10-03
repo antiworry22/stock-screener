@@ -1,0 +1,4 @@
+# GitHub 연동 배포용: site 폴더를 그대로 배포 (빌드 없음)
+[build]
+  publish = "site"
+  command = ""

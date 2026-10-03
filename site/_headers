@@ -1,0 +1,4 @@
+/data/*
+  Cache-Control: no-cache
+/config/*
+  Cache-Control: no-cache

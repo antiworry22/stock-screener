@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "note": "종합점수 가중치·판정 기준 설정파일. 숫자만 바꾸면 웹앱과 파이프라인에 그대로 반영됩니다.",
+  "default_mode": "balanced",
+  "modes": {
+    "balanced":  { "label": "균형 (기본)",   "weights": { "technical": 30, "supply": 25, "earnings": 20, "sector": 15, "stability": 10 } },
+    "supply":    { "label": "수급 중심",     "weights": { "technical": 20, "supply": 40, "earnings": 15, "sector": 15, "stability": 10 } },
+    "growth":    { "label": "성장주 중심",   "weights": { "technical": 20, "supply": 15, "earnings": 40, "sector": 15, "stability": 10 } },
+    "swing":     { "label": "기술적 스윙",   "weights": { "technical": 45, "supply": 25, "earnings": 10, "sector": 15, "stability": 5 } },
+    "defensive": { "label": "안정성 중심",   "weights": { "technical": 20, "supply": 20, "earnings": 15, "sector": 10, "stability": 35 } }
+  },
+  "thresholds": {
+    "volume_ratio": 2.0,
+    "rsi_oversold": 30,
+    "rsi_overbought": 70,
+    "pos52_undervalued": 0.7,
+    "low_tests": 3,
+    "streak_days": 5,
+    "exhaustion_limit": 40,
+    "upside_min": 30,
+    "yoy_growth": 20,
+    "debt_ratio_max": 100,
+    "current_ratio_min": 100,
+    "roe_min": 10,
+    "pension_stake_min": 5,
+    "atr_mult": 2,
+    "risk_pct": 1,
+    "whitelist_min_score": 60
+  },
+  "macro_gate": {
+    "usdkrw_chg1_red": 0.7,
+    "usdkrw_chg20_yellow": 2.0,
+    "us10y_chgbp_red": 10,
+    "nasdaq_chg_red": -2.0,
+    "multiplier_yellow": 0.95,
+    "multiplier_red": 0.85
+  },
+  "outputs": { "top_n": 10 }
+}
