@@ -21,6 +21,7 @@ import time
 import zipfile
 import datetime as dt
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -44,6 +45,7 @@ CAND_N = int(os.getenv("CANDIDATE_N", "200"))
 SHORT_N = int(os.getenv("SHORT_N", "300"))
 UA = {"User-Agent": "Mozilla/5.0"}
 LOG = []
+FLOW_SRC = {"v": "krx"}
 
 
 def log(msg):
@@ -127,12 +129,15 @@ def get_flows(days):
             parts = []
             for mkt in ["KOSPI", "KOSDAQ"]:
                 df = safe(stock.get_market_net_purchases_of_equities, ymd(d), ymd(d), mkt, inv)
+                if df is None or not len(df):
+                    time.sleep(3)  # 일시 차단 대비 한 번 더
+                    df = safe(stock.get_market_net_purchases_of_equities, ymd(d), ymd(d), mkt, inv)
                 if df is not None and len(df):
                     parts.append(df["순매수거래대금"])
                     fails = 0
                 else:
                     fails += 1
-                time.sleep(0.3)
+                time.sleep(1.0)
             if parts:
                 cols[d] = pd.concat(parts)
         flows[inv] = pd.DataFrame(cols)
@@ -150,38 +155,59 @@ def get_foreign_limit(asof):
     return pd.concat(parts) if parts else pd.DataFrame()
 
 
+def _short_by_date(fn, d):
+    parts = []
+    for m in ["KOSPI", "KOSDAQ"]:
+        try:
+            df = fn(ymd(d), m)
+            if df is not None and len(df):
+                parts.append(df)
+        except Exception:
+            pass
+    return pd.concat(parts) if parts else None
+
+
 def get_short_balance(days, codes):
-    """공매도 잔고 비중(%)과 5영업일 변화. 시장 단위 함수가 없으면 후보 종목만 개별 조회."""
+    """공매도 잔고 비중(%)과 5영업일 변화.
+    공매도 잔고는 2영업일 늦게 공시되므로(T+2) 최근 영업일부터 거꾸로 데이터가 있는 날을 찾는다."""
     from pykrx import stock
     out = {}
     fn = getattr(stock, "get_shorting_balance_by_ticker", None)
     if fn:
-        try:
-            now = pd.concat([fn(ymd(days[-1]), m) for m in ["KOSPI", "KOSDAQ"]])
-            bef = pd.concat([fn(ymd(days[-6]), m) for m in ["KOSPI", "KOSDAQ"]])
+        now, idx = None, None
+        for back in range(1, 7):
+            now = _short_by_date(fn, days[-back])
+            if now is not None:
+                idx = len(days) - back
+                break
+        if now is not None:
+            bef = _short_by_date(fn, days[max(0, idx - 5)])
             col = [c for c in now.columns if "비중" in c][0]
             for t in now.index:
-                b = bef[col].get(t)
+                b = bef[col].get(t) if bef is not None else None
                 out[t] = (float(now[col][t]), float(now[col][t] - b) if b is not None else None)
+            log(f"공매도 잔고 {len(out)}종목 (기준 {days[idx]})")
             return out
-        except Exception as e:
-            log(f"  ! 공매도 시장단위 조회 실패 → 개별 조회: {e}")
+        log("  ! 공매도 시장단위 조회 실패 → 상위 종목 개별 조회")
     fails = 0
-    for t in codes[:SHORT_N]:  # 거래대금 상위 종목만 개별 조회
-        if fails >= 5:  # 연속 5번 실패하면 KRX가 막힌 것 → 공매도 항목 비우고 진행
+    for t in codes[:SHORT_N]:
+        if fails >= 5:
             log("  ! 공매도 잔고 개별 조회 연속 실패 → 이번 수집에서 제외")
             break
         try:
-            df = stock.get_shorting_balance_by_date(ymd(days[-6]), ymd(days[-1]), t)
+            df = stock.get_shorting_balance_by_date(ymd(days[-12]), ymd(days[-1]), t)
         except Exception:
             df = None
         if df is not None and len(df):
             col = [c for c in df.columns if "비중" in c][0]
-            out[t] = (float(df[col].iloc[-1]), float(df[col].iloc[-1] - df[col].iloc[0]))
+            v = df[col].dropna()
+            if len(v):
+                out[t] = (float(v.iloc[-1]), float(v.iloc[-1] - v.iloc[max(0, len(v) - 6)]))
             fails = 0
         else:
             fails += 1
         time.sleep(0.2)
+    log(f"공매도 잔고 {len(out)}종목")
     return out
 
 
@@ -194,11 +220,15 @@ def get_sectors(asof, days):
     sec_of, sec_info = {}, []
     k = stock.get_index_ohlcv(ymd(days[-8]), ymd(asof), "1001")["종가"]
     kospi5 = (k.iloc[-1] / k.iloc[-6] - 1) * 100
+    kq = safe(stock.get_index_ohlcv, ymd(days[-8]), ymd(asof), "2001")
+    kosdaq5 = (kq["종가"].iloc[-1] / kq["종가"].iloc[-6] - 1) * 100 if kq is not None and len(kq) >= 6 else kospi5
     for mkt in ["KOSPI", "KOSDAQ"]:
+        base5 = kospi5 if mkt == "KOSPI" else kosdaq5  # 코스닥 업종은 코스닥 지수 대비
         for t in stock.get_index_ticker_list(ymd(asof), market=mkt):
-            name = stock.get_index_ticker_name(t)
-            if any(w in name for w in SIZE_WORDS):
+            raw = stock.get_index_ticker_name(t)
+            if any(w in raw for w in SIZE_WORDS):
                 continue
+            name = raw if mkt == "KOSPI" else f"{raw}(코스닥)"  # 같은 업종명 구분
             members = safe(stock.get_index_portfolio_deposit_file, t, default=[]) or []
             if not members:
                 continue
@@ -206,13 +236,22 @@ def get_sectors(asof, days):
             if ix is None or len(ix) < 6:
                 continue
             r5 = (ix["종가"].iloc[-1] / ix["종가"].iloc[-6] - 1) * 100
-            sec_info.append({"code": t, "name": name, "market": mkt, "ret5": _f(r5), "rel5": _f(r5 - kospi5), "count": len(members)})
+            sec_info.append({"code": t, "name": name, "market": mkt, "ret5": _f(r5), "rel5": _f(r5 - base5), "count": len(members)})
             for m in members:
                 if m not in sec_of or len(members) < sec_of[m][1]:
                     sec_of[m] = (name, len(members))
             time.sleep(0.2)
     log(f"업종 {len(sec_info)}개")
     return {k: v[0] for k, v in sec_of.items()}, sec_info, kospi5
+
+
+FIN_SECTOR = ["금융", "은행", "증권", "보험"]
+FIN_NAME = ["금융지주", "은행", "증권", "보험", "생명", "화재", "캐피탈", "카드", "투자", "저축", "리츠"]
+
+
+def is_financial(sector, name):
+    """은행·보험·증권·지주·캐피탈 등 — 부채가 본업이라 부채비율로 판단하면 안 되는 업종"""
+    return any(k in (sector or "") for k in FIN_SECTOR) or any(k in (name or "") for k in FIN_NAME)
 
 
 # ═════════════ 5. 매크로·미국장 ═════════════
@@ -375,10 +414,38 @@ def dart_disclosures(today):
 
 
 # ═════════════ 7. 목표주가(네이버 금융) · 뉴스 ═════════════
+def _find_key(obj, keys):
+    """중첩 JSON에서 키 이름으로 값 찾기"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in keys and v not in (None, "", "-"):
+                return v
+            r = _find_key(v, keys)
+            if r is not None:
+                return r
+    elif isinstance(obj, list):
+        for v in obj:
+            r = _find_key(v, keys)
+            if r is not None:
+                return r
+    return None
+
+
 def naver_target(code):
-    html = requests.get(f"https://finance.naver.com/item/main.naver?code={code}", headers=UA, timeout=10).text
-    m = re.search(r"목표주가.*?<em[^>]*>\s*([\d,]+)\s*</em>", html, re.S)
-    return _num(m.group(1)) if m else None
+    """증권사 컨센서스 목표주가 — ① 네이버 모바일 API(JSON) ② PC 페이지(euc-kr) 순서로 시도"""
+    try:
+        j = requests.get(f"https://m.stock.naver.com/api/stock/{code}/integration", headers=UA, timeout=8).json()
+        v = _num(_find_key(j, {"priceTargetMean", "targetPrice", "goalPrice"}))
+        if v and v > 0:
+            return v
+    except Exception:
+        pass
+    raw = requests.get(f"https://finance.naver.com/item/main.naver?code={code}", headers=UA, timeout=8).content
+    html = raw.decode("euc-kr", "ignore")
+    seg = html[html.find("목표주가"):][:600] if "목표주가" in html else ""
+    nums = [_num(x) for x in re.findall(r"<em[^>]*>\s*([\d,]+)\s*</em>", seg)]
+    nums = [x for x in nums if x and x >= 100]  # 투자의견 점수(4.00 등) 제외
+    return nums[0] if nums else None
 
 
 POS_W = ["수주", "최대", "흑자", "상향", "호실적", "급증", "신고가", "계약", "승인", "돌파", "개선", "성장", "자사주"]
@@ -396,6 +463,51 @@ def naver_news_score(name):
         t = re.sub("<.*?>", "", it.get("title", "") + " " + it.get("description", ""))
         s += sum(w in t for w in POS_W) - sum(w in t for w in NEG_W)
     return _f(max(-1, min(1, s / max(5, len(items) / 2))), 2), len(items)
+
+
+def _n(x):
+    try:
+        return float(str(x).replace(",", "").replace("%", "").replace("+", "").strip())
+    except Exception:
+        return None
+
+
+def naver_flow(code):
+    """네이버 금융 외국인·기관 일별 순매매(주) + 외국인 보유율 — KRX 수급이 막혔을 때 대체"""
+    html = requests.get(f"https://finance.naver.com/item/frgn.naver?code={code}", headers=UA, timeout=8).content.decode("euc-kr", "ignore")
+    for t in pd.read_html(io.StringIO(html)):
+        cols = [" ".join(str(x) for x in c) if isinstance(c, tuple) else str(c) for c in t.columns]
+        if not (any("기관" in c for c in cols) and any("외국인" in c for c in cols)):
+            continue
+        t.columns = cols
+        c_date = cols[0]
+        c_close = next((c for c in cols if "종가" in c), None)
+        c_inst = next((c for c in cols if "기관" in c), None)
+        c_frgn = next((c for c in cols if "외국인" in c and "순매매" in c), None) or next((c for c in cols if "외국인" in c), None)
+        c_hold = next((c for c in cols if "보유율" in c), None)
+        t = t[t[c_date].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
+        if t.empty:
+            continue
+        t = t.iloc[::-1]  # 오래된 날짜 → 최근
+        close = [_n(x) for x in t[c_close]] if c_close else [None] * len(t)
+        return {"inst": [_n(x) for x in t[c_inst]], "frgn": [_n(x) for x in t[c_frgn]], "close": close,
+                "hold": _n(t[c_hold].iloc[-1]) if c_hold else None}
+    return None
+
+
+def pmap(fn, items, workers=8, label=""):
+    """병렬 실행 + 진행률 로그"""
+    out, n = {}, len(items)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(fn, it): it for it in items}
+        for i, f in enumerate(futs):
+            try:
+                out[futs[f]] = f.result(timeout=60)
+            except Exception:
+                out[futs[f]] = None
+            if label and (i + 1) % 100 == 0:
+                log(f"  {label} {i + 1}/{n}")
+    return out
 
 
 # ═════════════ 8. KIS 분봉 (선택) ═════════════
@@ -468,6 +580,7 @@ def main():
         s = {"code": code, "name": row["name"], "market": row["market"], "mcap": _f(row["mcap"], 0),
              "sector": sec_of.get(code, "기타")}
         s.update(tf)
+        s["is_fin"] = is_financial(s["sector"], s["name"])
         # 수급
         for inv, key in [("외국인", "foreign"), ("기관합계", "inst"), ("연기금", "pension")]:
             f = flows.get(inv)
@@ -488,13 +601,41 @@ def main():
             log(f"  일봉 {i}/{len(codes)}")
         time.sleep(0.05)
 
+    # 수급 대체: KRX 수급이 5일치 미만이면 네이버 금융에서 외국인·기관 가져오기
+    def _cols(inv):
+        f = flows.get(inv)
+        return 0 if f is None else f.shape[1]
+    if _cols("외국인") < 5 or _cols("기관합계") < 5:
+        log("KRX 수급 부족 → 네이버 금융 외국인·기관 순매매로 대체")
+        nf = pmap(naver_flow, [x["code"] for x in stocks], workers=6, label="네이버 수급")
+        ok = 0
+        for x in stocks:
+            r = nf.get(x["code"])
+            if not r:
+                continue
+            ok += 1
+            cl = r["close"]
+            for key, arr in [("foreign", r["frgn"]), ("inst", r["inst"])]:
+                vals = [v for v in arr if v is not None]
+                x[f"{key}_streak"] = streak(vals)
+                amt = [(v or 0) * (c or x["close"]) for v, c in zip(arr[-5:], cl[-5:])]
+                x[f"{key}_net5"] = _f(sum(amt) / 1e8, 1)
+            if r["hold"] is not None:
+                x["foreign_hold"] = _f(r["hold"])
+        log(f"네이버 수급 {ok}/{len(stocks)}종목")
+        FLOW_SRC["v"] = "naver" if ok else "none"
+
     # DART
     if DART_KEY:
+        log("DART 기업코드 조회")
         cmap = safe(dart_corp_map, default={}) or {}
         reps = latest_reports(asof)
         ccs = [cmap[s["code"]] for s in stocks if s["code"] in cmap]
+        log(f"DART 재무 조회 {len(ccs)}개사 · 보고서 {reps}")
         fin = [dart_multi(ccs, y, rc) for y, rc in reps]
+        log("DART 연간(ROE) 조회")
         annual = [dart_multi(ccs, y, "11011") for y in [asof.year - 1, asof.year - 2, asof.year - 3]]
+        log("DART 공시 조회")
         disc = dart_disclosures(asof)
         for s in stocks:
             cc = cmap.get(s["code"])
@@ -508,8 +649,9 @@ def main():
                 s["op_turn"] = bool(op and op_p is not None and op > 0 and op_p <= 0)
                 liab, eq = f0["liab"][0], f0["equity"][0]
                 ca, cl = f0["ca"][0], f0["cl"][0]
-                s["debt_ratio"] = _f(liab / eq * 100, 1) if liab and eq and eq > 0 else None
-                s["current_ratio"] = _f(ca / cl * 100, 1) if ca and cl else None
+                if not s.get("is_fin"):  # 금융업은 부채비율·유동비율 판정 제외
+                    s["debt_ratio"] = _f(liab / eq * 100, 1) if liab and eq and eq > 0 else None
+                    s["current_ratio"] = _f(ca / cl * 100, 1) if ca and cl else None
             s["profit_q"] = sum(1 for f in fin if f.get(cc) and (f[cc]["op"][0] or 0) > 0)
             roes = []
             for a in annual:
@@ -524,25 +666,31 @@ def main():
         # 후보만: 영업현금흐름
         cand = sorted(stocks, key=lambda x: (x.get("tech3", 0), x.get("foreign_streak", 0) + x.get("inst_streak", 0), x.get("tvalue", 0)), reverse=True)[:CAND_N]
         y, rc = reps[0]
-        for s in cand:
-            cc = cmap.get(s["code"])
-            if cc:
-                s["ocf"] = _f((safe(dart_ocf, cc, y, rc) or 0) / 1e8, 1) if cc else None
-                time.sleep(0.1)
+        log(f"영업현금흐름 조회 {len(cand)}종목")
+        ocf = pmap(lambda c: dart_ocf(cmap[c], y, rc), [x["code"] for x in cand if x["code"] in cmap], workers=4, label="영업현금흐름")
+        for x in cand:
+            v = ocf.get(x["code"])
+            if v is not None:
+                x["ocf"] = _f(v / 1e8, 1)
     else:
         log("DART_API_KEY 없음 → 실적·재무·공시 항목 비움")
         cand = sorted(stocks, key=lambda x: x.get("tvalue", 0), reverse=True)[:CAND_N]
 
     # 목표주가 / 뉴스 / 분봉 (후보만)
-    for s in cand:
-        tp = safe(naver_target, s["code"])
+    log(f"목표주가 조회 {len(cand)}종목")
+    tps = pmap(naver_target, [x["code"] for x in cand], workers=8, label="목표주가")
+    for x in cand:
+        tp = tps.get(x["code"])
         if tp:
-            s["target"] = tp
-            s["upside"] = _f((tp / s["close"] - 1) * 100, 1)
-        if NAVER_ID:
-            sc = safe(naver_news_score, s["name"], default=(None, 0))
-            s["news_score"], s["news_n"] = sc
-        time.sleep(0.2)
+            x["target"] = tp
+            x["upside"] = _f((tp / x["close"] - 1) * 100, 1)
+    if NAVER_ID:
+        log("뉴스 감정점수 조회")
+        ns = pmap(naver_news_score, [x["name"] for x in cand], workers=4)
+        for x in cand:
+            r = ns.get(x["name"])
+            if r:
+                x["news_score"], x["news_n"] = r
     kis_ok = False
     if KIS_KEY:
         tok = safe(kis_token)
@@ -556,7 +704,7 @@ def main():
     data = {
         "meta": {"asof": str(asof), "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "sample": False,
                  "universe": len(stocks), "candidates": len(cand), "dart": bool(DART_KEY), "news": bool(NAVER_ID),
-                 "kis": kis_ok, "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-15:]},
+                 "kis": kis_ok, "flow_src": FLOW_SRC["v"], "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-15:]},
         "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5),
         "sectors": sorted(sec_info, key=lambda x: -(x["rel5"] or -99)),
         "stocks": stocks,
