@@ -48,9 +48,34 @@ LOG = []
 FLOW_SRC = {"v": "krx"}
 
 
+T0 = time.time()
+BUDGET_MIN = float(os.getenv("BUDGET_MIN", "75"))  # 이 시간을 넘으면 선택 단계 건너뛰고 저장
+
+
 def log(msg):
+    msg = f"[{(time.time() - T0) / 60:5.1f}분] {msg}"
     print(msg, flush=True)
     LOG.append(msg)
+
+
+def over_budget(stage):
+    if (time.time() - T0) / 60 > BUDGET_MIN:
+        log(f"  ! 시간 예산 {BUDGET_MIN:.0f}분 초과 → '{stage}' 건너뜀")
+        return True
+    return False
+
+
+# 모든 HTTP 요청에 기본 시간 제한(연결 10초, 응답 30초) — pykrx 내부 요청 포함, 무한 대기 방지
+_orig_request = requests.Session.request
+
+
+def _request_with_timeout(self, method, url, **kw):
+    if kw.get("timeout") is None:
+        kw["timeout"] = (10, 30)
+    return _orig_request(self, method, url, **kw)
+
+
+requests.Session.request = _request_with_timeout
 
 
 def ymd(d):
@@ -495,18 +520,30 @@ def naver_flow(code):
     return None
 
 
-def pmap(fn, items, workers=8, label=""):
-    """병렬 실행 + 진행률 로그"""
-    out, n = {}, len(items)
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(fn, it): it for it in items}
-        for i, f in enumerate(futs):
+def pmap(fn, items, workers=8, label="", deadline_min=10):
+    """병렬 실행 + 진행률 로그. 전체 제한시간(deadline_min)이 지나면 남은 작업은 버리고 진행."""
+    from concurrent.futures import wait, FIRST_COMPLETED
+    out, n, done_n = {}, len(items), 0
+    end = time.time() + deadline_min * 60
+    ex = ThreadPoolExecutor(max_workers=workers)
+    futs = {ex.submit(fn, it): it for it in items}
+    pending = set(futs)
+    while pending and time.time() < end:
+        done, pending = wait(pending, timeout=min(15, max(1, end - time.time())), return_when=FIRST_COMPLETED)
+        for f in done:
             try:
-                out[futs[f]] = f.result(timeout=60)
+                out[futs[f]] = f.result()
             except Exception:
                 out[futs[f]] = None
-            if label and (i + 1) % 100 == 0:
-                log(f"  {label} {i + 1}/{n}")
+            done_n += 1
+            if label and done_n % 50 == 0:
+                log(f"  {label} {done_n}/{n}")
+    if pending:
+        log(f"  ! {label or '병렬조회'} 제한시간 {deadline_min}분 초과 → 남은 {len(pending)}건 건너뜀")
+    ex.shutdown(wait=False, cancel_futures=True)
+    if label:
+        ok = sum(1 for v in out.values() if v not in (None, (None, 0)))
+        log(f"  {label} 완료 {ok}/{n}")
     return out
 
 
@@ -607,7 +644,7 @@ def main():
         return 0 if f is None else f.shape[1]
     if _cols("외국인") < 5 or _cols("기관합계") < 5:
         log("KRX 수급 부족 → 네이버 금융 외국인·기관 순매매로 대체")
-        nf = pmap(naver_flow, [x["code"] for x in stocks], workers=6, label="네이버 수급")
+        nf = pmap(naver_flow, [x["code"] for x in stocks], workers=6, label="네이버 수급", deadline_min=10)
         ok = 0
         for x in stocks:
             r = nf.get(x["code"])
@@ -667,7 +704,7 @@ def main():
         cand = sorted(stocks, key=lambda x: (x.get("tech3", 0), x.get("foreign_streak", 0) + x.get("inst_streak", 0), x.get("tvalue", 0)), reverse=True)[:CAND_N]
         y, rc = reps[0]
         log(f"영업현금흐름 조회 {len(cand)}종목")
-        ocf = pmap(lambda c: dart_ocf(cmap[c], y, rc), [x["code"] for x in cand if x["code"] in cmap], workers=4, label="영업현금흐름")
+        ocf = pmap(lambda c: dart_ocf(cmap[c], y, rc), [x["code"] for x in cand if x["code"] in cmap], workers=4, label="영업현금흐름", deadline_min=8)
         for x in cand:
             v = ocf.get(x["code"])
             if v is not None:
@@ -676,23 +713,40 @@ def main():
         log("DART_API_KEY 없음 → 실적·재무·공시 항목 비움")
         cand = sorted(stocks, key=lambda x: x.get("tvalue", 0), reverse=True)[:CAND_N]
 
+    def save(stage):
+        data = {
+            "meta": {"asof": str(asof), "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "sample": False,
+                     "universe": len(stocks), "candidates": len(cand), "dart": bool(DART_KEY), "news": bool(NAVER_ID),
+                     "kis": kis_ok, "flow_src": FLOW_SRC["v"], "stage": stage,
+                     "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-25:]},
+            "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5),
+            "sectors": sorted(sec_info, key=lambda x: -(x["rel5"] or -99)),
+            "stocks": stocks,
+        }
+        os.makedirs(os.path.dirname(OUT), exist_ok=True)
+        with open(OUT, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+        log(f"저장 ({stage}) {os.path.getsize(OUT) / 1e6:.1f}MB")
+
+    kis_ok = False
+    save("핵심 데이터")  # 이후 단계가 멈춰도 여기까지는 반영됨
+
     # 목표주가 / 뉴스 / 분봉 (후보만)
     log(f"목표주가 조회 {len(cand)}종목")
-    tps = pmap(naver_target, [x["code"] for x in cand], workers=8, label="목표주가")
+    tps = {} if over_budget("목표주가") else pmap(naver_target, [x["code"] for x in cand], workers=8, label="목표주가", deadline_min=8)
     for x in cand:
         tp = tps.get(x["code"])
         if tp:
             x["target"] = tp
             x["upside"] = _f((tp / x["close"] - 1) * 100, 1)
-    if NAVER_ID:
+    if NAVER_ID and not over_budget("뉴스"):
         log("뉴스 감정점수 조회")
-        ns = pmap(naver_news_score, [x["name"] for x in cand], workers=4)
+        ns = pmap(naver_news_score, [x["name"] for x in cand], workers=4, label="뉴스", deadline_min=5)
         for x in cand:
             r = ns.get(x["name"])
             if r:
                 x["news_score"], x["news_n"] = r
-    kis_ok = False
-    if KIS_KEY:
+    if KIS_KEY and not over_budget("분봉"):
         tok = safe(kis_token)
         if tok:
             kis_ok = True
@@ -701,19 +755,10 @@ def main():
                 if it:
                     s.update(it)
 
-    data = {
-        "meta": {"asof": str(asof), "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "sample": False,
-                 "universe": len(stocks), "candidates": len(cand), "dart": bool(DART_KEY), "news": bool(NAVER_ID),
-                 "kis": kis_ok, "flow_src": FLOW_SRC["v"], "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-15:]},
-        "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5),
-        "sectors": sorted(sec_info, key=lambda x: -(x["rel5"] or -99)),
-        "stocks": stocks,
-    }
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
-    log(f"저장 완료 {OUT} ({os.path.getsize(OUT) / 1e6:.1f}MB, {data['meta']['elapsed_min']}분)")
+    save("완료")
 
 
 if __name__ == "__main__":
     main()
+    sys.stdout.flush()
+    os._exit(0)  # 제한시간으로 버린 백그라운드 요청이 남아 있어도 바로 종료
