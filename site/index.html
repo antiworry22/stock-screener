@@ -19,6 +19,8 @@
     </div>
   </div>
   <div class="top-ctrl">
+    <input id="topSearch" class="inp top-search" list="stockNames" placeholder="종목 검색 (이름·코드)" autocomplete="off" aria-label="종목 검색">
+    <datalist id="stockNames"></datalist>
     <label class="mode">모드
       <select id="modeSel"></select>
     </label>
@@ -32,7 +34,9 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="analysis">종목 분석</button>
   <button data-tab="rec">추천 종목</button>
+  <button data-tab="pattern">차트 패턴</button>
   <button data-tab="news">뉴스·호재</button>
   <button data-tab="search">조건검색</button>
   <button data-tab="all">전체 종목</button>
@@ -70,6 +74,17 @@
   </div>
 </section>
 
+<!-- ═══ 종목 분석 ═══ -->
+<section id="tab-analysis" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종목 분석</h2><span class="hint">종목 이름이나 코드를 넣으면 지금 상태를 쉬운 말로 정리해 드려요</span></div>
+    <div class="nlq-row"><input id="anInput" class="inp" list="stockNames" placeholder="예) 삼성전자, 005930, 하이닉스" autocomplete="off"><button class="btn primary" id="anGo">분석하기</button></div>
+    <div id="anHist" class="chips mt"></div>
+  </div>
+  <div class="panel" id="anOut"><div class="empty">위에 종목 이름이나 6자리 코드를 입력하세요. 화면 오른쪽 위 검색창에서도 바로 찾을 수 있어요.</div></div>
+  <div class="panel note">분석은 공개 데이터를 정해진 규칙으로 정리한 참고 자료이며 매수·매도 권유가 아닙니다.</div>
+</section>
+
 <!-- ═══ 추천 종목 ═══ -->
 <section id="tab-rec" class="tab">
   <div class="panel">
@@ -84,6 +99,25 @@
     <div id="recList" class="rec-grid mt"></div>
   </div>
   <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
+</section>
+
+<!-- ═══ 차트 패턴 ═══ -->
+<section id="tab-pattern" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>차트 패턴 찾기</h2>
+      <div class="row gap wrap">
+        <label class="small">패턴 <select id="patType"></select></label>
+        <label class="small">시장 <select id="patMarket"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
+        <label class="small"><input type="checkbox" id="patFund" checked> 실적 좋은 회사만</label>
+        <label class="small"><input type="checkbox" id="patNear"> 거의 다 온 종목도 보기</label>
+      </div>
+    </div>
+    <p class="hint" id="patDesc"></p>
+    <p class="hint">그림 보는 법: <span class="lg lg-c"></span>주가 · <span class="lg lg-m"></span>1달 평균선 · <span class="lg lg-z"></span>버틴 구간(눌림목·박스) · <span class="lg lg-p"></span>고점 · <span class="lg lg-l"></span>저점 · <span class="lg lg-t"></span>오늘(신호 켜짐). 최근 약 6개월(120거래일) 기준. "실적 좋은 회사" = 영업이익 증가(또는 흑자 전환) + 실적 점수 55↑ + 최근 4분기 중 3분기↑ 흑자.</p>
+    <div class="hint" id="patMeta"></div>
+    <div id="patList" class="rec-grid mt"></div>
+  </div>
+  <div class="panel note">패턴은 과거 가격 모양을 규칙으로 찾은 것이며 앞으로의 상승을 보장하지 않습니다. 꿈틀 신호 뒤 다시 버틴 구간 아래로 내려가면 손절 기준으로 삼는 것이 일반적입니다.</div>
 </section>
 
 <!-- ═══ 뉴스·호재 ═══ -->
@@ -264,6 +298,8 @@
 
 <script src="assets/nlq.js"></script>
 <script src="assets/extra.js"></script>
+<script src="assets/pattern.js"></script>
+<script src="assets/analysis.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
