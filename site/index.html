@@ -22,6 +22,7 @@
     <label class="mode">모드
       <select id="modeSel"></select>
     </label>
+    <button class="btn ghost small" id="easyBtn" title="표 머리글을 쉬운 말로 바꿉니다">쉬운 말 켜짐</button>
     <button class="btn ghost small" id="themeBtn" title="화면 테마 전환">다크/라이트</button>
   </div>
 </header>
@@ -31,6 +32,8 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="rec">추천 종목</button>
+  <button data-tab="news">뉴스·호재</button>
   <button data-tab="search">조건검색</button>
   <button data-tab="all">전체 종목</button>
   <button data-tab="sector">섹터·미국장</button>
@@ -43,6 +46,10 @@
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
   <div class="cards" id="macroCards"></div>
+  <div class="panel">
+    <div class="ph"><h2>오늘의 추천 TOP 5</h2><span class="row gap"><span class="hint">모든 항목을 종합해 좋은 점이 가장 많은 종목</span><button class="btn ghost small" id="recGo">전체 추천 보기 →</button></span></div>
+    <div id="recDash" class="rec-grid"></div>
+  </div>
   <div class="grid3">
     <div class="panel">
       <div class="ph"><h2>수급 조합 TOP <span class="topN"></span></h2><span class="hint">외국인·기관·연기금 동반 + 종합점수</span></div>
@@ -63,6 +70,34 @@
   </div>
 </section>
 
+<!-- ═══ 추천 종목 ═══ -->
+<section id="tab-rec" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종합 추천 종목</h2>
+      <div class="row gap wrap">
+        <label class="small">시장 <select id="recMarket"><option value="all">전체</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
+        <label class="small">개수 <select id="recN"><option>10</option><option selected>20</option><option>30</option><option>50</option></select></label>
+      </div>
+    </div>
+    <p class="hint">추천점수 = 종합점수(55%) + 14개 판정 항목 중 좋은 항목 비율(45%) + 큰손 매수·차트 동시 양호 가점 − 과열·급등·주의 사항 감점. 매수 금지 종목과 데이터가 부족한 종목은 빼고, 위쪽 <b>모드</b>를 바꾸면 순위도 바뀝니다.</p>
+    <div class="hint" id="recMeta"></div>
+    <div id="recList" class="rec-grid mt"></div>
+  </div>
+  <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
+</section>
+
+<!-- ═══ 뉴스·호재 ═══ -->
+<section id="tab-news" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종목별 뉴스·호재 모아보기</h2>
+      <label class="small">보기 <select id="newsMode"><option value="good">호재·긍정 뉴스</option><option value="all">전체</option><option value="bad">악재·부정 뉴스</option></select></label>
+    </div>
+    <p class="hint">최근 7일 기사 제목(구글 뉴스)과 최근 30일 공시(DART)를 모아 긍정·부정으로 분류했습니다. 종목을 누르면 기사 목록과 원문 링크, 요약을 볼 수 있습니다.</p>
+    <div class="hint" id="newsMeta"></div>
+    <div id="newsList" class="rec-grid mt"></div>
+  </div>
+</section>
+
 <!-- ═══ 조건검색 ═══ -->
 <section id="tab-search" class="tab">
   <div class="panel">
@@ -72,8 +107,17 @@
         <label class="seg"><input type="radio" name="logic" value="OR"><span>하나라도(OR)</span></label>
       </div>
     </div>
+    <div class="nlq">
+      <label for="nlqInput" class="lbl">문장으로 검색</label>
+      <div class="nlq-row">
+        <textarea id="nlqInput" class="inp" rows="2" placeholder="예) 외국인 5일 연속 순매수, RSI 40 이하, 시총 1조 이상 반도체, 상위 20개"></textarea>
+        <button class="btn primary" id="nlqRun">문장 검색</button>
+      </div>
+      <div class="chips nlq-ex" id="nlqEx"></div>
+      <div id="nlqResult" class="nlq-result"></div>
+    </div>
     <div class="presets">
-      <span class="lbl">빠른 조건</span>
+      <span class="lbl">빠른 조건<br><small id="presetCount" class="hint"></small></span>
       <div id="presetBox" class="chips"></div>
     </div>
     <div id="condRows"></div>
@@ -106,6 +150,7 @@
     <div class="print-only" id="printHead"></div>
     <div id="condSummary" class="cond-summary"></div>
     <div class="table-wrap"><table class="tbl" id="resTable"></table></div>
+    <details class="gloss-box no-print"><summary>표에 나오는 용어 쉽게 보기</summary><div id="glossSearch"></div></details>
   </div>
 </section>
 
@@ -115,6 +160,7 @@
     <div class="ph"><h2>전체 종목 점수표</h2>
       <div class="row gap"><input id="allQ" class="inp" placeholder="종목명·코드·섹터 검색"><button class="btn ghost small" id="allCsv">CSV</button></div>
     </div>
+    <details class="gloss-box"><summary>표에 나오는 용어 쉽게 보기</summary><div id="glossAll"></div></details>
     <div class="table-wrap"><table class="tbl" id="allTable"></table></div>
   </div>
 </section>
@@ -188,6 +234,10 @@
     <div class="table-wrap"><table class="tbl guide" id="guideTable"></table></div>
   </div>
   <div class="panel">
+    <div class="ph"><h2>용어 쉽게 보기</h2></div>
+    <div id="glossGuide"></div>
+  </div>
+  <div class="panel">
     <div class="ph"><h2>매일 처리 흐름</h2></div>
     <ol class="flow">
       <li><b>미장 종가</b> → 섹터별 미국장 충격 가중치 적용 (매핑표)</li>
@@ -212,6 +262,8 @@
   </div>
 </div>
 
+<script src="assets/nlq.js"></script>
+<script src="assets/extra.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
