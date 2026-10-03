@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>매매 참고 스크리너</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/chart.umd.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="logo">▲▼</div>
+    <div>
+      <h1>매매 참고 스크리너</h1>
+      <div class="sub" id="asofLine">데이터 불러오는 중…</div>
+    </div>
+  </div>
+  <div class="top-ctrl">
+    <label class="mode">모드
+      <select id="modeSel"></select>
+    </label>
+    <button class="btn ghost small" id="easyBtn" title="표 머리글을 쉬운 말로 바꿉니다">쉬운 말 켜짐</button>
+    <button class="btn ghost small" id="themeBtn" title="화면 테마 전환">다크/라이트</button>
+  </div>
+</header>
+
+<div id="sampleBanner" class="banner warn hidden">샘플 데이터(가상 종목)로 표시 중입니다. 실제 시세는 파이프라인(collect.py) 실행 후 반영됩니다.</div>
+<div id="gateBanner" class="banner hidden"></div>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="rec">추천 종목</button>
+  <button data-tab="news">뉴스·호재</button>
+  <button data-tab="search">조건검색</button>
+  <button data-tab="all">전체 종목</button>
+  <button data-tab="sector">섹터·미국장</button>
+  <button data-tab="bt">백테스트</button>
+  <button data-tab="settings">설정</button>
+  <button data-tab="guide">판정 기준</button>
+</nav>
+
+<main>
+<!-- ═══ 대시보드 ═══ -->
+<section id="tab-dash" class="tab on">
+  <div class="cards" id="macroCards"></div>
+  <div class="panel">
+    <div class="ph"><h2>오늘의 추천 TOP 5</h2><span class="row gap"><span class="hint">모든 항목을 종합해 좋은 점이 가장 많은 종목</span><button class="btn ghost small" id="recGo">전체 추천 보기 →</button></span></div>
+    <div id="recDash" class="rec-grid"></div>
+  </div>
+  <div class="grid3">
+    <div class="panel">
+      <div class="ph"><h2>수급 조합 TOP <span class="topN"></span></h2><span class="hint">외국인·기관·연기금 동반 + 종합점수</span></div>
+      <div id="listSupply"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>진입 화이트리스트 + 손절가</h2><span class="hint" id="wlHint"></span></div>
+      <div id="listWhite"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>매수 금지 List</h2><span class="hint">수급 이탈·악재·저항</span></div>
+      <div id="listBan"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
+    <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 추천 종목 ═══ -->
+<section id="tab-rec" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종합 추천 종목</h2>
+      <div class="row gap wrap">
+        <label class="small">시장 <select id="recMarket"><option value="all">전체</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
+        <label class="small">개수 <select id="recN"><option>10</option><option selected>20</option><option>30</option><option>50</option></select></label>
+      </div>
+    </div>
+    <p class="hint">추천점수 = 종합점수(55%) + 14개 판정 항목 중 좋은 항목 비율(45%) + 큰손 매수·차트 동시 양호 가점 − 과열·급등·주의 사항 감점. 매수 금지 종목과 데이터가 부족한 종목은 빼고, 위쪽 <b>모드</b>를 바꾸면 순위도 바뀝니다.</p>
+    <div class="hint" id="recMeta"></div>
+    <div id="recList" class="rec-grid mt"></div>
+  </div>
+  <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
+</section>
+
+<!-- ═══ 뉴스·호재 ═══ -->
+<section id="tab-news" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종목별 뉴스·호재 모아보기</h2>
+      <label class="small">보기 <select id="newsMode"><option value="good">호재·긍정 뉴스</option><option value="all">전체</option><option value="bad">악재·부정 뉴스</option></select></label>
+    </div>
+    <p class="hint">최근 7일 기사 제목(구글 뉴스)과 최근 30일 공시(DART)를 모아 긍정·부정으로 분류했습니다. 종목을 누르면 기사 목록과 원문 링크, 요약을 볼 수 있습니다.</p>
+    <div class="hint" id="newsMeta"></div>
+    <div id="newsList" class="rec-grid mt"></div>
+  </div>
+</section>
+
+<!-- ═══ 조건검색 ═══ -->
+<section id="tab-search" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>조건 입력</h2>
+      <div class="row gap">
+        <label class="seg"><input type="radio" name="logic" value="AND" checked><span>모두 만족(AND)</span></label>
+        <label class="seg"><input type="radio" name="logic" value="OR"><span>하나라도(OR)</span></label>
+      </div>
+    </div>
+    <div class="nlq">
+      <label for="nlqInput" class="lbl">문장으로 검색</label>
+      <div class="nlq-row">
+        <textarea id="nlqInput" class="inp" rows="2" placeholder="예) 외국인 5일 연속 순매수, RSI 40 이하, 시총 1조 이상 반도체, 상위 20개"></textarea>
+        <button class="btn primary" id="nlqRun">문장 검색</button>
+      </div>
+      <div class="chips nlq-ex" id="nlqEx"></div>
+      <div id="nlqResult" class="nlq-result"></div>
+    </div>
+    <div class="presets">
+      <span class="lbl">빠른 조건<br><small id="presetCount" class="hint"></small></span>
+      <div id="presetBox" class="chips"></div>
+    </div>
+    <div id="condRows"></div>
+    <div class="row gap wrap mt">
+      <button class="btn" id="addCond">+ 조건 추가</button>
+      <button class="btn ghost" id="clearCond">초기화</button>
+      <span class="grow"></span>
+      <label class="small">정렬
+        <select id="sortSel"></select>
+      </label>
+      <label class="small">최대
+        <select id="limitSel"><option>20</option><option selected>50</option><option>100</option><option value="9999">전체</option></select>
+      </label>
+      <button class="btn primary" id="runSearch">검색 실행</button>
+    </div>
+    <div class="row gap wrap mt saved">
+      <span class="lbl">저장한 조건</span>
+      <div id="savedBox" class="chips"></div>
+      <button class="btn ghost small" id="saveCond">현재 조건 저장</button>
+    </div>
+  </div>
+
+  <div class="panel printable" id="resultPanel">
+    <div class="ph"><h2>검색 결과 <span id="resCount" class="pill"></span></h2>
+      <div class="row gap no-print">
+        <button class="btn ghost small" id="csvBtn">CSV(엑셀) 받기</button>
+        <button class="btn ghost small" id="printBtn">리포트 인쇄/PDF</button>
+      </div>
+    </div>
+    <div class="print-only" id="printHead"></div>
+    <div id="condSummary" class="cond-summary"></div>
+    <div class="table-wrap"><table class="tbl" id="resTable"></table></div>
+    <details class="gloss-box no-print"><summary>표에 나오는 용어 쉽게 보기</summary><div id="glossSearch"></div></details>
+  </div>
+</section>
+
+<!-- ═══ 전체 ═══ -->
+<section id="tab-all" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>전체 종목 점수표</h2>
+      <div class="row gap"><input id="allQ" class="inp" placeholder="종목명·코드·섹터 검색"><button class="btn ghost small" id="allCsv">CSV</button></div>
+    </div>
+    <details class="gloss-box"><summary>표에 나오는 용어 쉽게 보기</summary><div id="glossAll"></div></details>
+    <div class="table-wrap"><table class="tbl" id="allTable"></table></div>
+  </div>
+</section>
+
+<!-- ═══ 섹터·미국장 ═══ -->
+<section id="tab-sector" class="tab">
+  <div class="grid2">
+    <div class="panel">
+      <div class="ph"><h2>업종 상대강도 · 미국장 영향</h2><span class="hint">Σ(beta × 전일 미국 지표 수익률)</span></div>
+      <div class="table-wrap"><table class="tbl" id="secTable"></table></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>섹터별 US 지표 매핑표 (상수)</h2><span class="hint">config/us_sector_map.json</span></div>
+      <div class="table-wrap"><table class="tbl" id="mapTable"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 백테스트 ═══ -->
+<section id="tab-bt" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>백테스트 (과거 시점화 적용)</h2><span class="hint" id="btMeta"></span></div>
+    <div class="cards" id="btCards"></div>
+    <div class="chart-box"><canvas id="btChart"></canvas></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="ph"><h2>월별 수익률</h2></div><div id="btMonthly" class="monthly"></div></div>
+    <div class="panel"><div class="ph"><h2>최근 거래</h2></div><div class="table-wrap"><table class="tbl" id="btTrades"></table></div></div>
+  </div>
+  <div class="panel note">백테스트는 가격·수급 기반 항목만 과거 시점으로 재현합니다(컨센서스·뉴스·공시·재무는 중립 처리). 현재 상장 종목만으로 유니버스를 만들어 생존편향이 있으므로 실제 성과는 이보다 낮을 수 있습니다. 갱신: <code>python pipeline/backtest.py</code></div>
+</section>
+
+<!-- ═══ 설정 ═══ -->
+<section id="tab-settings" class="tab">
+  <div class="grid2">
+    <div class="panel">
+      <div class="ph"><h2>종합점수 가중치</h2><span class="hint">합계 <b id="wSum"></b></span></div>
+      <div id="weightBox"></div>
+      <div class="row gap wrap mt">
+        <button class="btn" id="saveMode">이 가중치를 '사용자' 모드로 저장</button>
+        <button class="btn ghost" id="dlCfg">weights.json 내려받기</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>리스크 관리 (손절·포지션)</h2></div>
+      <div class="form">
+        <label>운용 자본 (원)<input class="inp" id="capital" type="number" step="1000000"></label>
+        <label>1회 손실 허용 (자본의 %)<input class="inp" id="riskPct" type="number" step="0.5" min="0.5" max="5"></label>
+        <label>손절 ATR 배수<input class="inp" id="atrMult" type="number" step="0.5" min="1" max="4"></label>
+        <label>화이트리스트 최소 종합점수<input class="inp" id="wlMin" type="number" step="5" min="0" max="100"></label>
+      </div>
+      <p class="hint">손절가 = 진입가 − ATR × 배수 · 수량 = (자본 × 허용%) ÷ (진입가 − 손절가)</p>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>판정 기준값</h2><span class="hint">바꾸면 점수·목록·조건검색에 즉시 반영</span></div>
+    <div id="thBox" class="form grid-th"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>데이터 파일</h2></div>
+    <p class="hint">PC에서 <code>collect.py</code>를 돌려 만든 <code>latest.json</code>을 직접 불러올 수 있습니다(브라우저에서만 적용, 서버 업로드 없음).</p>
+    <div class="row gap wrap"><input type="file" id="dataFile" accept=".json"><button class="btn ghost" id="reloadData">배포된 데이터로 되돌리기</button></div>
+    <div id="dataInfo" class="hint mt"></div>
+  </div>
+</section>
+
+<!-- ═══ 판정 기준 ═══ -->
+<section id="tab-guide" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>항목별 판정 기준 · 데이터 소스 · 반영 위치</h2></div>
+    <div class="table-wrap"><table class="tbl guide" id="guideTable"></table></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>용어 쉽게 보기</h2></div>
+    <div id="glossGuide"></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h2>매일 처리 흐름</h2></div>
+    <ol class="flow">
+      <li><b>미장 종가</b> → 섹터별 미국장 충격 가중치 적용 (매핑표)</li>
+      <li><b>매크로 게이트</b> → 원/달러·미 금리·나스닥 급변 시 전체 점수 감산</li>
+      <li><b>전 종목 필터링</b> → 시총·거래대금 하한, 스팩·우선주 제외, 수정주가(adjusted)</li>
+      <li><b>지표 계산</b> → RSI·MACD·볼린저·이동평균·52주 위치·거래량·ATR</li>
+      <li><b>수급 계산</b> → 외국인·기관·연기금 연속 순매수, 한도소진율, 공매도 잔고, 국민연금 5% 공시</li>
+      <li><b>실적·뉴스</b> → 최근 분기 YoY, 30일 공시 분류, 뉴스 감정점수, 목표주가 상승여력</li>
+      <li><b>종합 점수</b> → 지표·수급·실적/호재·섹터/미국장·안정성 가중합 (설정파일)</li>
+      <li><b>출력</b> → 수급 조합 TOP · 진입 화이트리스트+손절가 · 매수 금지 List · 조건검색</li>
+    </ol>
+  </div>
+  <div class="panel note">이 화면은 공개 데이터를 규칙대로 정리한 참고 자료이며 매매 권유가 아닙니다. 최종 판단과 책임은 이용자에게 있습니다.</div>
+</section>
+</main>
+
+<!-- 종목 상세 -->
+<div class="modal hidden" id="modal">
+  <div class="modal-card">
+    <button class="x" id="modalX">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="assets/nlq.js"></script>
+<script src="assets/extra.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
