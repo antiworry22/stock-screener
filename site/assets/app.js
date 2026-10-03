@@ -46,7 +46,7 @@ async function boot() {
   S.capital = saved.capital || 30000000;
   S.conds = store.get('conds', []);
   S.logic = store.get('logic', 'AND');
-  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable();
+  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra();
   refresh();
   if (S.conds.length) runSearch();
 }
@@ -120,7 +120,7 @@ function riskCalc(s, entry) {
 function refresh() {
   S.data.stocks.forEach(s => { s._sc = scoreStock(s); s._ban = banReasons(s); });
   const wl = new Set(whitelist()); S.data.stocks.forEach(s => { s._white = wl.has(s); });
-  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide();
+  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews();
   if (S.lastResult.length || S.conds.length) runSearch(true);
 }
 
@@ -273,12 +273,20 @@ const PRESETS = () => {
 
 function initSearch() {
   const box = $('#presetBox');
-  const draw = () => { box.innerHTML = PRESETS().map((p, i) => `<button class="chip" data-p="${i}">${p[0]}</button>`).join(''); };
-  draw();
-  box.onclick = e => { const b = e.target.closest('[data-p]'); if (!b) return; const p = PRESETS()[+b.dataset.p];
-    S.conds = p[1].map(c => ({ f: c[0], op: c[1], v: c[2], v2: c[3] })); drawConds(); runSearch(); };
+  drawPresets();
+  box.onclick = e => {
+    const b = e.target.closest('[data-p]'); if (!b) return;
+    const i = +b.dataset.p, tag = 'p' + i;
+    if (S.conds.some(c => c.src === tag)) {
+      S.conds = S.conds.filter(c => c.src !== tag);  // 다시 누르면 해제
+    } else {
+      PRESETS()[i][1].forEach(c => S.conds.push({ f: c[0], op: c[1], v: c[2], v2: c[3], src: tag }));  // 누를 때마다 추가(중복 선택)
+    }
+    drawConds(); runSearch();
+  };
   $('#addCond').onclick = () => { S.conds.push({ f: 'total', op: '>=', v: 60 }); drawConds(); };
-  $('#clearCond').onclick = () => { S.conds = []; drawConds(); runSearch(); };
+  $('#clearCond').onclick = () => { S.conds = []; $('#nlqResult').innerHTML = ''; drawConds(); runSearch(); };
+  initNlq();
   $('#runSearch').onclick = () => runSearch();
   $$('input[name=logic]').forEach(r => { r.checked = r.value === S.logic; r.onchange = () => { S.logic = r.value; store.set('logic', S.logic); }; });
   const sortOpts = F.filter(f => f[3] === 'num');
@@ -295,6 +303,12 @@ function initSearch() {
     const sv = store.get('saved', []); sv.push({ name, conds: S.conds, logic: S.logic }); store.set('saved', sv); drawSaved();
   };
   drawSaved(); drawConds();
+}
+function drawPresets() {
+  const on = new Set(S.conds.map(c => c.src).filter(Boolean));
+  $('#presetBox').innerHTML = PRESETS().map((p, i) => `<button class="chip ${on.has('p' + i) ? 'on' : ''}" data-p="${i}">${on.has('p' + i) ? '✓ ' : ''}${p[0]}</button>`).join('');
+  const n = on.size;
+  $('#presetCount').textContent = n ? `${n}개 선택됨 · 다시 누르면 해제` : '여러 개 눌러 겹쳐 쓸 수 있어요';
 }
 function drawSaved() {
   const sv = store.get('saved', []);
@@ -317,6 +331,7 @@ function enumOpts(fd) {
 }
 function drawConds() {
   store.set('conds', S.conds);
+  if ($('#presetBox')) drawPresets();
   const wrap = $('#condRows');
   if (!S.conds.length) { wrap.innerHTML = '<div class="empty">빠른 조건을 누르거나 “+ 조건 추가”로 직접 조건을 만드세요. 예) 외국인 연속 순매수일 ≥ 3 그리고 RSI ≤ 40</div>'; return; }
   wrap.innerHTML = S.conds.map((c, i) => {
@@ -330,8 +345,10 @@ function drawConds() {
       ops = [['is', '해당']];
       val = `<select class="v"><option value="true" ${c.v !== false && c.v !== 'false' ? 'selected' : ''}>예</option><option value="false" ${c.v === false || c.v === 'false' ? 'selected' : ''}>아니오</option></select><span></span>`;
     } else {
-      ops = [['is', '같음'], ['not', '제외']];
-      val = `<select class="v">${enumOpts(fd).map(o => `<option ${o === c.v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select><span></span>`;
+      ops = [['is', '같음'], ['not', '제외'], ['has', '포함']];
+      val = c.op === 'has'
+        ? `<input class="inp v" type="text" value="${esc(c.v ?? '')}" placeholder="예) 전기|제약"><span class="unit">글자 포함</span>`
+        : `<select class="v">${enumOpts(fd).map(o => `<option ${o === c.v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select><span></span>`;
     }
     return `<div class="cond" data-i="${i}"><span class="no">${i + 1}</span>
       <select class="f">${fieldOptions(c.f)}</select>
@@ -352,7 +369,10 @@ function test(s, c) {
   const x = fd.get(s);
   if (x == null) return false;  // 데이터 없는 종목(예: 컨센서스 부재)은 제외
   if (fd.type === 'bool') return !!x === (c.v === true || c.v === 'true');
-  if (fd.type === 'enum') return c.op === 'not' ? x !== c.v : x === c.v;
+  if (fd.type === 'enum') {
+    if (c.op === 'has') return String(c.v || '').split('|').filter(Boolean).some(t => String(x).includes(t));
+    return c.op === 'not' ? x !== c.v : x === c.v;
+  }
   if (c.v === '' || c.v == null) return true;
   switch (c.op) {
     case '>=': return x >= c.v; case '<=': return x <= c.v; case '>': return x > c.v; case '<': return x < c.v;
@@ -363,7 +383,8 @@ function test(s, c) {
 }
 function condText(c) {
   const fd = FM[c.f]; if (!fd) return '';
-  const opT = { '>=': '≥', '<=': '≤', '>': '>', '<': '<', '=': '=', is: '=', not: '≠' }[c.op];
+  const opT = { '>=': '≥', '<=': '≤', '>': '>', '<': '<', '=': '=', is: '=', not: '≠', has: '포함' }[c.op];
+  if (c.op === 'has') return `${fd.label}: ${String(c.v).split('|').join(' 또는 ')} 포함`;
   if (fd.type === 'bool') return `${fd.label} ${c.v === true || c.v === 'true' ? '예' : '아니오'}`;
   if (c.op === 'between') return `${fd.label} ${c.v}~${c.v2}${fd.unit}`;
   return `${fd.label} ${opT} ${c.v}${fd.type === 'num' ? fd.unit : ''}`;
@@ -390,7 +411,7 @@ function drawResultTable(res, extra, hasCond) {
   if (!res.length) { t.innerHTML = '<tbody><tr><td class="l empty">조건에 부합하는 종목이 없습니다. 기준을 조금 완화해 보세요.</td></tr></tbody>'; return; }
   const cols = [['name', '종목', 'l'], ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
     ...extra.map(k => [k, FM[k].label.replace(/^[①-⑭+] /, '')]), ['stop', '손절가'], ['qty', '수량']];
-  t.innerHTML = `<thead><tr>${cols.map(c => `<th class="${c[2] || ''} ${S.resSort?.key === c[0] ? 'sorted' + (S.resSort.asc ? ' asc' : '') : ''}" data-k="${c[0]}">${esc(c[1])}</th>`).join('')}</tr></thead>
+  t.innerHTML = `<thead><tr>${cols.map(c => thHtml(c, S.resSort)).join('')}</tr></thead>
   <tbody>${res.map(s => { const r = riskCalc(s); return `<tr data-code="${esc(s.code)}">${cols.map(c => `<td class="${c[2] || ''}">${cellVal(s, c[0], r)}</td>`).join('')}</tr>`; }).join('')}</tbody>`;
   $$('th', t).forEach(th => th.onclick = () => { const k = th.dataset.k; if (['name', 'sector', 'stop', 'qty'].includes(k)) return;
     S.resSort = { key: k, asc: S.resSort?.key === k ? !S.resSort.asc : false }; runSearch(true); });
@@ -449,7 +470,7 @@ function renderAll() {
   const cols = [['name', '종목', 'l'], ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
     ['vol_ratio', '거래량배수'], ['rsi', 'RSI'], ['tech3', '3종'], ['pos52', '52주위치'], ['foreign_streak', '외국인'], ['inst_streak', '기관'], ['op_yoy', '영업익YoY'], ['upside', '상승여력']];
   const t = $('#allTable');
-  t.innerHTML = `<thead><tr>${cols.map(c => `<th class="${c[2] || ''} ${S.allSort.key === c[0] ? 'sorted' + (S.allSort.asc ? ' asc' : '') : ''}" data-k="${c[0]}">${c[1]}</th>`).join('')}</tr></thead>
+  t.innerHTML = `<thead><tr>${cols.map(c => thHtml(c, S.allSort)).join('')}</tr></thead>
     <tbody>${rows.map(s => { const r = riskCalc(s); return `<tr data-code="${esc(s.code)}">${cols.map(c => `<td class="${c[2] || ''}">${cellVal(s, c[0], r)}</td>`).join('')}</tr>`; }).join('')}</tbody>`;
   $$('th', t).forEach(th => th.onclick = () => { const k = th.dataset.k; if (k === 'name' || k === 'sector') return; S.allSort = { key: k, asc: S.allSort.key === k ? !S.allSort.asc : false }; renderAll(); });
   bindItems(t);
@@ -541,7 +562,7 @@ function openDetail(code) {
           <div><small>권장 수량 / 금액</small><b id="cQty">${fmt(r.qty)}주</b><br><span class="muted" id="cAmt">${won(r.amount)}</span></div>
           <div><small>2R 목표가</small><b id="cT2">${fmt(r.t2r)}</b></div>
         </div>
-        ${(s.disclosures || []).length ? `<h4>최근 30일 공시</h4>${s.disclosures.map(d => `<div class="hint">${d.date} <span class="tag ${d.tag === '악재' ? 'bad' : 'good'}">${esc(d.tag)}</span> ${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` : esc(d.title)}</div>`).join('')}` : ''}
+        ${newsBlock(s)}
       </div>
       <div><table class="tbl ck"><thead><tr><th class="l">#</th><th class="l">항목</th><th class="l">현재값 / 기준</th><th>판정</th></tr></thead><tbody>
         ${ck.map(c => `<tr><td class="l mono">${c.no}</td><td class="l"><b>${c.item}</b></td><td class="l">${esc(c.val)}<br><span class="muted">${esc(c.crit)}</span></td><td class="${c.ok == null ? 'na' : c.ok ? 'ok' : 'no'}">${c.ok == null ? '–' : c.ok ? '✓' : '✗'}</td></tr>`).join('')}
@@ -597,7 +618,7 @@ function initSettings() {
   bind('#wlMin', () => S.th.whitelist_min_score, v => S.th.whitelist_min_score = v);
   $('#thBox').innerHTML = Object.entries(TH_LABEL).map(([k, l]) => `<label>${l}<input class="inp" type="number" step="any" data-th="${k}" value="${S.th[k]}"></label>`).join('') +
     `<div class="row"><button class="btn ghost small" id="thReset">기본값으로</button></div>`;
-  $$('[data-th]').forEach(el => el.onchange = () => { S.th[el.dataset.th] = +el.value; persist(); refresh(); $('#presetBox').innerHTML = PRESETS().map((p, i) => `<button class="chip" data-p="${i}">${p[0]}</button>`).join(''); });
+  $$('[data-th]').forEach(el => el.onchange = () => { S.th[el.dataset.th] = +el.value; persist(); refresh(); drawPresets(); });
   $('#thReset').onclick = () => { S.th = { ...S.cfg.thresholds }; persist(); location.reload(); };
   $('#dataFile').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
