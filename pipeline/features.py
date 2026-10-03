@@ -168,6 +168,9 @@ def tech_features(df: pd.DataFrame, spark_len: int = 120) -> dict:
         "low_tests": count_low_tests(df["저가"]),
         "atr": _f(a.iloc[-1], 0), "atr_pct": _f(a.iloc[-1] / last * 100),
         "spark": [_f(x, 0) for x in c.tail(spark_len).tolist()],
+        "spark_o": [_f(x, 0) for x in df["시가"].tail(spark_len).tolist()],
+        "spark_h": [_f(x, 0) for x in df["고가"].tail(spark_len).tolist()],
+        "spark_l": [_f(x, 0) for x in df["저가"].tail(spark_len).tolist()],
         "spark_ma120": [_f(x, 0) for x in ma120.tail(spark_len).tolist()],
         "spark_vol": [int(x) for x in v.tail(spark_len).tolist()],
     }
