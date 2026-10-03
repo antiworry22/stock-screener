@@ -51,7 +51,7 @@ function analysisHtml(s) {
       <div class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector)} · 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}</div></div>
     <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div></div>
   </div>
-  <div class="an-verdict ${v.cls}"><span class="vt">${v.t}</span><span>${esc(v.d)}</span></div>
+  <div class="an-card an-wide"><h4>차트 정밀 분석 · 평가 점수 · 추천 여부</h4><div id="clMount"></div></div>
   <div class="an-grid">
     <div class="an-card"><h4>점수 한눈에 보기</h4>
       <div class="an-total">종합 점수 <b>${fmt(s._sc.total, 1)}</b>${s._rec != null ? ` · 추천점수 <b>${fmt(s._rec, 1)}</b>` : ''}</div>
@@ -62,10 +62,8 @@ function analysisHtml(s) {
     <div class="an-card"><h4>좋은 점 ${goods.length}가지</h4>${goods.length ? goods.map(g => `<div class="an-li good">✓ ${esc(g)}</div>`).join('') : '<div class="hint">눈에 띄는 좋은 점이 아직 없어요.</div>'}
       <h4 class="mt">아쉬운 점·주의</h4>${[...bads, ...weak].slice(0, 7).map(b => `<div class="an-li bad">• ${esc(b)}</div>`).join('') || '<div class="hint">큰 주의 사항이 없어요.</div>'}
     </div>
-    <div class="an-card"><h4>가격 계획 (참고)</h4>
+    <div class="an-card"><h4>그 밖의 숫자</h4><div class="hint">손절가·목표가는 위 차트 정밀 분석을 참고하세요</div>
       <div class="an-kv"><span>지금 가격</span><b>${fmt(s.close)}원</b></div>
-      <div class="an-kv"><span>손절가 <small class="muted">이 아래로 가면 정리</small></span><b class="down">${fmt(r.stop)}원 (${fmt(r.stopPct, 1)}%)</b></div>
-      <div class="an-kv"><span>1차 목표 <small class="muted">손실폭의 2배 이익</small></span><b class="up">${fmt(r.t2r)}원</b></div>
       <div class="an-kv"><span>증권사 목표가</span><b>${s.target ? fmt(s.target) + '원 (' + pct(s.upside, 1) + ')' : '없음'}</b></div>
       <div class="an-kv"><span>권장 수량 <small class="muted">자본 ${won(S.capital)}·1회 ${S.th.risk_pct}% 위험</small></span><b>${fmt(r.qty)}주</b></div>
       <div class="an-kv"><span>하루 흔들림</span><b>약 ${fmt(s.atr_pct, 1)}%</b></div>
@@ -88,6 +86,7 @@ function showAnalysis(code) {
   $('#anInput').value = s.name;
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
+  if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');
   $$('#anOut [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
   try { const h = store.get('anHist', []).filter(c => c !== code); h.unshift(code); store.set('anHist', h.slice(0, 8)); } catch (e) {}
   drawAnHist();
