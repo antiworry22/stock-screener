@@ -3,6 +3,7 @@
 'use strict';
 
 const NLQ_EXAMPLES = [
+  '코스닥, 코스피에서 영업이익, 실적, 기술력 다 좋은데 조정 받은 후 눌림목 지속되다가 꿈틀대는 종목',
   '거래량 있으면서 주가가 떨어지지 않은 종목들 추천해주세요',
   '빚 적고 실적 좋은 작은 회사 중 싼 종목 추천',
   '외국인 기관 동시 순매수, 정배열, 매수금지 제외',
@@ -293,13 +294,25 @@ function nlqClause(raw, ctx) {
 function nlqParse(text) {
   const ctx = { limit: null, sort: null, sortAsc: false, logic: /또는|이거나|혹은|\bor\b/i.test(text) ? 'OR' : 'AND',
     recommend: /추천|좋은\s*종목|괜찮은\s*종목|살\s*만한|유망|사도\s*될/.test(text) };
-  const FILLER = /(종목|주식|회사|기업)들?(을|를|은|는|이|가|도|만)?(\s|$)|추천\S*|알려\S*|찾아\S*|보여\S*|골라\S*|뽑아\S*|해\s*주세요|주세요|해\s*줘|부탁\S*|좀\s|위주로?|중(에서|에)\s|살\s*만한|사도\s*될\S*|유망한?|괜찮은|좋은(?=\s*$)/g;
+  // 문장 전체에서 먼저 처리하는 표현
+  const pre = [];
+  if (/코스피|유가\s*증권/.test(text) && /코스닥/.test(text)) text = text.replace(/코스피(에서|와|랑|,)?|유가\s*증권|코스닥(에서|과|이랑|,)?/g, ' ');  // 둘 다 = 시장 구분 없음
+  const FUND = /(영업\s*이익|실적|기술력|재무|펀더멘[털탈])([\s,·및와과이가도]*(영업\s*이익|실적|기술력|재무|펀더멘[털탈]))*\s*(이|가|도)?\s*(다|모두|전부|둘\s*다)?\s*(좋|우수|탄탄|괜찮|튼튼)\S*/;
+  if (FUND.test(text)) { pre.push({ f: 'fund_ok', op: 'is', v: true }); text = text.replace(FUND, ' '); }
+  const PULL = /눌림목|꿈틀|조정\s*(을\s*)?(받|후|뒤|이후)|쉬었다가|쉬다가/;
+  if (PULL.test(text)) {
+    pre.push({ f: 'pat_pullback', op: 'is', v: true });
+    text = text.replace(/조정\S*|받은|받고|이후|후에?(?=\s)|뒤에?(?=\s)|눌림목\S*|지속\S*|꿈틀\S*|쉬었다가|쉬다가|반등\S*|다시/g, ' ');
+  }
+  const BOX = /박스\s*권?\s*(을\s*)?돌파\S*|횡보\s*(후|하다가?)\s*돌파\S*/;
+  if (BOX.test(text)) { pre.push({ f: 'pat_box', op: 'is', v: true }); text = text.replace(BOX, ' '); }
+  const FILLER = /(종목|주식|회사|기업)들?(을|를|은|는|이|가|도|만)?(\s|$)|추천\S*|알려\S*|찾아\S*|보여\S*|골라\S*|뽑아\S*|해\s*주세요|주세요|해\s*줘|부탁\S*|좀\s|위주로?|중(에서|에)\s|살\s*만한|사도\s*될\S*|유망한?|괜찮은|좋은(?=\s*$)|되다가|대는|하는데|좋은데|에서(?=\s)/g;
   const clauses = text
     .replace(/[“”"']/g, ' ')
     .split(/[,，\n;]|지만\s|는데\s|\s그리고\s|이면서|이며|이고\s|하고\s|면서\s|\s및\s|\sand\s|이거나|또는|혹은|\sor\s/i)
     .map(x => (' ' + x + ' ').replace(FILLER, ' ').replace(/\s+/g, ' ').trim())
     .filter(x => x.length > 1 && !/^(좋은|괜찮은|최근|요즘|그런|이런|추천|중|중에)$/.test(x));
-  const conds = [], miss = [];
+  const conds = [...pre], miss = [];
   clauses.forEach(c => {
     const r = nlqClause(c, ctx);
     if (r.length) conds.push(...r);
@@ -314,6 +327,8 @@ function nlqParse(text) {
 function nlqApply(text) {
   const out = $('#nlqResult');
   if (!text.trim()) { out.innerHTML = '<span class="hint">찾고 싶은 조건을 문장으로 적어 주세요.</span>'; return; }
+  const exact = (typeof findStocks === 'function') ? S.data.stocks.find(s => normName(s.name) === normName(text) || s.code === text.trim()) : null;
+  if (exact) { showAnalysis(exact.code); return; }  // 종목 이름만 쓰면 종목 분석으로
   const r = nlqParse(text);
   if (!r.conds.length && !r.sort && !r.limit && !r.recommend) {
     out.innerHTML = `<span class="miss">이해한 조건이 없습니다.</span> <span class="hint">예시를 눌러 형식을 참고해 보세요. (항목 이름 + 숫자 + 이상/이하)</span>`;

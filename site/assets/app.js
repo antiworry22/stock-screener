@@ -46,7 +46,7 @@ async function boot() {
   S.capital = saved.capital || 30000000;
   S.conds = store.get('conds', []);
   S.logic = store.get('logic', 'AND');
-  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra();
+  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis();
   refresh();
   if (S.conds.length) runSearch();
 }
@@ -120,7 +120,7 @@ function riskCalc(s, entry) {
 function refresh() {
   S.data.stocks.forEach(s => { s._sc = scoreStock(s); s._ban = banReasons(s); });
   const wl = new Set(whitelist()); S.data.stocks.forEach(s => { s._white = wl.has(s); });
-  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews();
+  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns();
   if (S.lastResult.length || S.conds.length) runSearch(true);
 }
 
@@ -555,7 +555,7 @@ function openDetail(code) {
   $('#modalBody').innerHTML = `
     <div class="mh"><h3>${esc(s.name)}</h3><span class="muted mono">${esc(s.code)} · ${esc(s.market)} · ${esc(s.sector)}</span>
       <span class="px">${fmt(s.close)}</span><span class="mono ${cls(s.chg)}">${pct(s.chg)}</span>
-      <span class="muted">시총 ${fmt(s.mcap)}억 · 충족 ${pass}/${avail}</span></div>
+      <span class="muted">시총 ${fmt(s.mcap)}억 · 충족 ${pass}/${avail}</span><button class="btn ghost small" onclick="document.getElementById('modal').classList.add('hidden');showAnalysis('${esc(s.code)}')">종합 분석 보기</button></div>
     ${s._ban.length ? `<div>${s._ban.map(b => `<span class="tag bad">매수 금지: ${b}</span>`).join('')}</div>` : ''}
     <div class="subs"><div><small>종합</small><b>${fmt(sc.total, 1)}</b></div>${Object.entries(GROUPS).map(([k, l]) => `<div><small>${l} ×${S.weights[k]}</small><b>${sc[k] ?? '–'}</b></div>`).join('')}</div>
     <div class="mgrid">
