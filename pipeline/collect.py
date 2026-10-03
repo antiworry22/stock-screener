@@ -466,7 +466,7 @@ def naver_target(code):
     except Exception:
         pass
     raw = requests.get(f"https://finance.naver.com/item/main.naver?code={code}", headers=UA, timeout=8).content
-    html = raw.decode("euc-kr", "ignore")
+    html = _decode(raw)
     seg = html[html.find("목표주가"):][:600] if "목표주가" in html else ""
     nums = [_num(x) for x in re.findall(r"<em[^>]*>\s*([\d,]+)\s*</em>", seg)]
     nums = [x for x in nums if x and x >= 100]  # 투자의견 점수(4.00 등) 제외
@@ -497,9 +497,45 @@ def _n(x):
         return None
 
 
+def _decode(raw):
+    """네이버 페이지 인코딩 자동 판별 (UTF-8 우선, 실패 시 EUC-KR)"""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("euc-kr", "ignore")
+
+
+def _pick(d, *must):
+    """딕셔너리에서 키 이름에 must 문자열이 모두 들어간 첫 값"""
+    for k, v in d.items():
+        if all(m.lower() in k.lower() for m in must):
+            return v
+    return None
+
+
 def naver_flow(code):
-    """네이버 금융 외국인·기관 일별 순매매(주) + 외국인 보유율 — KRX 수급이 막혔을 때 대체"""
-    html = requests.get(f"https://finance.naver.com/item/frgn.naver?code={code}", headers=UA, timeout=8).content.decode("euc-kr", "ignore")
+    """외국인·기관 일별 순매매(주) + 외국인 보유율 — KRX 수급이 막혔을 때 대체.
+    ① 네이버 모바일 API(JSON) ② PC 페이지(HTML) 순서로 시도"""
+    try:
+        j = requests.get(f"https://m.stock.naver.com/api/stock/{code}/trend", params={"pageSize": 10},
+                         headers=UA, timeout=8).json()
+        rows = j if isinstance(j, list) else (j.get("result") or j.get("trends") or j.get("list") or [])
+        rows = [r for r in rows if isinstance(r, dict)]
+        if rows:
+            date_k = next((k for k in rows[0] if "date" in k.lower()), None)
+            if date_k:
+                rows = sorted(rows, key=lambda r: str(r.get(date_k)))  # 오래된 → 최근
+            frgn = [_n(_pick(r, "foreign", "pure")) for r in rows]
+            inst = [_n(_pick(r, "organ", "pure")) for r in rows]
+            close = [_n(_pick(r, "close")) for r in rows]
+            hold = _n(_pick(rows[-1], "foreign", "ratio"))
+            if any(v is not None for v in frgn):
+                return {"inst": inst, "frgn": frgn, "close": close, "hold": hold}
+    except Exception:
+        pass
+    raw = requests.get(f"https://finance.naver.com/item/frgn.naver?code={code}",
+                       headers={**UA, "Referer": f"https://finance.naver.com/item/main.naver?code={code}"}, timeout=8).content
+    html = _decode(raw)
     for t in pd.read_html(io.StringIO(html)):
         cols = [" ".join(str(x) for x in c) if isinstance(c, tuple) else str(c) for c in t.columns]
         if not (any("기관" in c for c in cols) and any("외국인" in c for c in cols)):
@@ -513,17 +549,17 @@ def naver_flow(code):
         t = t[t[c_date].astype(str).str.match(r"\d{4}\.\d{2}\.\d{2}")]
         if t.empty:
             continue
-        t = t.iloc[::-1]  # 오래된 날짜 → 최근
+        t = t.iloc[::-1]
         close = [_n(x) for x in t[c_close]] if c_close else [None] * len(t)
         return {"inst": [_n(x) for x in t[c_inst]], "frgn": [_n(x) for x in t[c_frgn]], "close": close,
                 "hold": _n(t[c_hold].iloc[-1]) if c_hold else None}
-    return None
+    raise ValueError(f"표 없음(길이 {len(html)}, 앞부분 {html[:80]!r})")
 
 
 def pmap(fn, items, workers=8, label="", deadline_min=10):
     """병렬 실행 + 진행률 로그. 전체 제한시간(deadline_min)이 지나면 남은 작업은 버리고 진행."""
     from concurrent.futures import wait, FIRST_COMPLETED
-    out, n, done_n = {}, len(items), 0
+    out, n, done_n, first_err = {}, len(items), 0, []
     end = time.time() + deadline_min * 60
     ex = ThreadPoolExecutor(max_workers=workers)
     futs = {ex.submit(fn, it): it for it in items}
@@ -533,8 +569,11 @@ def pmap(fn, items, workers=8, label="", deadline_min=10):
         for f in done:
             try:
                 out[futs[f]] = f.result()
-            except Exception:
+            except Exception as e:
                 out[futs[f]] = None
+                if not first_err:
+                    first_err.append(str(e)[:200])
+                    log(f"  ! {label} 첫 오류: {first_err[0]}")
             done_n += 1
             if label and done_n % 50 == 0:
                 log(f"  {label} {done_n}/{n}")
@@ -595,6 +634,17 @@ def main():
     log(f"매크로 게이트 {gate['level']} — {gate['reasons']}")
 
     sec_of, sec_info, kospi5 = safe(get_sectors, asof, days, default=({}, [], 0))
+    if not sec_info:  # KRX 업종 조회 실패 → 직전 데이터의 업종 분류 재사용
+        try:
+            prev = json.load(open(OUT, encoding="utf-8"))
+            if not prev.get("meta", {}).get("sample") and prev.get("sectors"):
+                sec_info = prev["sectors"]
+                for x in sec_info:
+                    x["stale"] = True
+                sec_of = {x["code"]: x["sector"] for x in prev.get("stocks", []) if x.get("sector") and x["sector"] != "기타"}
+                log(f"  ! 업종 조회 실패 → 직전 데이터 업종 {len(sec_info)}개 재사용(수익률은 직전 값)")
+        except Exception as e:
+            log(f"  ! 직전 업종 데이터 없음: {e}")
     for s in sec_info:
         s["us_impact"], s["coupling"], s["us_syms"] = us_impact(s["name"], us_rets, USMAP)
 
@@ -718,7 +768,7 @@ def main():
             "meta": {"asof": str(asof), "generated": dt.datetime.now().strftime("%Y-%m-%d %H:%M"), "sample": False,
                      "universe": len(stocks), "candidates": len(cand), "dart": bool(DART_KEY), "news": bool(NAVER_ID),
                      "kis": kis_ok, "flow_src": FLOW_SRC["v"], "stage": stage,
-                     "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-25:]},
+                     "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-25:], "log": LOG[-400:]},
             "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5),
             "sectors": sorted(sec_info, key=lambda x: -(x["rel5"] or -99)),
             "stocks": stocks,
