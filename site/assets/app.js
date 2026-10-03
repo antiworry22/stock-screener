@@ -544,7 +544,7 @@ function checklist(s) {
 let pxChart;
 function openDetail(code) {
   const s = S.data.stocks.find(x => x.code === code); if (!s) return;
-  const sc = s._sc, r = riskCalc(s), ck = checklist(s);
+  const sc = s._sc, r = riskCalc(s), ck = (typeof easyOn === 'function' && easyOn()) ? easyCheck(s) : checklist(s);
   const pass = ck.filter(c => c.ok === true).length, avail = ck.filter(c => c.ok != null).length;
   $('#modalBody').innerHTML = `
     <div class="mh"><h3>${esc(s.name)}</h3><span class="muted mono">${esc(s.code)} · ${esc(s.market)} · ${esc(s.sector)}</span>
@@ -564,8 +564,9 @@ function openDetail(code) {
         </div>
         ${newsBlock(s)}
       </div>
-      <div><table class="tbl ck"><thead><tr><th class="l">#</th><th class="l">항목</th><th class="l">현재값 / 기준</th><th>판정</th></tr></thead><tbody>
-        ${ck.map(c => `<tr><td class="l mono">${c.no}</td><td class="l"><b>${c.item}</b></td><td class="l">${esc(c.val)}<br><span class="muted">${esc(c.crit)}</span></td><td class="${c.ok == null ? 'na' : c.ok ? 'ok' : 'no'}">${c.ok == null ? '–' : c.ok ? '✓' : '✗'}</td></tr>`).join('')}
+      <div>${(typeof easyOn === 'function' && easyOn()) ? `<div class="ck-sum">${ck.length}개 항목 중 <b class="ok">좋음 ${ck.filter(c => c.ok === true).length}</b> · <b class="no">아쉬움 ${ck.filter(c => c.ok === false).length}</b> · <span class="na">정보 없음 ${ck.filter(c => c.ok == null).length}</span></div>` : ''}
+      <table class="tbl ck"><thead><tr><th class="l">#</th><th class="l">항목</th><th class="l">${(typeof easyOn === 'function' && easyOn()) ? '지금 상태 / 좋은 신호' : '현재값 / 기준'}</th><th>판정</th></tr></thead><tbody>
+        ${ck.map(c => `<tr><td class="l mono">${c.no}</td><td class="l"><b>${c.item}</b>${c.sub ? `<br><span class="muted small-t">${esc(c.sub)}</span>` : ''}</td><td class="l">${esc(c.val)}<br><span class="muted">${esc(c.crit)}</span></td><td class="${c.ok == null ? 'na' : c.ok ? 'ok' : 'no'} judge">${c.ok == null ? '–<small>정보 없음</small>' : c.ok ? '✓<small>좋음</small>' : '✗<small>아쉬움</small>'}</td></tr>`).join('')}
       </tbody></table></div>
     </div>`;
   $('#modal').classList.remove('hidden');

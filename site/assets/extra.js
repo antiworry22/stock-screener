@@ -232,3 +232,89 @@ function renderNews() {
   }).join('') || '<div class="empty">해당 종목이 없습니다. (뉴스는 다음 자동 수집부터 채워집니다)</div>';
   bindItems(box);
 }
+
+/* ═════════ 종목 상세 14개 항목 — 쉬운 말 버전 ═════════ */
+function easyCheck(s) {
+  const T = S.th, base = checklist(s);
+  const n = (v, d = 0) => v == null ? null : fmt(v, d);
+  const none = '오늘은 이 정보를 받지 못했어요';
+  const srWord = v => v === '지지' ? '평균선 위(받쳐 줌)' : v === '저항' ? '평균선 아래(위로 막힘)' : v === '이탈' ? '평균선 아래로 내려감' : '정보 없음';
+  const E = [];
+  // 1 거래량
+  E.push({ item: '거래가 활발한가', sub: '거래량',
+    val: s.vol_ratio == null ? none : `오늘 거래량이 평소(최근 20일 평균)의 ${n(s.vol_ratio, 1)}배 — ${s.vol_ratio < 1 ? '평소보다 한산해요' : s.vol_ratio >= T.volume_ratio ? '사람들이 크게 몰렸어요' : '평소 수준이에요'}. 하루 거래금액 ${n(s.tvalue, 0)}억원.`,
+    crit: `좋은 신호: 평소의 ${T.volume_ratio}배 이상 거래되면서 주가도 오를 때` });
+  // 2 기술분석
+  E.push({ item: '반등 신호가 켜졌나', sub: '기술분석(RSI·MACD·볼린저)',
+    val: s.tech3 == null ? none : `매수 신호 3개 중 ${s.tech3}개 켜짐. ` +
+      `과열 정도 ${n(s.rsi)}점(30 이하는 많이 빠진 상태, 70 이상은 과열) · ` +
+      `${s.macd_above ? '단기 흐름이 위로 돌아섰어요' : '단기 흐름이 아직 아래쪽이에요'} · ` +
+      `최근 가격 범위의 ${s.bb_pb == null ? '-' : Math.round(Math.max(0, Math.min(1, s.bb_pb)) * 100) + '%'} 높이(0%=바닥, 100%=꼭대기)`,
+    crit: '좋은 신호: 3개 중 2개 이상 켜짐' });
+  // 3 실적
+  E.push({ item: '돈을 더 벌고 있나', sub: '실적(작년 같은 분기와 비교)',
+    val: s.op_yoy == null && s.sales_yoy == null && !s.op_turn ? none :
+      (s.op_turn ? '작년엔 손해였는데 올해 이익으로 돌아섰어요(흑자 전환). ' : `본업 이익 ${pct(s.op_yoy, 1)}, 매출 ${pct(s.sales_yoy, 1)} — ${(s.op_yoy ?? 0) >= T.yoy_growth ? '이익이 크게 늘었어요' : (s.op_yoy ?? 0) > 0 ? '이익이 조금 늘었어요' : '이익이 줄었어요'}.`),
+    crit: `좋은 신호: 작년보다 이익이 ${T.yoy_growth}% 이상 늘었을 때` });
+  // 4 뉴스·공시
+  const ns = s.news_sum;
+  E.push({ item: '좋은 소식이 있나', sub: '뉴스·공시',
+    val: `최근 30일 회사 발표(공시): 좋은 소식 ${s.disc_pos ?? 0}건, 나쁜 소식 ${s.disc_neg ?? 0}건. ` +
+      (ns ? `최근 7일 기사 ${ns.n}건 중 긍정 ${ns.pos} · 부정 ${ns.neg}.` : '기사 분위기는 아직 수집 전이에요.'),
+    crit: '좋은 신호: 나쁜 소식 없이 좋은 소식이 있을 때' });
+  // 5 차트(52주)
+  E.push({ item: '지금 싼 편인가', sub: '1년 최고가 대비 위치·바닥 확인',
+    val: s.pos52 == null ? none : `지금 가격은 1년 최고가의 ${Math.round(s.pos52 * 100)}% — 최고가보다 ${Math.max(0, Math.round((1 - s.pos52) * 100))}% 싸요. 최근 6개월 바닥 근처까지 내려왔다가 버틴 횟수 ${s.low_tests ?? 0}번.`,
+    crit: `좋은 신호: 최고가보다 ${Math.round((1 - T.pos52_undervalued) * 100)}% 이상 싸고, 바닥에서 ${T.low_tests}번 이상 버텨 낸 경우` });
+  // 6 연기금
+  E.push({ item: '국민연금 등이 사고 있나', sub: '연기금',
+    val: s.pension_net5 == null && !s.pension_5pct ? none :
+      (s.pension_net5 != null ? `최근 5일 연기금이 ${s.pension_net5 >= 0 ? '산' : '판'} 금액 ${n(Math.abs(s.pension_net5), 1)}억원${s.pension_streak ? (Math.abs(s.pension_streak) === 1 ? `, 마지막 날은 ${s.pension_streak > 0 ? '매수' : '매도'}` : `, 최근 ${Math.abs(s.pension_streak)}일 연속 ${s.pension_streak > 0 ? '매수' : '매도'}`) : ''}. ` : '') +
+      (s.pension_5pct ? '국민연금이 이 회사 주식을 5% 넘게 가지고 있다고 신고했어요.' : ''),
+    crit: '좋은 신호: 연기금이 사고 있거나 5% 이상 보유를 신고한 경우' });
+  // 7 외국인
+  E.push({ item: '외국인이 사고 있나', sub: '외국인 매매·보유',
+    val: s.foreign_streak == null ? none :
+      (s.foreign_streak === 0 ? '외국인은 최근 사고팔기가 비슷해요. ' : Math.abs(s.foreign_streak) === 1 ? `외국인이 마지막 날 ${s.foreign_streak > 0 ? '샀어요' : '팔았어요'}. ` : `외국인이 ${Math.abs(s.foreign_streak)}일 연속 ${s.foreign_streak > 0 ? '사는' : '파는'} 중. `) +
+      (s.foreign_hold != null ? `전체 주식의 ${n(s.foreign_hold, 1)}%를 외국인이 가지고 있어요. ` : '') +
+      (s.exhaustion != null ? `외국인이 더 살 수 있는 여유는 한도의 ${n(100 - s.exhaustion, 0)}% 남았어요.` : ''),
+    crit: `좋은 신호: ${T.streak_days}일 이상 연속으로 사고, 더 살 여유도 충분할 때` });
+  // 8 재무
+  E.push({ item: '회사 살림이 튼튼한가', sub: '재무안정성(빚·현금·이익)',
+    val: s.is_fin ? `은행·보험·증권 같은 금융회사는 빚이 원래 많아서 빚 기준은 보지 않아요. 최근 4분기 중 ${s.profit_q ?? '-'}분기 이익.` :
+      s.debt_ratio == null ? none :
+      `빚이 자기 돈의 ${n(s.debt_ratio / 100, 1)}배(부채비율 ${n(s.debt_ratio)}%) — ${s.debt_ratio <= T.debt_ratio_max ? '빚이 적은 편' : s.debt_ratio <= 200 ? '빚이 조금 많은 편' : '빚이 많은 편'}. ` +
+      `1년 안에 갚을 돈 대비 바로 쓸 수 있는 자산 ${n(s.current_ratio)}%. ` +
+      (s.ocf != null ? `장사로 실제 들어온 현금 ${n(s.ocf)}억원. ` : '') + `최근 4분기 중 ${s.profit_q ?? '-'}분기 이익.`,
+    crit: '좋은 신호: 빚이 자기 돈보다 적고, 현금이 들어오고, 4분기 내내 이익' });
+  // 9 추세
+  E.push({ item: '오르는 흐름인가', sub: '5·20·120일 평균선(약 1주·1달·6개월)',
+    val: s.sr20 == null ? none : `1주 평균: ${srWord(s.sr5)} · 1달 평균: ${srWord(s.sr20)} · 6개월 평균: ${srWord(s.sr120)}. ${s.ma_align ? '세 평균선이 모두 오르는 상승 추세예요.' : '아직 뚜렷한 상승 추세는 아니에요.'}`,
+    crit: '좋은 신호: 주가가 세 평균선 위에 있고, 평균선들이 모두 위로 향할 때' });
+  // 10 장기
+  const roe = (s.roe3 || []).filter(x => x != null);
+  E.push({ item: '꾸준히 잘 버는 회사인가', sub: '장기전망(ROE)',
+    val: roe.length < 3 ? none : `자기 돈 100원으로 1년에 번 이익(ROE): 최근 3년 ${roe.map(x => fmt(x, 1) + '원').join(' → ')}. 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}.`,
+    crit: `좋은 신호: 3년 연속 ${T.roe_min}원(=${T.roe_min}%) 이상 — 은행 이자보다 훨씬 잘 버는 회사` });
+  // 11 업종
+  E.push({ item: '같은 업종 분위기가 좋은가', sub: '섹터(업종) 강도',
+    val: s.sector_rel5 == null || s.sector === '기타' ? '오늘은 업종 정보를 받지 못했어요' : `${s.sector} 업종이 최근 5일 동안 시장 전체보다 ${n(Math.abs(s.sector_rel5), 1)}%p ${s.sector_rel5 >= 0 ? '더 올랐어요' : '덜 올랐어요'}.`,
+    crit: '좋은 신호: 같은 업종이 시장보다 더 많이 오를 때' });
+  // 12 장중
+  E.push({ item: '오늘 장중 흐름', sub: '10분·1시간 단위 흐름',
+    val: s.m60_trend ? `1시간 흐름 ${s.m60_trend}, 10분 흐름 ${s.m10_trend}. ${s.absorb ? '파는 물량을 사는 쪽이 잘 받아냈어요.' : '사는 힘이 약했어요.'}` : '장중 데이터는 아직 연결 안 됨(한국투자증권 키 필요) — 판정에서 제외',
+    crit: '좋은 신호: 하루 중 파는 물량을 사는 쪽이 받아낼 때' });
+  // 13 목표가
+  E.push({ item: '전문가 목표가까지 여유', sub: '상승여력(증권사 목표주가)',
+    val: s.upside == null ? '증권사 목표가가 없는 종목이에요(작은 회사는 흔해요)' : `증권사 평균 목표가 ${fmt(s.target)}원 — 지금보다 ${pct(s.upside, 1)} ${s.upside >= 0 ? '높아요' : '낮아요'}.`,
+    crit: `좋은 신호: 목표가가 ${T.upside_min}% 이상 높을 때(1년 전망이라 단기 매매엔 참고만)` });
+  // 14 미국장
+  E.push({ item: '어젯밤 미국 증시 영향', sub: '관련 미국 업종 지수',
+    val: s.us_impact == null ? none : `어젯밤 관련 미국 지수를 보면 오늘 이 업종에 ${pct(s.us_impact)} 정도 ${s.us_impact >= 0 ? '도움' : '부담'}이 예상돼요.`,
+    crit: '좋은 신호: 관련 미국 업종이 어젯밤 올랐을 때' });
+  // + 공매도
+  E.push({ item: '하락에 거는 물량(공매도)', sub: '공매도 잔고',
+    val: s.short_ratio == null ? none : `전체 주식의 ${n(s.short_ratio, 2)}%가 하락에 걸려 있고, 최근 5일 ${(s.short_chg || 0) > 0 ? '늘었어요' : '줄었거나 그대로예요'}.`,
+    crit: '좋은 신호: 공매도가 늘지 않을 때' });
+  return base.map((b, i) => ({ ...b, ...(E[i] || {}) }));
+}
