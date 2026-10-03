@@ -1,0 +1,36 @@
+name: daily-collect
+on:
+  schedule:
+    # 06:40 KST 월~금 (미국장 마감 직후 · 전일 국내 장마감 데이터 포함)
+    - cron: "40 21 * * 0-4"
+    # 16:50 KST 월~금 (국내 장마감 직후 업데이트)
+    - cron: "50 7 * * 1-5"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r pipeline/requirements.txt
+      - name: 수집 실행
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+        run: python pipeline/collect.py
+      - name: 결과 커밋 (Netlify 자동 재배포)
+        run: |
+          git config user.name "screener-bot"
+          git config user.email "screener-bot@users.noreply.github.com"
+          git add site/data/latest.json
+          git diff --cached --quiet || git commit -m "data: $(date -u +%F)"
+          git push

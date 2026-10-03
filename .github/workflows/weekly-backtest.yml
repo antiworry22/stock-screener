@@ -1,0 +1,30 @@
+name: weekly-backtest
+on:
+  schedule:
+    - cron: "0 18 * * 6"   # 일요일 03:00 KST
+  workflow_dispatch:
+    inputs:
+      mode: { description: "모드 (balanced/supply/growth/swing/defensive)", default: "balanced" }
+permissions:
+  contents: write
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r pipeline/requirements.txt
+      - env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          BT_MODE: ${{ github.event.inputs.mode || 'balanced' }}
+          BT_UNIVERSE: "300"
+        run: python pipeline/backtest.py
+      - run: |
+          git config user.name "screener-bot"
+          git config user.email "screener-bot@users.noreply.github.com"
+          git add site/data/backtest.json
+          git diff --cached --quiet || git commit -m "backtest: $(date -u +%F)"
+          git push
