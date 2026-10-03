@@ -41,6 +41,7 @@ KIS_KEY, KIS_SECRET = os.getenv("KIS_APP_KEY", ""), os.getenv("KIS_APP_SECRET", 
 MIN_MCAP = float(os.getenv("UNIVERSE_MIN_MCAP", "1000"))
 MIN_TV = float(os.getenv("UNIVERSE_MIN_TV", "5"))
 CAND_N = int(os.getenv("CANDIDATE_N", "200"))
+SHORT_N = int(os.getenv("SHORT_N", "300"))
 UA = {"User-Agent": "Mozilla/5.0"}
 LOG = []
 
@@ -89,15 +90,24 @@ def get_universe(asof):
 
 
 # ═════════════ 2. 일봉 (수정주가) ═════════════
+_PYKRX_FAILS = {"n": 0}
+
+
 def get_ohlcv(code, start, end):
-    """pykrx adjusted=True 우선, 실패 시 FinanceDataReader 폴백"""
+    """pykrx adjusted=True 우선, 실패 시 FinanceDataReader 폴백.
+    pykrx가 연속 5번 실패하면 이후로는 바로 FinanceDataReader만 사용(시간 낭비 방지)."""
     from pykrx import stock
-    try:
-        df = stock.get_market_ohlcv(ymd(start), ymd(end), code, adjusted=True)
-        if df is not None and len(df) > 30:
-            return df
-    except Exception:
-        pass
+    if _PYKRX_FAILS["n"] < 5:
+        try:
+            df = stock.get_market_ohlcv(ymd(start), ymd(end), code, adjusted=True)
+            if df is not None and len(df) > 30:
+                _PYKRX_FAILS["n"] = 0
+                return df
+        except Exception:
+            pass
+        _PYKRX_FAILS["n"] += 1
+        if _PYKRX_FAILS["n"] == 5:
+            log("  ! pykrx 일봉 연속 실패 → FinanceDataReader로 전환")
     import FinanceDataReader as fdr
     df = fdr.DataReader(code, start, end)
     return df.rename(columns={"Open": "시가", "High": "고가", "Low": "저가", "Close": "종가", "Volume": "거래량"})
@@ -109,13 +119,19 @@ def get_flows(days):
     from pykrx import stock
     flows = {}  # investor -> DataFrame(index=ticker, columns=date)
     for inv in ["외국인", "기관합계", "연기금"]:
-        cols = {}
+        cols, fails = {}, 0
         for d in days[-7:]:
+            if fails >= 4:  # 연속 실패 시 해당 투자자 건너뜀
+                log(f"  ! 수급 {inv} 연속 실패 → 건너뜀")
+                break
             parts = []
             for mkt in ["KOSPI", "KOSDAQ"]:
                 df = safe(stock.get_market_net_purchases_of_equities, ymd(d), ymd(d), mkt, inv)
                 if df is not None and len(df):
                     parts.append(df["순매수거래대금"])
+                    fails = 0
+                else:
+                    fails += 1
                 time.sleep(0.3)
             if parts:
                 cols[d] = pd.concat(parts)
@@ -150,11 +166,21 @@ def get_short_balance(days, codes):
             return out
         except Exception as e:
             log(f"  ! 공매도 시장단위 조회 실패 → 개별 조회: {e}")
-    for t in codes:
-        df = safe(stock.get_shorting_balance_by_date, ymd(days[-6]), ymd(days[-1]), t)
+    fails = 0
+    for t in codes[:SHORT_N]:  # 거래대금 상위 종목만 개별 조회
+        if fails >= 5:  # 연속 5번 실패하면 KRX가 막힌 것 → 공매도 항목 비우고 진행
+            log("  ! 공매도 잔고 개별 조회 연속 실패 → 이번 수집에서 제외")
+            break
+        try:
+            df = stock.get_shorting_balance_by_date(ymd(days[-6]), ymd(days[-1]), t)
+        except Exception:
+            df = None
         if df is not None and len(df):
             col = [c for c in df.columns if "비중" in c][0]
             out[t] = (float(df[col].iloc[-1]), float(df[col].iloc[-1] - df[col].iloc[0]))
+            fails = 0
+        else:
+            fails += 1
         time.sleep(0.2)
     return out
 
@@ -425,7 +451,8 @@ def main():
 
     flows = get_flows(days)
     flim = get_foreign_limit(asof)
-    shorts = safe(get_short_balance, days, codes, default={})
+    codes_by_tv = list(uni.sort_values("tv", ascending=False).index)
+    shorts = safe(get_short_balance, days, codes_by_tv, default={})
 
     # 일봉 + 기술 피처
     start = asof - dt.timedelta(days=420)
