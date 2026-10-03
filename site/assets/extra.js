@@ -104,6 +104,7 @@ function recCautions(s) {
 }
 function recommend() {
   const out = [];
+  S.data.stocks.forEach(s => { s._rec = null; s._recR = null; });
   S.data.stocks.forEach(s => {
     if (s._ban.length) return;
     const ck = checklist(s);
@@ -116,7 +117,9 @@ function recommend() {
     if (s.chg >= 15) score -= 6;  // 급등 추격 감점
     const reasons = recReasons(s), cautions = recCautions(s);
     score -= cautions.length * 2;
-    out.push({ s, score: Math.round(Math.max(0, Math.min(100, score)) * 10) / 10, pass: pass.length, avail: avail.length, reasons, cautions });
+    const sc = Math.round(Math.max(0, Math.min(100, score)) * 10) / 10;
+    s._rec = sc; s._recR = reasons;
+    out.push({ s, score: sc, pass: pass.length, avail: avail.length, reasons, cautions });
   });
   return out.sort((a, b) => b.score - a.score);
 }
@@ -150,6 +153,12 @@ function renderRecs() {
   }
 }
 function initExtra() {
+  // 추천점수를 조건검색·정렬에서 쓸 수 있게 등록
+  FM.rec = { key: 'rec', label: '추천점수', group: '점수', type: 'num', unit: '점', get: s => s._rec };
+  FM.rec_why = { key: 'rec_why', label: '추천 이유', group: '점수', type: 'text', unit: '', get: s => (s._recR || []).slice(0, 3).join(' · ') };
+  const ss = $('#sortSel'); if (ss && ![...ss.options].some(o => o.value === 'rec')) ss.add(new Option('추천점수', 'rec'), 0);
+  GLOSS.rec = ['추천점수', '종합점수와 14개 항목 중 좋은 항목 비율을 합쳐 계산한 추천 순위 점수(100점 만점)입니다.'];
+  GLOSS.rec_why = ['추천 이유', '이 종목이 좋게 평가된 대표 이유 3가지입니다.'];
   const b = $('#easyBtn');
   const label = () => { b.textContent = easyOn() ? '쉬운 말 켜짐' : '쉬운 말 꺼짐'; b.classList.toggle('on', easyOn()); };
   label();

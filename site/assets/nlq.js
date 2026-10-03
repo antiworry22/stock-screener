@@ -3,6 +3,8 @@
 'use strict';
 
 const NLQ_EXAMPLES = [
+  '거래량 있으면서 주가가 떨어지지 않은 종목들 추천해주세요',
+  '빚 적고 실적 좋은 작은 회사 중 싼 종목 추천',
   '외국인 기관 동시 순매수, 정배열, 매수금지 제외',
   '코스닥 반도체 RSI 35 이하 거래량 급증',
   '시총 1조 이상, 부채비율 100% 이하, 영업이익 20% 이상 증가',
@@ -70,6 +72,26 @@ const NLQ_FIELDS = [
   [/점수/, 'total', '', '>='],
 ];
 
+// 일상 표현 → [항목, 연산, 값] 목록 (위에서부터 먼저 적용)
+const NLQ_PHRASES = [
+  [/(주가|가격|주식)?\s*(가|이)?\s*(떨어지지|내리지|하락하지|빠지지|내려가지)\s*않\S*|안\s*(떨어|내린|내려|빠진|빠지)\S*|하락\s*(안|없)\S*/, () => [['chg', '>=', 0], ['ret5', '>=', 0]]],
+  [/(주가|가격)?\s*(가|이)?\s*(오르지|상승하지)\s*않\S*|안\s*오른\S*/, () => [['chg', '<=', 0]]],
+  [/(많이|크게)\s*(오른|올랐|상승한|상승했|뛴|뛰었)\S*|급등\S*/, () => [['chg', '>=', 5]]],
+  [/(많이|크게)\s*(떨어진|떨어졌|빠진|빠졌|하락한|하락했|내린|내렸)\S*|급락\S*/, () => [['ret20', '<=', -10]]],
+  [/(주가|가격)\s*(가|이)?\s*(오르는|오른|올랐|상승하는|상승한|상승했|올라가는)\S*/, () => [['chg', '>', 0]]],
+  [/(주가|가격)\s*(가|이)?\s*(떨어진|떨어졌|떨어지는|내린|내렸|하락한|하락했|빠진|빠졌)\S*/, () => [['chg', '<', 0]]],
+  [/과열\s*(안|되지\s*않|없)\S*|과열되지\s*않\S*/, T => [['rsi', '<=', T.rsi_overbought]]],
+  [/(상승|오르는)\s*추세\S*|추세\s*(가|이)?\s*(좋|살아)\S*/, () => [['ma_align', 'is', true]]],
+  [/(값|가격)?\s*(이|가)?\s*(싼|싸게|저렴한|저렴하게)\S*|저평가\S*/, T => [['pos52', '<', T.pos52_undervalued]]],
+  [/(빚|부채)\s*(가|이)?\s*(적|없|낮)\S*/, T => [['debt_ratio', '<=', T.debt_ratio_max]]],
+  [/튼튼\S*|안전한\S*|안정적\S*|재무\s*(가|이)?\s*(좋|우량|탄탄)\S*/, () => [['stability', '>=', 70]]],
+  [/(실적|돈)\s*(을|이)?\s*(좋|잘\s*버|늘)\S*/, () => [['earnings', '>=', 60]]],
+  [/큰손\S*|세력\S*|메이저\S*/, () => [['foreign_net5', '>', 0], ['inst_net5', '>', 0]]],
+  [/(작은|소형|중소형)\s*(회사|기업|주)?\S*/, () => [['mcap', '<', 10000]]],
+  [/(큰|대형|우량)\s*(회사|기업|주)\S*/, () => [['mcap', '>=', 30000]]],
+  [/거래\s*(가|도)?\s*(활발|많|붙)\S*/, () => [['vol_ratio', '>=', 1]]],
+];
+
 const NLQ_INVESTORS = [
   [/외국인|외인/, 'foreign'],
   [/기관/, 'inst'],
@@ -107,7 +129,12 @@ function nlqDefault(key, text) {
   switch (key) {
     case 'total': case 'technical': case 'supply': case 'earnings': case 'sector_sc': case 'stability':
       return { op: '>=', v: /매우|아주|최상/.test(text) ? 80 : up ? 70 : 60 };
-    case 'vol_ratio': case 'tv_ratio': return { op: '>=', v: T.volume_ratio };
+    case 'vol_ratio': case 'tv_ratio':
+      if (/급증|폭발|터진|몰린|크게|폭증/.test(text)) return { op: '>=', v: T.volume_ratio };
+      if (/많/.test(text)) return { op: '>=', v: 1.5 };
+      if (/있|활발|붙|늘|증가|꾸준/.test(text)) return { op: '>=', v: 1 };  // 평소 이상
+      if (/적|없|줄|한산/.test(text)) return { op: '<', v: 0.7 };
+      return { op: '>=', v: T.volume_ratio };
     case 'rsi': return down || /과매도/.test(text) ? { op: '<=', v: T.rsi_oversold } : up || /과매수/.test(text) ? { op: '>=', v: T.rsi_overbought } : null;
     case 'tech3': return { op: '>=', v: 2 };
     case 'pos52': return /신고가|고점\s*근처/.test(text) ? { op: '>=', v: 0.95 } : { op: '<', v: T.pos52_undervalued };
@@ -165,6 +192,11 @@ function nlqClause(raw, ctx) {
   flag(/흡수/, 'absorb', true);
   flag(/매물대|바닥\s*(다지|확인)/, 'low_tests', null);  // 아래에서 숫자 처리
   if (conds.length && conds[conds.length - 1].f === 'low_tests') { conds.pop(); push('low_tests', '>=', S.th.low_tests); }
+
+  // 일상 표현 → 조건
+  NLQ_PHRASES.forEach(([re, mk]) => {
+    if (re.test(t)) { mk(S.th).forEach(c => push(c[0], c[1], c[2])); t = t.replace(re, ' '); }
+  });
 
   // 시장
   if (/코스피|유가\s*증권/.test(t)) { push('market', 'is', 'KOSPI'); t = t.replace(/코스피|유가\s*증권/, ' '); }
@@ -259,11 +291,14 @@ function nlqClause(raw, ctx) {
 }
 
 function nlqParse(text) {
-  const ctx = { limit: null, sort: null, sortAsc: false, logic: /또는|이거나|혹은|\bor\b/i.test(text) ? 'OR' : 'AND' };
+  const ctx = { limit: null, sort: null, sortAsc: false, logic: /또는|이거나|혹은|\bor\b/i.test(text) ? 'OR' : 'AND',
+    recommend: /추천|좋은\s*종목|괜찮은\s*종목|살\s*만한|유망|사도\s*될/.test(text) };
+  const FILLER = /(종목|주식|회사|기업)들?(을|를|은|는|이|가|도|만)?(\s|$)|추천\S*|알려\S*|찾아\S*|보여\S*|골라\S*|뽑아\S*|해\s*주세요|주세요|해\s*줘|부탁\S*|좀\s|위주로?|중(에서|에)\s|살\s*만한|사도\s*될\S*|유망한?|괜찮은|좋은(?=\s*$)/g;
   const clauses = text
     .replace(/[“”"']/g, ' ')
-    .split(/[,，\n;]|\s그리고\s|이면서|이며|이고\s|하고\s|면서\s|\s및\s|\sand\s|이거나|또는|혹은|\sor\s/i)
-    .map(x => x.trim()).filter(Boolean);
+    .split(/[,，\n;]|지만\s|는데\s|\s그리고\s|이면서|이며|이고\s|하고\s|면서\s|\s및\s|\sand\s|이거나|또는|혹은|\sor\s/i)
+    .map(x => (' ' + x + ' ').replace(FILLER, ' ').replace(/\s+/g, ' ').trim())
+    .filter(x => x.length > 1 && !/^(좋은|괜찮은|최근|요즘|그런|이런|추천|중|중에)$/.test(x));
   const conds = [], miss = [];
   clauses.forEach(c => {
     const r = nlqClause(c, ctx);
@@ -280,8 +315,17 @@ function nlqApply(text) {
   const out = $('#nlqResult');
   if (!text.trim()) { out.innerHTML = '<span class="hint">찾고 싶은 조건을 문장으로 적어 주세요.</span>'; return; }
   const r = nlqParse(text);
-  if (!r.conds.length && !r.sort && !r.limit) {
+  if (!r.conds.length && !r.sort && !r.limit && !r.recommend) {
     out.innerHTML = `<span class="miss">이해한 조건이 없습니다.</span> <span class="hint">예시를 눌러 형식을 참고해 보세요. (항목 이름 + 숫자 + 이상/이하)</span>`;
+    return;
+  }
+  if (r.recommend) {
+    if (!r.conds.some(c => c.f === 'banned')) r.conds.push({ f: 'banned', op: 'is', v: false });
+    r.conds.push({ f: 'rec', op: '>=', v: 40 });
+    if (!r.sort) { r.sort = 'rec'; r.sortAsc = false; }
+  }
+  if (!r.conds.length && !r.sort && !r.limit) {
+    out.innerHTML = `<span class="miss">이해한 조건이 없습니다.</span> <span class="hint">예시를 눌러 형식을 참고해 보세요.</span>`;
     return;
   }
   S.conds = r.conds.map(c => ({ ...c, src: 'nlq' }));
@@ -293,10 +337,10 @@ function nlqApply(text) {
   else S.resSort = null;
   drawConds();
   runSearch(true);
-  const n = S.lastResult.length;
+  const n = S.lastTotal ?? S.lastResult.length;
   out.innerHTML =
     `<div><span class="ok">✓ 이해한 조건 ${r.conds.length}개</span> (${r.logic === 'AND' ? '모두 만족' : '하나라도 만족'})${r.sort ? ` · 정렬: ${esc(FM[r.sort]?.label || r.sort)} ${r.sortAsc ? '낮은' : '높은'} 순` : ''}${r.limit ? ` · 최대 ${r.limit}개` : ''} → <b>${n}종목</b></div>` +
-    `<div class="mt-s">${r.conds.map(c => `<span class="tag">${esc(condText(c))}</span>`).join('')}</div>` +
+    `<div class="mt-s">${r.conds.map(c => `<span class="tag" title="${esc(condText(c))}">${esc(nlqEasy(c))}</span>`).join('')}</div>` +
     (r.miss.length ? `<div class="mt-s"><span class="miss">이해하지 못한 부분:</span> ${r.miss.map(m => `<span class="tag bad">${esc(m)}</span>`).join('')} <span class="hint">— 아래 조건 목록에서 직접 추가할 수 있어요</span></div>` : '') +
     `<div class="hint mt-s">아래 조건 목록에서 숫자를 고치거나 빠른 조건을 더 눌러 조정할 수 있습니다.</div>`;
   $('#resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -310,4 +354,26 @@ function initNlq() {
   inp.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); nlqApply(inp.value); } };
   inp.value = store.get('nlq', '');
   inp.oninput = () => store.set('nlq', inp.value);
+}
+
+// 해석한 조건을 쉬운 말로
+function nlqEasy(c) {
+  const fd = FM[c.f]; if (!fd) return '';
+  const name = (typeof GLOSS !== 'undefined' && GLOSS[c.f]) ? GLOSS[c.f][0] : fd.label.replace(/^[①-⑭+] /, '');
+  const special = {
+    banned: v => v ? '매수 금지 종목만' : '매수 금지 종목 제외',
+    ma_align: v => v ? '상승 추세(평균선 정배열)' : '상승 추세 아님',
+    disc_neg: v => v ? '악재 공시 있음' : '악재 공시 없음',
+    disc_pos: v => v ? '호재 공시 있음' : '호재 공시 없음',
+  };
+  if (fd.type === 'bool') { const b = c.v === true || c.v === 'true'; return special[c.f] ? special[c.f](b) : `${name} ${b ? '해당' : '해당 안 됨'}`; }
+  if (c.op === 'has') return `업종: ${String(c.v).split('|').join('·')}`;
+  if (c.op === 'is') return `${name}: ${c.v === 'KOSPI' ? '코스피' : c.v === 'KOSDAQ' ? '코스닥' : c.v}`;
+  if (c.f === 'chg' && c.op === '>=' && c.v === 0) return '오늘 주가 안 내림';
+  if (c.f === 'ret5' && c.op === '>=' && c.v === 0) return '최근 1주 주가 안 내림';
+  if (c.f === 'vol_ratio' && c.op === '>=' && c.v === 1) return '거래량 평소 이상';
+  if (c.f === 'mcap') { const f = v => v >= 10000 ? (v / 10000) + '조원' : v + '억원'; return c.op === 'between' ? `회사 크기 ${f(c.v)}~${f(c.v2)}` : `회사 크기 ${f(c.v)} ${{ '>=': '이상', '<=': '이하', '>': '초과', '<': '미만' }[c.op]}`; }
+  const opw = { '>=': '이상', '<=': '이하', '>': '초과', '<': '미만', '=': '' }[c.op];
+  if (c.op === 'between') return `${name} ${c.v}~${c.v2}${fd.unit}`;
+  return `${name} ${c.v}${fd.unit} ${opw}`.trim();
 }

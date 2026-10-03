@@ -397,11 +397,13 @@ function runSearch(silent) {
   const g = FM[key]?.get || (s => s[key]);
   res.sort((a, b) => { const x = g(a), y = g(b); if (x == null) return 1; if (y == null) return -1; return asc ? x - y : y - x; });
   const total = res.length;
+  S.lastTotal = total;
   res = res.slice(0, S.limit);
   S.lastResult = res;
   $('#resCount').textContent = active.length ? `${total}종목${total > res.length ? ` 중 ${res.length}` : ''}` : '';
   $('#condSummary').innerHTML = active.length ? `조건(${S.logic === 'AND' ? '모두 만족' : '하나라도'}): ` + active.map(c => `<span class="tag">${esc(condText(c))}</span>`).join('') : '';
   const extra = [...new Set(active.map(c => c.f))].filter(k => !['total', 'technical', 'supply', 'earnings', 'sector_sc', 'stability'].includes(k));
+  if (extra.includes('rec')) extra.push('rec_why');
   drawResultTable(res, extra, active.length);
   if (!silent && active.length) $('#resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -409,11 +411,14 @@ function drawResultTable(res, extra, hasCond) {
   const t = $('#resTable');
   if (!hasCond) { t.innerHTML = '<tbody><tr><td class="l empty">조건을 입력하고 검색을 실행하세요.</td></tr></tbody>'; return; }
   if (!res.length) { t.innerHTML = '<tbody><tr><td class="l empty">조건에 부합하는 종목이 없습니다. 기준을 조금 완화해 보세요.</td></tr></tbody>'; return; }
-  const cols = [['name', '종목', 'l'], ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
-    ...extra.map(k => [k, FM[k].label.replace(/^[①-⑭+] /, '')]), ['stop', '손절가'], ['qty', '수량']];
+  const base = ['name', 'sector', 'close', 'chg', 'total', 'technical', 'supply', 'earnings', 'sector_sc', 'stability'];
+  const recCols = extra.includes('rec') ? [['rec', '추천점수'], ['rec_why', '추천 이유', 'l']] : [];
+  const ex = extra.filter(k => !base.includes(k) && k !== 'rec' && k !== 'rec_why');
+  const cols = [['name', '종목', 'l'], ...recCols, ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
+    ...ex.map(k => [k, FM[k].label.replace(/^[①-⑭+] /, '')]), ['stop', '손절가'], ['qty', '수량']];
   t.innerHTML = `<thead><tr>${cols.map(c => thHtml(c, S.resSort)).join('')}</tr></thead>
   <tbody>${res.map(s => { const r = riskCalc(s); return `<tr data-code="${esc(s.code)}">${cols.map(c => `<td class="${c[2] || ''}">${cellVal(s, c[0], r)}</td>`).join('')}</tr>`; }).join('')}</tbody>`;
-  $$('th', t).forEach(th => th.onclick = () => { const k = th.dataset.k; if (['name', 'sector', 'stop', 'qty'].includes(k)) return;
+  $$('th', t).forEach(th => th.onclick = () => { const k = th.dataset.k; if (['name', 'sector', 'stop', 'qty', 'rec_why'].includes(k)) return;
     S.resSort = { key: k, asc: S.resSort?.key === k ? !S.resSort.asc : false }; runSearch(true); });
   bindItems(t);
 }
@@ -433,6 +438,7 @@ function cellVal(s, k, r) {
   const fd = FM[k]; const v = fd ? fd.get(s) : s[k];
   if (v == null) return '<span class="muted">–</span>';
   if (fd?.type === 'bool') return v ? '<span class="ok">✓</span>' : '<span class="muted">·</span>';
+  if (fd?.type === 'text') return `<span class="why">${esc(v)}</span>`;
   if (typeof v === 'number') return `<span class="mono ${['chg', 'ret5', 'ret20', 'op_yoy', 'sales_yoy', 'foreign_streak', 'inst_streak', 'pension_streak', 'foreign_net5', 'inst_net5', 'pension_net5', 'us_impact', 'sector_rel5'].includes(k) ? cls(v) : ''}">${fmt(v, Math.abs(v) < 10 && !Number.isInteger(v) ? 2 : Number.isInteger(v) ? 0 : 1)}</span>`;
   return esc(v);
 }

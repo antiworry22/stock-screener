@@ -216,3 +216,4 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ck .judge{text-align:center;white-space:nowrap}
 .ck .judge small{display:block;font-size:10.5px;font-weight:500}
 .small-t{font-size:11px}
+.tbl td .why{white-space:normal;display:inline-block;min-width:220px;max-width:340px;text-align:left;font-size:12px;color:var(--ok)}
