@@ -1,0 +1,41 @@
+name: shorts
+# 공매도 거래(당일 저녁 공개)·잔고(2거래일 뒤 공개) — 평일 저녁·아침 수집
+# Actions → shorts → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    - cron: "45 9 * * 1-5"     # 18:45 KST (당일 공매도 거래 공개 뒤)
+    - cron: "30 22 * * 0-4"    # 07:30 KST (잔고 갱신분)
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: shorts
+  cancel-in-progress: false
+jobs:
+  shorts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests pandas "pykrx>=1.2.9"
+      - name: 공매도 수집
+        timeout-minutes: 15
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+        run: python pipeline/shorts.py
+      - name: 결과 → 보관 칸(live-short)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          if [ -f liveshort/shorts.json ]; then publish live-short liveshort; else
+            # 실패해도 진단 기록은 올림(직전 자료는 유지)
+            mkdir -p /tmp/keep && git fetch -q --depth=1 origin live-short && git --work-tree=/tmp/keep checkout FETCH_HEAD -- . 2>/dev/null || true
+            cp liveshort/status.json /tmp/keep/ 2>/dev/null || true; publish live-short /tmp/keep; fi
