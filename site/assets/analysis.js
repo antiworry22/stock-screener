@@ -54,6 +54,7 @@ function analysisHtml(s) {
   <div class="an-card an-wide"><h4>실시간 종합 <small class="muted">— 재료(뉴스·공공기관) × 돈(거래대금) × 추세(차트)가 이 종목에 어떻게 맞물리는지</small></h4><div id="fuMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 종합 판정 <small class="muted">— 6축 점수 엔진(추세·모멘텀·거래량·구조·패턴·주봉) · 진입·손절·목표·손익비·체크리스트</small></h4><div id="clxMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 정밀 분석 · 평가 점수 · 추천 여부</h4><div id="clMount"></div></div>
+  <div class="an-card an-wide"><h4>실시간 호가창 <small class="muted">— 잔량 불균형·매수/매도 벽·체결강도·허수 호가</small></h4><div id="obAnMount" data-code=""><button class="btn small" id="obAnGo">실시간 호가 열기</button> <span class="hint">누르면 3초마다 갱신돼요(30분 뒤 자동 멈춤)</span></div></div>
   <div class="an-card an-wide"><h4>거래량·거래대금 정밀 해석 <small class="muted">— 지금 이 종목에 돈이 어떻게 들어오고 나가나</small></h4><div id="vaMount"></div></div>
   <div class="an-grid">
     <div class="an-card"><h4>점수 한눈에 보기</h4>
@@ -91,6 +92,8 @@ function showAnalysis(code, quiet) {
   $('#anInput').value = s.name;
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
+  if ($('#obAnGo')) $('#obAnGo').onclick = () => obStart(s.code, 'obAnMount');
+  if (quiet && typeof OB !== 'undefined' && OB.mount === 'obAnMount' && OB.code === s.code && OB.timer) { const m = $('#obAnMount'); if (m) { m.dataset.code = s.code; obPoll(); } }
   if (typeof fuFillAnalysis === 'function') fuFillAnalysis();
   if (typeof renderClx === 'function') renderClx(s, 'clxMount');
   if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');

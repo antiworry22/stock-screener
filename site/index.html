@@ -37,6 +37,7 @@
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
+  <button data-tab="ob">호가 분석</button>
   <button data-tab="mnews">시장 뉴스</button>
   <button data-tab="gov">공공기관</button>
   <button data-tab="rec">추천 종목</button>
@@ -157,6 +158,17 @@
     <div id="clxList" class="mt-s" style="overflow-x:auto"></div>
   </div>
   <div class="panel note">진입 전 5초 체크리스트: ① 주봉·일봉 같은 방향(필수) ② 지지선 위(필수) ③ 손익비 1.5 이상(필수) ④ 거래량이 방향 확인 ⑤ 패턴이 방향과 일치 ⑥ 종합 +28 이상 — 필수 3개 + 전체 4개 이상이면 통과. 손절은 협상 대상이 아니며, 손실은 항상 계좌의 1%로 고정합니다(권장 비중 = 1% ÷ 손절 거리%).</div>
+</section>
+
+<!-- ═══ 호가 분석 ═══ -->
+<section id="tab-ob" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>실시간 호가창 분석</h2><button class="btn ghost small" id="obStop">갱신 멈추기</button></div>
+    <p class="hint">종목을 검색하면 매도·매수 10단계 호가를 <b>3초마다</b> 받아 <b>잔량 불균형 · 매수/매도 벽 · 체결강도(추정) · 체결 없이 사라지는 허수 호가 · 1호가 차이</b>를 해석해요. 장 마감 뒤에는 마지막 호가를 한 번 보여 줘요. 30분이 지나거나 다른 탭으로 가면 자동으로 멈춰요.</p>
+    <div class="row gap wrap mt clx-search"><input id="obQ" class="inp" list="stockNames" placeholder="종목 검색 (이름 또는 6자리 코드) — 예) 삼성전자, 005930" autocomplete="off"><button class="btn primary small" id="obGo">호가 보기</button></div>
+    <div id="obMount" class="mt"></div>
+  </div>
+  <div class="panel note">호가창 읽는 법: ① 잔량(대기 주문)보다 <b>체결</b>(실제 거래)이 더 믿을 만해요 — 잔량은 언제든 취소돼요. ② 매도 잔량이 많은데 체결강도가 오르면 위 물량을 소화하는 중(호가창 역설). ③ 매수 잔량이 두꺼운데 체결이 매도 쪽이면 허매수 의심. ④ 큰 벽이 가격이 다가갈 때 사라지면 허수, 체결로 줄어들면 진짜. 호가는 단기(분~시간) 신호이니 차트·거래대금·수급과 함께 보세요.</div>
 </section>
 
 <!-- ═══ 내 보유 종목 ═══ -->
@@ -470,6 +482,7 @@
 <script src="assets/fusion.js"></script>
 <script src="assets/live.js"></script>
 <script src="assets/flows.js"></script>
+<script src="assets/orderbook.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/app.js"></script>
 </body>

@@ -5,4 +5,9 @@
   # 크레딧 절약: 데이터 파일(site/data/*)이나 수집 프로그램(pipeline, .github)만 바뀐 커밋은 재배포하지 않음
   # → 화면 파일(site/index.html, site/assets, site/config)을 고쳤을 때만 배포
   # (사이트는 최신 데이터를 GitHub에서 직접 읽으므로 배포 없이도 매일 갱신됨)
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- site ':(exclude)site/data'"
+  # 사이트 서버 기능(netlify/functions — 실시간 호가 중계)을 고쳤을 때도 배포
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- site netlify netlify.toml ':(exclude)site/data'"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
