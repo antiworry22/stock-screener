@@ -306,6 +306,20 @@ function nlqParse(text) {
   }
   const BOX = /박스\s*권?\s*(을\s*)?돌파\S*|횡보\s*(후|하다가?)\s*돌파\S*/;
   if (BOX.test(text)) { pre.push({ f: 'pat_box', op: 'is', v: true }); text = text.replace(BOX, ' '); }
+  // 거래량 해석 표현
+  const VB = /(대량\s*거래|거래량|거래대금)\s*(이|을|를|가)?\s*(터지|실리|실린|동반|붙)\S*\s*(며|면서|고)?\s*(박스권?\s*)?(고점\s*)?돌파\S*|돌파\S*\s*(하면서|하며)?\s*(대량\s*거래|거래량\s*(이|을)?\s*(터진|실린|동반))\S*|유효\s*돌파/;
+  if (VB.test(text)) { pre.push({ f: 'vs_brk', op: 'is', v: true }); text = text.replace(VB, ' '); }
+  const VT = /진성\s*상승|수급\s*(이|을)?\s*동반\S*|(외국인|기관)\S*\s*(이|가)?\s*(사면서|산|매수하며)\s*(거래량|거래대금)\S*\s*(터진|급증)\S*/;
+  if (VT.test(text)) { pre.push({ f: 'vs_true', op: 'is', v: true }); text = text.replace(VT, ' '); }
+  const VBT = /바닥\S*\s*(에서)?\s*(거래량|거래대금)\S*\s*(이|가)?\s*(터진|터지|폭증|급증|늘어난|늘)\S*/;
+  if (VBT.test(text)) { pre.push({ f: 'vs_bottom', op: 'is', v: true }); text = text.replace(VBT, ' '); }
+  const VO = /OBV|다이버전스|매집\S*\s*(중|하는|흔적)\S*/i;
+  if (VO.test(text)) { pre.push({ f: 'vs_obv', op: 'is', v: true }); text = text.replace(/OBV\S*|상승\s*다이버전스|다이버전스\S*|매집\S*\s*(중|하는|흔적)\S*/gi, ' '); }
+  const VP = /거래\s*(량|대금)?\s*(이|가)?\s*(줄면서|마르며|말라가는|감소하며|줄어드는)\s*(쉬는|눌림|조정)\S*|건강한\s*눌림/;
+  if (VP.test(text)) { pre.push({ f: 'vs_pull', op: 'is', v: true }); text = text.replace(VP, ' '); }
+  if (/(경보|경고|위험\s*신호|이상\s*징후)\S*\s*(가|이)?\s*(없는|없고|없으면서)/.test(text)) { pre.push({ f: 'vs_warn', op: 'is', v: false }); text = text.replace(/(거래량\s*)?(경보|경고|위험\s*신호|이상\s*징후)\S*\s*(가|이)?\s*(없는|없고|없으면서)/, ' '); }
+  const VW = /(세력|큰손)\s*이탈|설거지|거래량\s*(경보|경고|위험)/;
+  if (VW.test(text)) { pre.push({ f: 'vs_warn', op: 'is', v: true }); text = text.replace(VW, ' '); }
   const FILLER = /(종목|주식|회사|기업)들?(을|를|은|는|이|가|도|만)?(\s|$)|추천\S*|알려\S*|찾아\S*|보여\S*|골라\S*|뽑아\S*|해\s*주세요|주세요|해\s*줘|부탁\S*|좀\s|위주로?|중(에서|에)\s|살\s*만한|사도\s*될\S*|유망한?|괜찮은|좋은(?=\s*$)|되다가|대는|하는데|좋은데|에서(?=\s)/g;
   const clauses = text
     .replace(/[“”"']/g, ' ')

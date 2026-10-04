@@ -52,6 +52,7 @@ function analysisHtml(s) {
     <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div></div>
   </div>
   <div class="an-card an-wide"><h4>차트 정밀 분석 · 평가 점수 · 추천 여부</h4><div id="clMount"></div></div>
+  <div class="an-card an-wide"><h4>거래량·거래대금 정밀 해석 <small class="muted">— 지금 이 종목에 돈이 어떻게 들어오고 나가나</small></h4><div id="vaMount"></div></div>
   <div class="an-grid">
     <div class="an-card"><h4>점수 한눈에 보기</h4>
       <div class="an-total">종합 점수 <b>${fmt(s._sc.total, 1)}</b>${s._rec != null ? ` · 추천점수 <b>${fmt(s._rec, 1)}</b>` : ''}</div>
@@ -88,6 +89,7 @@ function showAnalysis(code) {
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
   if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');
+  if (typeof renderVolCard === 'function') renderVolCard(s, 'vaMount');
   if (typeof mnFillAnalysis === 'function') mnFillAnalysis();
   $$('#anOut [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
   try { const h = store.get('anHist', []).filter(c => c !== code); h.unshift(code); store.set('anHist', h.slice(0, 8)); } catch (e) {}

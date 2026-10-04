@@ -46,7 +46,7 @@ async function boot() {
   S.capital = saved.capital || 30000000;
   S.conds = store.get('conds', []);
   S.logic = store.get('logic', 'AND');
-  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis();
+  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis(); if (typeof initVolume === 'function') initVolume();
   refresh();
   if (S.conds.length) runSearch();
 }
@@ -104,6 +104,7 @@ function banReasons(s) {
   if ((s.short_chg || 0) > .5) r.push('공매도 잔고 급증');
   if ((s.disc_neg || 0) > 0) r.push('악재 공시');
   if ((s.debt_ratio || 0) > 300) r.push('부채비율 300%↑');
+  if (s.tvalue && s.mcap && s.tvalue >= s.mcap) r.push('하루 거래대금 ≥ 시가총액(극단 과열)');
   if (s.sr120 === '저항' && s.sr20 === '저항') r.push('20·120일선 동시 저항');
   return r;
 }
@@ -120,7 +121,7 @@ function riskCalc(s, entry) {
 function refresh() {
   S.data.stocks.forEach(s => { s._sc = scoreStock(s); s._ban = banReasons(s); });
   const wl = new Set(whitelist()); S.data.stocks.forEach(s => { s._white = wl.has(s); });
-  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns();
+  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns(); if (typeof renderVolume === 'function') renderVolume();
   if (S.lastResult.length || S.conds.length) runSearch(true);
 }
 
