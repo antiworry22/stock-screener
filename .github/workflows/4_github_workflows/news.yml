@@ -1,0 +1,40 @@
+name: market-news
+# 국내·해외 시장 뉴스 15분마다 수집 (사이트는 GitHub에서 바로 읽어 재배포 없이 반영)
+# Actions → market-news → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    # 매일 06:05~22:50 KST, 15분 간격 (공공기관 수집과 겹치지 않게 5분 어긋나게)
+    - cron: "5,20,35,50 21-23,0-13 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: market-news
+  cancel-in-progress: false
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+      - name: 직전 결과 불러오기 (이어서 쌓기)
+        continue-on-error: true
+        run: |
+          git fetch -q --depth=1 origin live-news && git show FETCH_HEAD:news.json > /tmp/prev.json && mv /tmp/prev.json site/data/news.json && echo "직전 news.json 불러옴" || echo "직전 결과 없음(처음 실행)"
+      - name: 시장 뉴스 수집
+        timeout-minutes: 8
+        run: python pipeline/market_news.py
+      - name: 결과 → 보관 칸(live-news)에 덮어쓰기 (사이트가 바로 읽음 · 재배포·기록 누적 없음)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 기록이 쌓이지 않게 '보관 칸(branch)'에 최신본만 덮어쓰기
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          publish live-news site/data/news.json

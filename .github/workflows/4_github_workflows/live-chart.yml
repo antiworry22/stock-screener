@@ -1,0 +1,47 @@
+name: live-chart
+# 실시간 차트 종합판정 — 장중 15분마다 전 종목 일봉(오늘 장중 봉 포함)으로 6축 엔진 재계산
+# Actions → live-chart → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    # 평일 09:00~15:45 KST 15분 간격 (UTC 00~06시)
+    - cron: "*/15 0-6 * * 1-5"
+    # 장 시작 전 08:40 KST · 장 마감 뒤 16:10 KST (종가 확정)
+    - cron: "40 23 * * 0-4"
+    - cron: "10 7 * * 1-5"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: live-chart
+  cancel-in-progress: false
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pandas numpy requests
+      - name: 직전 결과 불러오기 (이번에 실패한 종목은 직전 값 유지)
+        continue-on-error: true
+        run: |
+          mkdir -p livecl
+          git fetch -q --depth=1 origin live-cl && git --work-tree=livecl checkout FETCH_HEAD -- . && echo "직전 파일 $(ls livecl | wc -l)개" || echo "직전 결과 없음(처음 실행)"
+          git reset -q
+      - name: 전 종목 6축 재계산
+        timeout-minutes: 11
+        env:
+          LIVE_DIR: livecl
+        run: python pipeline/live_chart.py
+      - name: 결과 → 보관 칸(live-cl)에 덮어쓰기 (사이트가 바로 읽음 · 재배포·기록 누적 없음)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 기록이 쌓이지 않게 '보관 칸(branch)'에 최신본만 덮어쓰기
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          [ -f livecl/summary.json ] && publish live-cl livecl && echo "올림: $(ls livecl | wc -l)개 파일"

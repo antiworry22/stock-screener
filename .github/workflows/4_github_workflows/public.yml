@@ -1,0 +1,42 @@
+name: public-feed
+# 공공기관 자료(정책브리핑 보도자료 · 거래소 시장경보 · 기관 발표 보도) 15분마다 수집
+# Actions → public-feed → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    # 매일 06:00~22:45 KST, 15분 간격 (UTC 21~23시, 0~13시)
+    - cron: "*/15 21-23,0-13 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: public-feed
+  cancel-in-progress: false
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+      - name: 직전 결과 불러오기 (이어서 쌓기)
+        continue-on-error: true
+        run: |
+          git fetch -q --depth=1 origin live-public && git show FETCH_HEAD:public.json > /tmp/prev.json && mv /tmp/prev.json site/data/public.json && echo "직전 public.json 불러옴" || echo "직전 결과 없음(처음 실행)"
+      - name: 공공기관 자료 수집
+        timeout-minutes: 8
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python pipeline/public_feed.py
+      - name: 결과 → 보관 칸(live-public)에 덮어쓰기 (사이트가 바로 읽음 · 재배포·기록 누적 없음)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 기록이 쌓이지 않게 '보관 칸(branch)'에 최신본만 덮어쓰기
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          publish live-public site/data/public.json

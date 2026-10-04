@@ -1,0 +1,64 @@
+name: daily-collect
+on:
+  schedule:
+    # 06:40 KST 월~금 (미국장 마감 직후 · 전일 국내 장마감 데이터 포함)
+    - cron: "40 21 * * 0-4"
+    # 16:50 KST 월~금 (국내 장마감 직후 업데이트)
+    - cron: "50 7 * * 1-5"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: data-commit
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -r pipeline/requirements.txt
+      - name: 직전 결과 불러오기 (이어서 쌓기)
+        continue-on-error: true
+        run: |
+          git fetch -q --depth=1 origin live-news && git show FETCH_HEAD:news.json > /tmp/prev.json && mv /tmp/prev.json site/data/news.json && echo "직전 news.json 불러옴" || echo "직전 결과 없음(처음 실행)"
+      - name: 수집 실행
+        timeout-minutes: 100
+        continue-on-error: true
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+        run: python pipeline/collect.py
+      - name: 시장 뉴스 수집 (국내·해외 → 영향 종목)
+        timeout-minutes: 10
+        continue-on-error: true
+        run: python pipeline/market_news.py
+      - name: 뉴스 → 보관 칸(live-news)
+        if: always()
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 기록이 쌓이지 않게 '보관 칸(branch)'에 최신본만 덮어쓰기
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          [ -f site/data/news.json ] && publish live-news site/data/news.json
+      - name: 결과 커밋 (Netlify 자동 재배포)
+        if: always()
+        run: |
+          git config user.name "screener-bot"
+          git config user.email "screener-bot@users.noreply.github.com"
+          git add site/data/latest.json site/data/news.json 2>/dev/null || git add site/data/latest.json
+          git diff --cached --quiet || git commit -m "data: $(date -u +%F)"
+          git pull --rebase -X theirs origin main || true
+          git push
