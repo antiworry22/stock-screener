@@ -111,7 +111,7 @@ function hBar(o) {
 function hCard(o) {
   const h = o.h, s = o.s;
   if (o.qty <= 0) return `<div class="h-card closed" data-id="${h.id}"><div class="h-top"><div><b>${esc(o.name)}</b> <small class="muted">${esc(h.code)} · 전량 매도</small></div><div class="mono ${cls(o.realized)}">실현 ${hSigned(o.realized)}</div></div>
-    <div class="row gap mt-s"><button class="btn ghost small" data-h="del" data-id="${h.id}">기록 삭제</button></div></div>`;
+    <div class="row gap mt-s"><button class="btn ghost small" data-h="log" data-id="${h.id}">${HOLD.open === h.id ? '거래 내역 닫기' : '거래 내역 보기·수정'}</button><button class="btn ghost small" data-h="del" data-id="${h.id}">기록 삭제</button></div>${HOLD.open === h.id ? hLogHtml(o) : ''}</div>`;
   if (!o.price) return `<div class="h-card" data-id="${h.id}"><div class="h-top"><div><b>${esc(o.name)}</b> <small class="muted">${esc(h.code)}</small> ${hActTag(o)}</div></div>
     <div class="hint">분석 대상(시가총액 1,000억·거래대금 5억 이상)이 아니라 시세가 없어요. 현재가를 직접 넣으면 손익을 계산해요.</div>
     <div class="row gap mt-s"><input class="inp small" type="number" placeholder="현재가" data-mp="${h.id}" style="width:120px"><button class="btn small" data-h="mp" data-id="${h.id}">적용</button><button class="btn ghost small" data-h="del" data-id="${h.id}">삭제</button></div></div>`;
@@ -133,7 +133,7 @@ function hCard(o) {
     ${s && typeof liveNewsHtml === 'function' && s._nw && s._nw.nDir ? liveNewsHtml(s, 2) : ''}
     <div class="row gap wrap mt-s">
       <button class="btn small" data-h="buy" data-id="${h.id}">추가 매수</button><button class="btn small" data-h="sell" data-id="${h.id}">매도 기록</button>
-      <button class="btn ghost small" data-h="edit" data-id="${h.id}">손절·목표 수정</button><button class="btn ghost small" data-h="log" data-id="${h.id}">${open ? '거래 내역 닫기' : '거래 내역'}</button>
+      <button class="btn ghost small" data-h="edit" data-id="${h.id}">손절·목표 수정</button><button class="btn ghost small" data-h="log" data-id="${h.id}">${open ? '거래 내역 닫기' : '거래 내역·수량 수정'}</button>
       <button class="btn ghost small" data-an="${esc(h.code)}">종목 분석 →</button>
       <button class="btn ghost small danger" data-h="del" data-id="${h.id}">🗑 삭제</button>
     </div>
@@ -160,7 +160,9 @@ function hLogHtml(o) {
   const h = o.h;
   const rows = [...h.lots.map((l, i) => ({ ...l, t: '매수', i, k: 'lots' })), ...(h.sells || []).map((l, i) => ({ ...l, t: '매도', i, k: 'sells' }))].sort((a, b) => a.d.localeCompare(b.d));
   return `<div class="h-log"><table class="clx-tb"><thead><tr><th>날짜</th><th>구분</th><th>가격</th><th>수량</th><th>금액</th><th></th></tr></thead><tbody>
-    ${rows.map(r => `<tr><td>${esc(r.d)}</td><td class="${r.t === '매수' ? 'up' : 'down'}">${r.t}</td><td class="mono">${fmt(r.p)}</td><td class="mono">${fmt(r.q)}</td><td class="mono">${hMoney(r.p * r.q)}</td><td><button class="btn ghost small" data-h="rmrow" data-id="${h.id}" data-k="${r.k}" data-i="${r.i}">지우기</button></td></tr>`).join('')}
+    ${rows.map(r => { const E = HOLD.edit && HOLD.edit.id === h.id && HOLD.edit.k === r.k && HOLD.edit.i === r.i;
+      return E ? `<tr class="h-editing"><td><input class="inp small" type="date" id="heD" value="${esc(r.d)}"></td><td class="${r.t === '매수' ? 'up' : 'down'}">${r.t}</td><td><input class="inp small mono" type="number" id="heP" value="${r.p}" min="0" style="width:110px"></td><td><input class="inp small mono" type="number" id="heQ" value="${r.q}" min="0" style="width:90px"></td><td class="mono muted">수정 중</td><td class="nowrap"><button class="btn primary small" data-h="saverow" data-id="${h.id}" data-k="${r.k}" data-i="${r.i}">저장</button> <button class="btn ghost small" data-h="cancelrow">취소</button></td></tr>`
+      : `<tr><td>${esc(r.d)}</td><td class="${r.t === '매수' ? 'up' : 'down'}">${r.t}</td><td class="mono">${fmt(r.p)}</td><td class="mono">${fmt(r.q)}</td><td class="mono">${hMoney(r.p * r.q)}</td><td class="nowrap"><button class="btn ghost small" data-h="editrow" data-id="${h.id}" data-k="${r.k}" data-i="${r.i}">✏️ 수정</button> <button class="btn ghost small" data-h="rmrow" data-id="${h.id}" data-k="${r.k}" data-i="${r.i}">지우기</button></td></tr>`; }).join('')}
     </tbody></table>${o.realized ? `<div class="hint">실현 손익 ${hSigned(o.realized)} (평균단가 기준)</div>` : ''}${h.memo ? `<div class="hint">메모: ${esc(h.memo)}</div>` : ''}</div>`;
 }
 
@@ -221,6 +223,10 @@ function renderHold() {
   $('#holdSum').innerHTML = sm.n ? hSumHtml(sm) + hWeightHtml(list, sm) : '';
   $$('#holdSum [data-an]').forEach(x => x.onclick = () => showAnalysis(x.dataset.an));
   const order = list.slice().sort((a, b) => (a.qty <= 0) - (b.qty <= 0) || (H_ACT[a.act] || H_ACT.hold)[2] - (H_ACT[b.act] || H_ACT.hold)[2] || (b.value || 0) - (a.value || 0));
+  // 수정·입력 중일 때 자동 갱신(실시간 자료 도착)이 입력 칸을 지우지 않게, 사용자가 누른 경우에만 목록을 다시 그림
+  const busy = (HOLD.edit || HOLD.form) && !HOLD.userAct;
+  HOLD.userAct = false;
+  if (busy) return;
   box.innerHTML = order.length ? order.map(hCard).join('') : '<div class="empty">아직 등록한 종목이 없어요. 위에서 산 종목·가격·수량을 넣으면 실시간으로 관리해 드려요.</div>';
   const t = typeof LIVE !== 'undefined' && LIVE.tfTime;
   $('#holdMeta').innerHTML = `${t ? `<span class="gov-live"></span> 시세·신호 ${esc(String(t).slice(11))} 기준 (장중 15분마다 갱신)` : `시세 ${esc(S.data.meta.asof)} 종가 기준 — 장중엔 15분마다 자동 갱신`} · 기록은 이 기기 브라우저에 저장`;
@@ -263,14 +269,33 @@ function hBind(root) {
   $$('[data-an]', root).forEach(x => x.onclick = () => showAnalysis(x.dataset.an));
   $$('[data-h]', root).forEach(b => b.onclick = e => {
     e.stopPropagation();
+    HOLD.userAct = true;
     const k = b.dataset.h, id = b.dataset.id;
     if (k === 'cancel') { HOLD.form = null; return renderHold(); }
     if (k === 'buy' || k === 'sell' || k === 'edit') { HOLD.form = { id, kind: k }; return renderHold(); }
-    if (k === 'log') { HOLD.open = HOLD.open === id ? null : id; return renderHold(); }
+    if (k === 'log') { HOLD.open = HOLD.open === id ? null : id; HOLD.edit = null; return renderHold(); }
+    if (k === 'editrow') { HOLD.edit = { id, k: b.dataset.k, i: +b.dataset.i }; HOLD.open = id; return renderHold(); }
+    if (k === 'cancelrow') { HOLD.edit = null; return renderHold(); }
     const { d, h } = hFind(id); if (!h) return;
     if (k === 'del') { if (!confirm(`${h.name}을(를) 내 보유 종목에서 삭제할까요?\n(삭제 후 10초 안에 '되돌리기'로 살릴 수 있어요)`)) return; hTrash([h], `${h.name} 삭제됨`); d.items = d.items.filter(x => x.id !== id); if (HOLD.form && HOLD.form.id === id) HOLD.form = null; }
     else if (k === 'mp') { const v = Number(($(`[data-mp="${id}"]`) || {}).value); if (!(v > 0)) return; h.mp = v; }
-    else if (k === 'rmrow') { const arr = h[b.dataset.k]; if (!arr || !confirm('이 거래를 지울까요?')) return; arr.splice(+b.dataset.i, 1); if (!h.lots.length) d.items = d.items.filter(x => x.id !== id); }
+    else if (k === 'saverow') {
+      const arr = h[b.dataset.k], i = +b.dataset.i; if (!arr || !arr[i]) return;
+      const p = hNum('#heP'), q = hNum('#heQ'), dd = ($('#heD') || {}).value || arr[i].d;
+      if (!(p > 0) || !(q > 0)) { alert('가격과 수량은 0보다 커야 해요. 거래를 없애려면 "지우기"를 누르세요.'); return; }
+      const old = { ...arr[i] }; arr[i] = { d: dd, p, q };
+      const buyQ = h.lots.reduce((a, l) => a + l.q, 0), sellQ = (h.sells || []).reduce((a, l) => a + l.q, 0);
+      if (sellQ > buyQ) { arr[i] = old; alert(`매도 수량 합계(${fmt(sellQ)}주)가 매수 수량 합계(${fmt(buyQ)}주)보다 많아질 수 없어요.`); return; }
+      HOLD.edit = null;
+    }
+    else if (k === 'rmrow') {
+      const arr = h[b.dataset.k]; if (!arr || !confirm('이 거래를 지울까요?')) return;
+      const removed = arr.splice(+b.dataset.i, 1)[0];
+      const buyQ = h.lots.reduce((a, l) => a + l.q, 0), sellQ = (h.sells || []).reduce((a, l) => a + l.q, 0);
+      if (h.lots.length && sellQ > buyQ) { arr.splice(+b.dataset.i, 0, removed); alert('이 매수를 지우면 매도 수량이 매수보다 많아져요. 매도 기록을 먼저 고치거나 지워 주세요.'); return; }
+      HOLD.edit = null;
+      if (!h.lots.length) d.items = d.items.filter(x => x.id !== id);
+    }
     else if (k === 'saveEdit') { h.stop = hNum('#hfStop'); h.t1 = hNum('#hfT1'); h.t2 = hNum('#hfT2'); h.memo = $('#hfMemo').value.trim(); HOLD.form = null; }
     else if (k === 'saveBuy' || k === 'saveSell') {
       const p = hNum('#hfP'), q = hNum('#hfQ'), dd = $('#hfD').value || hToday();

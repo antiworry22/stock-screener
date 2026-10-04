@@ -621,3 +621,4 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .h-wbar { display: inline-block; width: 80px; height: 7px; background: var(--panel2); border-radius: 4px; margin-right: 6px; vertical-align: middle; overflow: hidden; } .h-wbar i { display: block; height: 100%; }
 .h-wt { overflow-x: auto; }
 .h-sum .card .v.mono { font-size: 19px; white-space: nowrap; }
+.h-log .nowrap { white-space: nowrap; } .h-editing td { background: var(--accent-soft); } .h-editing .inp { min-height: 30px; padding: 3px 6px; }
