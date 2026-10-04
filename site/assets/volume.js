@@ -463,7 +463,7 @@ function renderVolTab() {
   // 종목 검색: 검색어가 있으면 신호·시장 필터와 관계없이 이름·코드로 찾음
   const q = $('#vsQ') ? $('#vsQ').value.trim() : '';
   let rows;
-  ['#vsMkt', '#vsFresh', '#vsSurge', '#vsChips'].forEach(id => { const el = $(id); if (el) el.classList.toggle('hidden', !!q); });  // 검색 중에는 결과를 검색창 바로 아래에
+  ['#vsMkt', '#vsFresh', '#vsRank', '#vsSurge', '#vsChips'].forEach(id => { const el = $(id); if (el) el.classList.toggle('hidden', !!q); });  // 검색 중에는 결과를 검색창 바로 아래에
   if (q) {
     const hits = (typeof findStocks === 'function' ? findStocks(q) : S.data.stocks.filter(s => s.name.includes(q) || s.code.includes(q))).filter(s => all.has(s.code));
     rows = hits.map(s => ({ s, a: all.get(s.code) }));
@@ -491,6 +491,7 @@ function renderVolTab() {
   }).join('') : '<div class="empty">지금 이 신호에 해당하는 종목이 없어요.</div>';
   $$('#vsList [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
   if (typeof renderVolLive === 'function') renderVolLive();
+  if (typeof renderTvRank === 'function') renderTvRank();
 }
 
 function volRenderOne(s, q, n) {

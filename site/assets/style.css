@@ -622,3 +622,7 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .h-wt { overflow-x: auto; }
 .h-sum .card .v.mono { font-size: 19px; white-space: nowrap; }
 .h-log .nowrap { white-space: nowrap; } .h-editing td { background: var(--accent-soft); } .h-editing .inp { min-height: 30px; padding: 3px 6px; }
+.tvr-tb td { white-space: nowrap; } .tvr-tb tbody tr { cursor: pointer; }
+.tvr-t { font-size: 12px; padding: 1px 7px; border-radius: 6px; background: var(--panel2); white-space: nowrap; }
+.tvr-t.good { background: var(--ok-soft); color: var(--ok); } .tvr-t.bad { background: var(--bad-soft); color: var(--bad); }
+.tvr-tb .rec-mv { display: inline; margin-left: 4px; }

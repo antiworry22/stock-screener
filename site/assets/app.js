@@ -187,6 +187,7 @@ function renderDash() {
   }).join('');
   bindItems();
   if (typeof renderLiveDash === 'function') renderLiveDash();
+  if (typeof renderTvRank === 'function') renderTvRank();
 }
 function whitelist() {
   return S.data.stocks.filter(s => !s._ban.length && s._sc.total >= S.th.whitelist_min_score && s.sr20 === '지지' && (s._sc.stability == null || s._sc.stability >= 40))
