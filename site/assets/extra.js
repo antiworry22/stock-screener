@@ -124,10 +124,18 @@ function recommend() {
   });
   return out.sort((a, b) => b.score - a.score);
 }
+const REC_HIST = { n: -1, prev: null, cur: null };
+function recMove(x) {
+  const m = x.mv; if (!m) return '';
+  if (m.nw) return '<span class="rec-mv up">NEW</span>';
+  if (m.r > 0) return `<span class="rec-mv up">▲${m.r}</span>`;
+  if (m.r < 0) return `<span class="rec-mv down">▼${-m.r}</span>`;
+  return m.d ? `<span class="rec-mv">${m.d > 0 ? '+' : ''}${m.d}</span>` : '';
+}
 function recCard(x, i, compact) {
   const s = x.s;
   return `<div class="rec" data-code="${esc(s.code)}">
-    <div class="rec-h"><span class="rank">${i + 1}</span>
+    <div class="rec-h"><span class="rank">${i + 1}${recMove(x)}</span>
       <div class="nm"><b>${esc(s.name)}</b><small>${esc(s.sector)} · ${fmt(s.close)}원 <span class="${cls(s.chg)}">${pct(s.chg)}</span></small></div>
       <div class="rec-sc"><span class="score ${sCls(x.score)}">${fmt(x.score, 1)}</span><small>추천점수</small></div></div>
     <div class="rec-b">
@@ -143,6 +151,12 @@ function renderRecs() {
   const mk = $('#recMarket') ? $('#recMarket').value : 'all';
   const n = $('#recN') ? +$('#recN').value : 20;
   const list = all.filter(x => mk === 'all' || x.s.market === mk).slice(0, n);
+  // 실시간 갱신마다 직전 순위·점수와 비교 (▲▼ 표시)
+  const ln = typeof LIVE !== 'undefined' ? LIVE.n : 0;
+  if (REC_HIST.n !== ln) { REC_HIST.prev = REC_HIST.cur; REC_HIST.n = ln; }
+  REC_HIST.cur = Object.fromEntries(all.map((x, i) => [x.s.code, [i + 1, x.score]]));
+  all.forEach((x, i) => { const p = REC_HIST.prev && REC_HIST.prev[x.s.code]; x.mv = !REC_HIST.prev ? null : p ? { r: p[0] - (i + 1), d: Math.round((x.score - p[1]) * 10) / 10 } : { nw: true }; });
+  if ($('#recLive')) $('#recLive').innerHTML = typeof LIVE !== 'undefined' && LIVE.n ? `<span class="gov-live"></span> 실시간 반영 중 — ${esc(liveHeaderText().replace(/^ · 실시간 반영/, '').replace(/[()]/g, ''))} · 점수 재계산 ${LIVE.n}회째 (마지막 ${esc((LIVE.last || '').slice(11))}) · ▲▼는 직전 계산 대비 순위 변화` : '실시간 자료 대기 중 — 차트·거래대금(장중 15분마다)·뉴스·공공기관 자료가 들어오면 순위가 자동으로 다시 매겨져요.';
   if ($('#recList')) {
     $('#recList').innerHTML = list.length ? list.map((x, i) => recCard(x, i, false)).join('') : '<div class="empty">조건을 만족하는 종목이 없습니다.</div>';
     $('#recMeta').textContent = `분석 ${S.data.stocks.length}종목 → 매수금지 제외·데이터 충분·종합 50점↑ 후보 ${all.length}종목 중 상위 ${list.length}`;

@@ -124,6 +124,7 @@
     </div>
     <p class="hint">추천점수 = 종합점수(55%) + 14개 판정 항목 중 좋은 항목 비율(45%) + 큰손 매수·차트 동시 양호 가점 − 과열·급등·주의 사항 감점. 매수 금지 종목과 데이터가 부족한 종목은 빼고, 위쪽 <b>모드</b>를 바꾸면 순위도 바뀝니다.</p>
     <div class="hint" id="recMeta"></div>
+    <div class="hint" id="recLive"></div>
     <div id="recList" class="rec-grid mt"></div>
   </div>
   <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
@@ -138,6 +139,8 @@
     <p class="hint">추세(26%)·모멘텀(20%)·거래량(16%)·구조/지지저항(20%)·패턴(12%)·주봉 정합(6%)을 각각 −1~+1로 매겨 더한 종합 점수(−100~+100)와 7단계 판정, 진입·손절·목표·손익비·권장 비중을 전 종목에 계산합니다. <b>장중(평일 9:00~15:45)에는 15분마다 오늘 움직임까지 넣어 다시 계산</b>하고, 이 화면은 3분마다 새 결과를 확인해 판정이 바뀐 종목을 알려줘요(시세 반영까지 최대 15~25분 지연). 「강력 매수 +55↑ · 매수 우위 +28↑ · 약한 매수 +8↑ · 중립 · 약한 매도 · 매도 우위 −28↓ · 강력 매도 −55↓」</p>
     <div id="clxIdx" class="clx-idxs mt"></div>
     <div id="clxChanges" class="mt"></div>
+    <div class="row gap wrap mt clx-search"><input id="clxQ" class="inp" list="stockNames" placeholder="종목 검색 (이름 또는 6자리 코드) — 예) 삼성전자, 005930" autocomplete="off"><button class="btn primary small" id="clxQGo">검색</button><button class="btn ghost small" id="clxQClear">지우기</button></div>
+    <div id="clxOne" class="mt-s"></div>
     <div class="mn-filters mt">
       <select id="clxV" class="inp"><option value="">모든 판정</option><option value="buy">매수 쪽(+8 이상)</option><option>강력 매수</option><option>매수 우위</option><option>약한 매수</option><option>중립·관망</option><option>약한 매도</option><option>매도 우위</option><option>강력 매도</option><option value="sell">매도 쪽(−8 이하)</option></select>
       <select id="clxP" class="inp"></select>

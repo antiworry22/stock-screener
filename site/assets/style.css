@@ -475,3 +475,6 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .lv-news { margin: 4px 0 8px; }
 .lv-news .news-item { font-size: 13px; }
 .lv-grid .lv-to { font-weight: 700; color: var(--text); }
+.clx-search #clxQ { flex: 1; min-width: 220px; max-width: 460px; }
+.rec-mv { display: block; font-size: 10.5px; font-weight: 700; color: var(--muted); line-height: 1.1; }
+.rec-mv.up { color: var(--up); } .rec-mv.down { color: var(--down); }

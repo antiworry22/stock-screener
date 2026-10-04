@@ -224,16 +224,25 @@ function renderClxTab() {
   const ck = $('#clxCk').checked, rr = $('#clxRR').checked, wk = $('#clxW').checked, nw = $('#clxNW').checked;
   let rows = S.data.stocks.filter(s => s.cl);
   const total = rows.length;
-  if (mk !== 'all') rows = rows.filter(s => s.market === mk);
+  // 종목 검색: 검색어가 있으면 아래 필터와 관계없이 이름·코드로 찾음
+  const q = $('#clxQ') ? $('#clxQ').value.trim() : '';
+  if (q) {
+    const hits = typeof findStocks === 'function' ? findStocks(q).filter(s => s.cl) : rows.filter(s => s.name.includes(q) || s.code.includes(q));
+    clxRenderOne(hits.length === 1 ? hits[0] : null, q, hits.length);
+    rows = hits;
+  } else clxRenderOne(null, '', 0);
+  if (!q && mk !== 'all') rows = rows.filter(s => s.market === mk);
+  if (!q) {
   if (vf === 'buy') rows = rows.filter(s => s.cl.s >= 8); else if (vf === 'sell') rows = rows.filter(s => s.cl.s <= -8); else if (vf) rows = rows.filter(s => s.cl.v === vf);
   if (pf) rows = rows.filter(s => (s.cl.pat || []).some(p => p.replace(/[+\-=!]/g, '') === pf) || (s.cl.cnd || []).some(c => c.slice(1) === pf));
   if (ck) rows = rows.filter(s => s.cl.ckp);
   if (rr) rows = rows.filter(s => s.cl.rr >= 1.5);
   if (wk) rows = rows.filter(s => (s.cl.w || 0) > 0 && s.cl.ax[0] > 0);
   if (nw) rows = rows.filter(s => !s.cl.nw);
+  }
   const key = { score: s => s.cl.s, rr: s => s.cl.rr, ck: s => s.cl.ck * 100 + s.cl.s, week: s => s.cl.w || -999, low: s => -s.cl.s }[sort];
   rows.sort((a, b) => key(b) - key(a));
-  $('#clxMeta').textContent = `조건에 맞는 ${rows.length}종목 / 판정 완료 ${total}종목`;
+  $('#clxMeta').textContent = q ? `"${q}" 검색 결과 ${rows.length}종목 (검색 중에는 아래 필터를 적용하지 않아요)` : `조건에 맞는 ${rows.length}종목 / 판정 완료 ${total}종목`;
   const patName = p => { const k = p.replace(/[+\-=!]/g, ''); return `<span class="tag ${p[0] === '+' ? 'good' : p[0] === '-' ? 'bad' : ''}">${esc((CLX_PAT[k] || [k])[0])}${p.endsWith('!') ? ' ✓' : ''}</span>`; };
   box.innerHTML = rows.length ? `<table class="clx-tb"><thead><tr><th>종목</th><th>현재가</th><th>종합 점수</th><th>판정</th><th title="추세·모멘텀·거래량·구조·패턴·주봉">6축</th><th>패턴</th><th>손익비</th><th>체크</th><th>권장 비중</th></tr></thead><tbody>${rows.slice(0, 150).map(s => {
     const c = s.cl;
@@ -249,7 +258,24 @@ function renderClxTab() {
   $$('#clxList [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
 }
 
+function clxRenderOne(s, q, n) {
+  const box = $('#clxOne'); if (!box) return;
+  if (!q) { box.innerHTML = ''; box.dataset.code = ''; return; }
+  if (!s) { box.innerHTML = n ? `<div class="hint">여러 종목이 검색됐어요 — 아래 표에서 고르거나 이름을 더 정확히 입력하세요.</div>` : `<div class="empty">"${esc(q)}"과(와) 맞는 종목이 없어요.</div>`; box.dataset.code = ''; return; }
+  if (box.dataset.code === s.code && box.dataset.t === (CLX.live ? CLX.live.meta.time : '')) return;  // 같은 종목·같은 자료면 다시 그리지 않음
+  box.dataset.code = s.code; box.dataset.t = CLX.live ? CLX.live.meta.time : '';
+  box.innerHTML = `<div class="an-card an-wide"><h4>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span> 차트 종합 판정 <button class="btn ghost small" id="clxOneAn">종목 분석 전체 보기 →</button></h4><div id="clxOneMount" data-code="${esc(s.code)}"></div></div>`;
+  if (typeof renderClx === 'function') renderClx(s, 'clxOneMount');
+  const b = $('#clxOneAn'); if (b) b.onclick = () => showAnalysis(s.code);
+}
 function initClx() {
+  if ($('#clxQ')) {
+    const go = () => renderClxTab();
+    $('#clxQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    $('#clxQ').onchange = go;
+    $('#clxQGo').onclick = go;
+    $('#clxQClear').onclick = () => { $('#clxQ').value = ''; go(); };
+  }
   if ($('#clxV')) {
     $('#clxP').innerHTML = '<option value="">모든 패턴</option><optgroup label="구조 패턴">' + Object.entries(CLX_PAT).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('') + '</optgroup><optgroup label="캔들 패턴(오늘·어제)">' +
       ['bullish_engulfing', 'morning_star', 'three_white_soldiers', 'hammer', 'piercing', 'bullish_harami', 'bearish_engulfing', 'evening_star', 'three_black_crows', 'shooting_star', 'dark_cloud'].map(k => `<option value="${k}">${CLX_CNAME[k] || k}</option>`).join('') + '</optgroup>';
