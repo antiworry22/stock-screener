@@ -80,6 +80,7 @@ function renderLiveDash() {
     <div class="lv-status">${liveTimeChip('차트·거래대금', cl && cl.time, cl ? `${LIVE.tfN || cl.n}종목${proj ? ' · ' + proj : ''}${chgN ? ` · 판정 변화 ${chgN}` : ''}` : '장중 15분마다')}
       ${liveTimeChip('시장 뉴스', mn && mn.generated, mn ? `${(MN.d.items || []).length}건` : '')}
       ${liveTimeChip('공공기관', gv && gv.generated, gv ? `${(GOV.d.items || []).length}건` : '')}
+      ${typeof flowChip === 'function' ? `<span class="lv-chip ${FLOW.d ? 'on' : ''}">${FLOW.d ? '<span class="gov-live"></span>' : '○'} ${flowChip()}</span>` : ''}
       ${LIVE.n ? `<span class="hint">점수 재계산 ${LIVE.n}회 · 마지막 ${esc((LIVE.last || '').slice(11))}</span>` : ''}</div>
     <div class="grid3 lv-grid">
       <div><h4 class="good-t">지금 힘이 붙는 종목 <small class="muted">재료·돈·추세 같은 방향</small></h4>${good.length ? good.map(s => liveRow(s, `<b class="mono ${cls(s._fu.total)}">${s._fu.total > 0 ? '+' : ''}${s._fu.total}</b>`, kindTag(s))).join('') : '<div class="empty">해당 종목 없음</div>'}</div>
@@ -119,6 +120,7 @@ function liveHeaderText() {
   if (t) bits.push(`차트·거래대금 ${String(t).slice(11)}`);
   if (typeof MN !== 'undefined' && MN.d) bits.push(`뉴스 ${String(MN.d.meta.generated || '').slice(11, 16)}`);
   if (typeof GOV !== 'undefined' && GOV.d) bits.push(`공공기관 ${String(GOV.d.meta.generated || '').slice(11, 16)}`);
+  if (typeof FLOW !== 'undefined' && FLOW.d) bits.push(`수급 ${String(FLOW.d.meta.time || '').slice(11, 16)}`);
   return bits.length ? ` · 실시간 반영(${bits.join(' · ')})` : '';
 }
 

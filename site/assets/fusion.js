@@ -109,6 +109,7 @@ function fuOnUpdate(src, fresh) {
       const d = (f.total ?? 0) - (p.total ?? 0);
       const kindChg = f.kind !== p.kind && (f.tone === 'good' || f.tone === 'bad');
       if (!why.length && !kindChg && Math.abs(d) < 15) return;
+      if (src === 'flow' && !why.length) { const s = M[code]; why.push({ k: '수급', t: `외국인 ${s.foreign_streak > 0 ? '+' : ''}${s.foreign_streak ?? '-'}일 · 기관 ${s.inst_streak > 0 ? '+' : ''}${s.inst_streak ?? '-'}일` }); }
       if (!why.length && !kindChg) why.push({ k: '종합', t: `종합 점수 ${d > 0 ? '+' : ''}${d}` });
       FU.feed.unshift({ t, code, name: M[code].name, src, d, from: p.kind, to: f.kind, tone: f.tone, total: f.total, why, text: f.text });
     });
