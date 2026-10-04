@@ -626,3 +626,12 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .tvr-t { font-size: 12px; padding: 1px 7px; border-radius: 6px; background: var(--panel2); white-space: nowrap; }
 .tvr-t.good { background: var(--ok-soft); color: var(--ok); } .tvr-t.bad { background: var(--bad-soft); color: var(--bad); }
 .tvr-tb .rec-mv { display: inline; margin-left: 4px; }
+/* ── 업종 펼침·미국장 영향(market.js) ── */
+.sec-row { cursor: pointer; } .sec-row.open td { background: var(--accent-soft); }
+.sec-open > td { background: var(--panel2); padding: 8px 10px !important; }
+.sec-mem { font-size: 12.5px; } .sec-mem tbody tr { cursor: pointer; } .sec-mem td { white-space: nowrap; }
+.usi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; margin-top: 8px; }
+.usi-grid h4 { margin: 0 0 6px; } .usi-grid .good-t { color: var(--up); } .usi-grid .bad-t { color: var(--down); }
+.usi-box { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 9px; padding: 8px 11px; margin-bottom: 8px; }
+.usi-box.good { border-left-color: var(--up); } .usi-box.bad { border-left-color: var(--down); }
+.usi-h { display: flex; justify-content: space-between; align-items: baseline; } .usi-chips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }

@@ -93,14 +93,43 @@ function renderSectorLive() {
   if ($('#usStatus')) $('#usStatus').innerHTML = MKT.d ? `<span class="gov-live"></span> ${esc(MKT.d.meta.time.slice(11))} 기준` : '';
   if ($('#usNote')) $('#usNote').innerHTML = MKT.d ? `한국 낮 시간엔 미국 본장이 닫혀 있어 지수는 전날 밤 종가예요 — 그때는 <b>S&P·나스닥 선물</b>이 오늘 밤 미국장 분위기를 미리 보여줘요. 미 10년물 금리·원/달러·VIX는 오르면(빨강 아님) 주식에 부담이라 색을 반대로 표시했어요.${S.data.gate ? ` · 매크로 게이트: <b>${{ green: '정상', yellow: '주의', red: '경고' }[S.data.gate.level]}</b> — ${esc(S.data.gate.reasons.join(' / '))}` : ''}` : '';
   const secs = S.data.sectors || [];
+  const mem = name => S.data.stocks.filter(x => x.sector === name).sort((a, b) => (b.mcap || 0) - (a.mcap || 0));
+  const react = (x, sec) => { const c = x.chg; if (c == null || sec.us_impact == null || Math.abs(sec.us_impact) < 0.1) return ''; const same = Math.sign(c) === Math.sign(sec.us_impact);
+    return same ? `<span class="tag ${c > 0 ? 'good' : 'bad'}">미국장 따라 ${c > 0 ? '상승' : '하락'}</span>` : `<span class="tag">미국장과 반대</span>`; };
+  const memTable = sec => { const L = mem(sec.name); if (!L.length) return '<div class="hint">분석 대상 종목이 없어요.</div>';
+    return `<table class="tbl sec-mem"><thead><tr><th class="l">종목</th><th>현재가</th><th>오늘</th><th>업종 대비</th><th>5일</th><th>시가총액</th><th>미국장 예상 영향</th><th class="l">반응</th><th>종합</th></tr></thead><tbody>${L.slice(0, MKT.all === sec.name ? 200 : 15).map(x => {
+      const rel = x.chg != null && sec.chg != null ? x.chg - sec.chg : null;
+      return `<tr data-an="${esc(x.code)}"><td class="l"><b>${esc(x.name)}</b> <small class="muted">${x.market === 'KOSPI' ? '코스피' : '코스닥'}</small></td><td class="mono">${fmt(x.close)}</td><td class="mono ${cls(x.chg)}">${pct(x.chg, 2)}</td><td class="mono ${cls(rel)}">${rel == null ? '–' : (rel > 0 ? '+' : '') + fmt(rel, 2) + '%p'}</td><td class="mono ${cls(x.ret5)}">${pct(x.ret5, 1)}</td><td class="mono">${x.mcap >= 10000 ? fmt(x.mcap / 10000, 1) + '조' : fmt(x.mcap) + '억'}</td><td class="mono ${cls(sec.us_impact)}">${pct(sec.us_impact)}</td><td class="l">${react(x, sec)}</td><td class="mono">${x._sc ? fmt(x._sc.total, 1) : '–'}</td></tr>`; }).join('')}</tbody></table>
+      <div class="row gap mt-s">${L.length > 15 && MKT.all !== sec.name ? `<button class="btn ghost small" data-secall="${esc(sec.name)}">${L.length}종목 모두 보기</button>` : ''}<button class="btn ghost small" data-secsearch="${esc(sec.name)}">조건검색으로 보기 →</button></div>`; };
   if ($('#secTable')) {
+    MKT.open = MKT.open || new Set();
     $('#secTable').innerHTML = secs.length ? `<thead><tr><th class="l">업종</th><th>오늘</th><th>오른·내린 종목</th><th>5일</th><th>시장 대비</th><th>미국장 영향</th><th class="l">연결된 미국 지표</th><th>분석 종목</th><th>평균 종합</th></tr></thead><tbody>${secs.map(s => {
       const m = S.data.stocks.filter(x => x.sector === s.name && x._sc); const avg = m.length ? m.reduce((a, x) => a + x._sc.total, 0) / m.length : null;
-      return `<tr data-sec="${esc(s.name)}"><td class="l"><b>${esc(s.name)}</b></td><td class="mono ${cls(s.chg)}"><b>${pct(s.chg, 2)}</b></td><td class="mono"><span class="up">${s.up ?? '–'}</span> / <span class="down">${s.down ?? '–'}</span></td><td class="mono ${cls(s.ret5)}">${pct(s.ret5, 1)}</td><td class="mono ${cls(s.rel5)}">${pct(s.rel5, 1)}</td><td class="mono ${cls(s.us_impact)}">${pct(s.us_impact)}</td><td class="l">${esc(s.coupling || '')} <span class="muted">${(s.us_syms || []).join('+')}</span></td><td class="mono">${s.count}</td><td class="mono">${avg != null ? fmt(avg, 1) : '–'}</td></tr>`; }).join('')}</tbody>`
+      const op = MKT.open.has(s.name);
+      return `<tr data-sec="${esc(s.name)}" class="sec-row ${op ? 'open' : ''}"><td class="l"><b>${op ? '▾' : '▸'} ${esc(s.name)}</b></td><td class="mono ${cls(s.chg)}"><b>${pct(s.chg, 2)}</b></td><td class="mono"><span class="up">${s.up ?? '–'}</span> / <span class="down">${s.down ?? '–'}</span></td><td class="mono ${cls(s.ret5)}">${pct(s.ret5, 1)}</td><td class="mono ${cls(s.rel5)}">${pct(s.rel5, 1)}</td><td class="mono ${cls(s.us_impact)}">${pct(s.us_impact)}</td><td class="l">${esc(s.coupling || '')} <span class="muted">${(s.us_syms || []).join('+')}</span></td><td class="mono">${s.count}</td><td class="mono">${avg != null ? fmt(avg, 1) : '–'}</td></tr>`
+        + (op ? `<tr class="sec-open"><td colspan="9">${memTable(s)}</td></tr>` : ''); }).join('')}</tbody>`
       : `<tbody><tr><td class="l">${MKT.st ? '업종 자료 수집 오류: ' + esc(MKT.st.msg || '') : '업종 실시간 자료를 불러오는 중…'}</td></tr></tbody>`;
-    $$('#secTable tr[data-sec]').forEach(tr => tr.onclick = () => { S.conds = [{ f: 'sector', op: 'is', v: tr.dataset.sec }]; drawConds(); switchTab('search'); runSearch(); });
+    $$('#secTable tr[data-sec]').forEach(tr => tr.onclick = () => { const n = tr.dataset.sec; MKT.open.has(n) ? MKT.open.delete(n) : MKT.open.add(n); renderSectorLive(); });
+    $$('#secTable [data-an]').forEach(el => el.onclick = e => { e.stopPropagation(); showAnalysis(el.dataset.an); });
+    $$('#secTable [data-secall]').forEach(b => b.onclick = e => { e.stopPropagation(); MKT.all = b.dataset.secall; renderSectorLive(); });
+    $$('#secTable [data-secsearch]').forEach(b => b.onclick = e => { e.stopPropagation(); S.conds = [{ f: 'sector', op: 'is', v: b.dataset.secsearch }]; drawConds(); switchTab('search'); runSearch(); });
   }
-  if ($('#secStatus')) $('#secStatus').innerHTML = MKT.d ? `<span class="gov-live"></span> 업종 등락 ${esc(MKT.d.meta.time.slice(11))} · ${secs.length && secs[0].own ? `거래소 업종 ${secs.length}개 — 등락은 분석 종목 실시간 시세의 시가총액 가중 평균` : `네이버 금융 업종 ${secs.length}개`} · 줄을 누르면 그 업종 종목 검색` : '';
+  // 미국장 영향이 큰 업종(+/−)과 대표 종목
+  if ($('#usImpact')) {
+    const ok = secs.filter(s => s.us_impact != null && s.count);
+    const pos = ok.filter(s => s.us_impact > 0.05).sort((a, b) => b.us_impact - a.us_impact).slice(0, 4);
+    const neg = ok.filter(s => s.us_impact < -0.05).sort((a, b) => a.us_impact - b.us_impact).slice(0, 4);
+    const U = (MKT.d && MKT.d.us) || {};
+    const drv = s => (s.us_syms || []).map(k => `${esc((S.usmap.us_symbols || {})[k] || k)} <b class="${cls((S.data.us_rets || {})[k])}">${pct((S.data.us_rets || {})[k])}</b>`).join(' · ');
+    const chip = x => `<button class="mn-chip ${x.chg > 0 ? 'good' : x.chg < 0 ? 'bad' : ''}" data-an="${esc(x.code)}">${esc(x.name)} <small class="mono ${cls(x.chg)}">${pct(x.chg, 1)}</small></button>`;
+    const box = (s, tone) => `<div class="usi-box ${tone}"><div class="usi-h"><b>${esc(s.name)}</b><span class="mono ${cls(s.us_impact)}">예상 ${pct(s.us_impact)}</span></div><div class="hint">${drv(s)} · ${esc(s.coupling || '')} · 오늘 업종 <b class="${cls(s.chg)}">${pct(s.chg, 2)}</b></div><div class="usi-chips">${mem(s.name).slice(0, 8).map(chip).join('')}</div></div>`;
+    const fut = U.NQ ? `<div class="hint">오늘 밤 미국장 미리보기: 나스닥 선물 <b class="${cls(U.NQ.chg)}">${pct(U.NQ.chg)}</b>${U.ES ? ` · S&P 선물 <b class="${cls(U.ES.chg)}">${pct(U.ES.chg)}</b>` : ''} — 선물이 크게 움직이면 아래 업종들이 다음 날 같은 방향으로 반응하기 쉬워요.</div>` : '';
+    $('#usImpact').innerHTML = ok.length ? `${fut}<div class="usi-grid">${pos.length ? `<div><h4 class="good-t">미국장 덕에 오를 쪽</h4>${pos.map(s => box(s, 'good')).join('')}</div>` : ''}${neg.length ? `<div><h4 class="bad-t">미국장 탓에 내릴 쪽</h4>${neg.map(s => box(s, 'bad')).join('')}</div>` : ''}${!pos.length && !neg.length ? '<div class="hint">지금은 미국장 영향이 뚜렷한 업종이 없어요(미국 지표 변동이 작음).</div>' : ''}</div>
+      <div class="hint mt-s">'예상 영향' = 연결된 미국 지표의 전날(마지막 거래일) 등락 × 민감도. 표의 업종 줄을 누르면 그 업종 모든 종목의 오늘 반응(업종 대비 강·약, 미국장과 같은 방향인지)을 볼 수 있어요.</div>`
+      : '<div class="hint">업종·미국장 자료를 불러오는 중…</div>';
+    $$('#usImpact [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
+  }
+  if ($('#secStatus')) $('#secStatus').innerHTML = MKT.d ? `<span class="gov-live"></span> 업종 등락 ${esc(MKT.d.meta.time.slice(11))} · ${secs.length && secs[0].own ? `거래소 업종 ${secs.length}개 — 등락은 분석 종목 실시간 시세의 시가총액 가중 평균` : `네이버 금융 업종 ${secs.length}개`} · 업종 줄을 누르면 종목 목록이 펼쳐져요` : '';
   const ur = S.data.us_rets || {}, names = { ...(S.usmap.us_symbols || {}) };
   if ($('#mapTable')) $('#mapTable').innerHTML = `<thead><tr><th class="l">국내 업종 묶음</th><th class="l">미국 지표 × 민감도</th><th class="l">결합도</th><th>지금 영향</th></tr></thead><tbody>${S.usmap.map.map(m => {
     const v = m.us.reduce((a, u) => a + (ur[u.sym] ?? 0) * u.beta, 0);
