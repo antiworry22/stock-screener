@@ -156,9 +156,11 @@
 <!-- ═══ 시장 뉴스 (국내·해외 → 영향 종목) ═══ -->
 <section id="tab-mnews" class="tab">
   <div class="panel">
-    <div class="ph"><h2>국내·해외 시장 뉴스 → 영향 받을 종목</h2></div>
+    <div class="ph"><h2>국내·해외 시장 뉴스 → 영향 받을 종목 <small class="muted">(실시간)</small></h2>
+      <div class="row gap wrap"><button class="btn ghost small" id="mnRefresh">지금 새로고침</button><button class="btn ghost small" id="mnReadAll">NEW 표시 지우기</button><button class="btn ghost small" id="mnNoti">🔕 바탕화면 알림 켜기</button></div></div>
     <p class="hint">국내 증시·특징주·수주·실적 뉴스와 미국 증시·연준(금리)·빅테크·유가·환율·관세·전쟁 같은 해외 뉴스를 모아, 그 뉴스가 <b>어떤 코스피·코스닥 종목</b>에 좋거나 나쁠 수 있는지 연결했습니다.
       <br>· <b>직접</b> = 기사 제목에 종목 이름이 나온 경우 · <b>▲ 유리 / ▼ 부담</b> = 관련 업종(테마)의 대표 종목 · 유가·금리·환율·전쟁 뉴스는 오르는지 내리는지를 읽어서 유리한 업종과 불리한 업종을 함께 보여줍니다.</p>
+    <div class="hint gov-status" id="mnStatus"></div>
     <div class="hint" id="mnMeta"></div>
     <div id="mnSum" class="mn-sum mt"></div>
   </div>
@@ -170,14 +172,14 @@
         <label class="seg"><input type="radio" name="mnreg" value="해외"><span>해외</span></label>
       </div>
       <select id="mnTheme" class="inp"><option value="">전체 테마</option></select>
-      <select id="mnTone" class="inp"><option value="all">모든 소식</option><option value="pos">좋은 소식(호재·유리)</option><option value="neg">나쁜 소식(악재·부담)</option><option value="direct">종목 이름이 나온 기사만</option></select>
+      <select id="mnTone" class="inp"><option value="all">모든 소식</option><option value="pos">좋은 소식(호재·유리)</option><option value="neg">나쁜 소식(악재·부담)</option><option value="direct">종목 이름이 나온 기사만</option><option value="new">NEW(새로 들어온 것)만</option></select>
       <select id="mnMkt" class="inp"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피만</option><option value="KOSDAQ">코스닥만</option></select>
       <input id="mnQ" class="inp" list="stockNames" placeholder="종목 이름이나 단어 (예: 삼성전자, 유가)" autocomplete="off">
     </div>
     <div class="hint mt-s" id="mnCount"></div>
     <div id="mnList" class="mn-list mt-s"></div>
     <button class="btn ghost hidden mt" id="mnMore">더 보기</button>
-    <p class="hint mt">※ 기사 제목을 규칙으로 자동 분류한 결과라 틀릴 수 있어요. 실제 매매 전에는 꼭 기사 원문을 확인하세요. 뉴스는 평일 오전 6시 40분·낮 12시 10분·오후 4시 50분, 일요일 밤 9시에 새로 모읍니다.</p>
+    <p class="hint mt">※ 기사 제목을 규칙으로 자동 분류한 결과라 틀릴 수 있어요. 실제 매매 전에는 꼭 기사 원문을 확인하세요. 뉴스는 매일 오전 6시~밤 11시 15분마다 새로 모으고, 이 화면은 3분마다 자동으로 새 기사를 확인해요(실제 보도보다 최대 20~30분 늦을 수 있어요). 종목 이름이 나온 호재·악재 기사나 유가·금리·환율·전쟁 뉴스가 새로 들어오면 알림이 떠요.</p>
   </div>
 </section>
 
