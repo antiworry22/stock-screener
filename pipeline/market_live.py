@@ -69,7 +69,7 @@ def naver_sectors():
     r = S.get("https://finance.naver.com/sise/sise_group.naver", params={"type": "upjong"}, timeout=(5, 12))
     html = r.content.decode("euc-kr", errors="ignore")
     out = []
-    for m in re.finditer(r'sise_group_detail\.naver\?type=upjong&no=(\d+)">([^<]+)</a>(.*?)</tr>', html, re.S):
+    for m in re.finditer(r'sise_group_detail\.naver\?type=upjong&(?:amp;)?no=(\d+)"[^>]*>([^<]+)</a>(.*?)</tr>', html, re.S):
         no, name, rest = m.group(1), m.group(2).strip(), m.group(3)
         txt = re.sub(r"<[^>]+>", " ", rest)
         pctm = re.search(r"([+-]?\d+\.\d+)%", txt)
@@ -82,7 +82,8 @@ def naver_sectors():
             row.update({"n": nums[0], "up": nums[1], "flat": nums[2], "down": nums[3]})
         out.append(row)
     if len(out) < 20:
-        raise ValueError(f"업종 표 해석 실패(행 {len(out)}, 길이 {len(html)})")
+        i = html.find("upjong")
+        raise ValueError(f"업종 표 해석 실패(행 {len(out)}, 길이 {len(html)}) 예: {html[max(0, i - 80):i + 220]!r}")
     return out
 
 
@@ -92,7 +93,7 @@ def naver_sector_map(secs):
         try:
             r = S.get("https://finance.naver.com/sise/sise_group_detail.naver", params={"type": "upjong", "no": s["no"]}, timeout=(5, 12))
             html = r.content.decode("euc-kr", errors="ignore")
-            for code in set(re.findall(r"/item/main\.naver\?code=(\d{6})", html)):
+            for code in set(re.findall(r"/item/main\.naver\?code=(\d{6})", html)):  # 종목 링크
                 mp.setdefault(code, s["name"])
         except Exception as e:
             DIAG.setdefault("업종 구성 오류", f"{s['name']}: {type(e).__name__}")

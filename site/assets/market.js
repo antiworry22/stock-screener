@@ -74,8 +74,9 @@ async function mktLoad() {
 
 function mktState(o) {
   if (!o) return '';
-  const st = String(o.state || '').toUpperCase();
-  return st === 'REGULAR' ? '<span class="tag good">장중</span>' : st.startsWith('PRE') ? '<span class="tag">프리마켓</span>' : st.startsWith('POST') ? '<span class="tag">애프터</span>' : '<span class="tag">마감</span>';
+  // 마지막 체결 시각이 30분 안이면 '거래 중', 아니면 '마감'
+  const age = o.t ? (Date.now() - new Date(o.t.replace(' ', 'T') + ':00+09:00')) / 60000 : 1e9;
+  return age <= 30 ? '<span class="tag good">거래 중</span>' : '<span class="tag">마감</span>';
 }
 function renderSectorLive() {
   const U = (MKT.d && MKT.d.us) || {};
