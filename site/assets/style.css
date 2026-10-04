@@ -584,3 +584,20 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ez details { font-size: 12px; color: var(--muted); } .ez summary { cursor: pointer; color: var(--accent); }
 .ez-ma { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; } .ez-ma i { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--panel); }
 .ez-ma i.up { color: var(--up); } .ez-ma i.down { color: var(--down); }
+
+/* ── 회사 알아보기(company.js) ── */
+.co-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+.co-box { background: var(--panel2); border-radius: 10px; padding: 10px 13px; min-width: 0; }
+.co-wide { grid-column: 1 / -1; }
+.co-box h5 { margin: 0 0 6px; font-size: 14px; }
+.co-box p { margin: 4px 0; font-size: 13.3px; line-height: 1.6; }
+.co-biz { margin: 6px 0; padding-left: 18px; font-size: 13.3px; line-height: 1.6; }
+.co-tags { margin-top: 6px; } .co-tags .tag { white-space: normal; }
+.co-bar { display: grid; grid-template-columns: minmax(80px, 38%) 1fr 52px; gap: 6px; align-items: center; font-size: 12.5px; margin: 3px 0; }
+.co-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .co-bar i { display: block; height: 9px; border-radius: 4px; background: var(--accent); } .co-bar b { text-align: right; }
+.co-rep { margin-top: 6px; } .co-rep .news-item { font-size: 12.5px; }
+.co-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .co-stats span { background: var(--panel); border-radius: 6px; padding: 3px 8px; display: flex; flex-direction: column; } .co-stats small { color: var(--muted); font-size: 10.5px; } .co-stats b { font-size: 12.5px; }
+.co-out { border-left: 4px solid var(--line); } .co-out.good { border-left-color: var(--ok); } .co-out.bad { border-left-color: var(--bad); }
+.co-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } .co-3 p { font-size: 12.8px; }
+.co-out .good-t { color: var(--ok); } .co-out .bad-t { color: var(--bad); }
+@media (max-width: 800px) { .co-3 { grid-template-columns: 1fr; } }

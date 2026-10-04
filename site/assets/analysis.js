@@ -51,6 +51,7 @@ function analysisHtml(s) {
       <div class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector)} · 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}</div></div>
     <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div>${s._tfD && typeof LIVE !== 'undefined' && LIVE.tfTime ? `<div class="hint"><span class="gov-live"></span> 실시간 ${esc(LIVE.tfTime.slice(11))} 기준 점수</div>` : ''}</div>
   </div>
+  <div class="an-card an-wide"><h4>회사 알아보기 <small class="muted">— 무슨 사업을 하는지 · 주요 제품 · 증권사 전망 · 종합 전망</small></h4><div id="coMount"></div></div>
   <div class="an-card an-wide"><h4>실시간 종합 <small class="muted">— 재료(뉴스·공공기관) × 돈(거래대금) × 추세(차트)가 이 종목에 어떻게 맞물리는지</small></h4><div id="fuMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 종합 판정 <small class="muted">— 6축 점수 엔진(추세·모멘텀·거래량·구조·패턴·주봉) · 진입·손절·목표·손익비·체크리스트</small></h4><div id="clxMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 정밀 분석 · 평가 점수 · 추천 여부</h4><div id="clMount"></div></div>
@@ -94,6 +95,7 @@ function showAnalysis(code, quiet) {
   $('#anDetail').onclick = () => openDetail(s.code);
   if ($('#obAnGo')) $('#obAnGo').onclick = () => obStart(s.code, 'obAnMount');
   if (quiet && typeof OB !== 'undefined' && OB.mount === 'obAnMount' && OB.code === s.code && OB.timer) { const m = $('#obAnMount'); if (m) { m.dataset.code = s.code; obPoll(); } }
+  if (typeof coRender === 'function') coRender(s, 'coMount');
   if (typeof fuFillAnalysis === 'function') fuFillAnalysis();
   if (typeof renderClx === 'function') renderClx(s, 'clxMount');
   if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');
