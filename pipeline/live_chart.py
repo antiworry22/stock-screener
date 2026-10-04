@@ -122,6 +122,9 @@ def one(code):
     cs["c"] = int(c.iloc[-1])
     cs["chg"] = round((c.iloc[-1] / c.iloc[-2] - 1) * 100, 2) if len(c) > 1 and c.iloc[-2] else None
     cs["d"] = df.index[-1].strftime("%Y-%m-%d")
+    # 최근 3봉(날짜·시가·고가·저가·종가·거래량) — 화면의 거래량·거래대금 실시간 분석용 (장중엔 마지막 봉이 진행 중)
+    t3 = df.iloc[-3:]
+    cs["bars"] = [[i.strftime("%Y-%m-%d"), int(r["시가"]), int(r["고가"]), int(r["저가"]), int(r["종가"]), int(r["거래량"])] for i, r in t3.iterrows()]
     return code, cs, cf
 
 
