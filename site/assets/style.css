@@ -434,3 +434,4 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .clx-6 i{width:7px;border-radius:2px}.clx-6 i.p{background:var(--ok)}.clx-6 i.m{background:var(--bad)}
 .clx-tb tr.clx-chg td{background:var(--accent-soft)}
 #clxChanges h4{margin:0 0 6px;font-size:13.5px}
+#vsFresh h4,#vsSurge h4{margin:0 0 6px;font-size:13.5px}

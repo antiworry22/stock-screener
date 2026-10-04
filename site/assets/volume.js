@@ -355,8 +355,8 @@ function volCardHtml(s, a) {
   const groups = [];
   a.chk.forEach(c => { let g = groups.find(x => x.p === c.p); if (!g) groups.push(g = { p: c.p, items: [] }); g.items.push(c); });
   const tiles = [
-    ['상대거래량', vX(a.rv), '20일 평균 대비'],
-    ['오늘 거래대금', vEok(a.tvToday), `시장 ${a.M.rank[s.code] || '–'}위`],
+    ['상대거래량', vX(a.rv), s._vlive && s._vlive.intr ? `장중 ${esc((s._vlive.time || '').slice(11))} 하루 환산 (실제 ${fmt(s._vlive.raw)}주)` : '20일 평균 대비'],
+    [s._vlive && s._vlive.intr ? '지금까지 거래대금' : '오늘 거래대금', vEok(a.tvToday), `시장 ${a.M.rank[s.code] || '–'}위`],
     ['회전율', a.tvMcap != null ? fmt(a.tvMcap, 2) + '%' : '–', `시장 중간값의 ${vX(a.turnRel)}`],
     ['시장 비중', a.share != null ? fmt(a.share, 2) + '%' : '–', '전체 거래대금 중'],
     ['시장 온도', a.M.temp, `20일 평균의 ${vX(a.M.ratio, 2)}`],
@@ -475,9 +475,11 @@ function renderVolTab() {
     </div>`;
   }).join('') : '<div class="empty">지금 이 신호에 해당하는 종목이 없어요.</div>';
   $$('#vsList [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
+  if (typeof renderVolLive === 'function') renderVolLive();
 }
 
 function initVolume() {
+  if (typeof initVolLive === 'function') setTimeout(initVolLive, 0);
   if ($('#vsType')) {
     $('#vsType').innerHTML = VSIG.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
     $('#vsType').onchange = renderVolTab; $('#vsMarket').onchange = renderVolTab;
@@ -494,3 +496,109 @@ function initVolume() {
 }
 
 function renderVolume() { renderVolTab(); }
+
+/* ───── 실시간: 장중 15분마다 받는 오늘 봉으로 거래량·거래대금 다시 해석 ─────
+   보고서 11장 '장중 데이터 보정': 장중 누적 거래량은 시간대별 평균 진행률로 나눠 '하루 예상 거래량'으로 환산해 비교 */
+const VOL_CURVE = [[0, 0], [30, 0.20], [60, 0.30], [120, 0.44], [180, 0.54], [240, 0.63], [300, 0.73], [360, 0.88], [390, 1]];
+function volKst() { return new Date(Date.now() + 9 * 3600e3); }
+function volFrac() {  // 09:00~15:30 중 지금까지 하루 거래량의 몇 %가 보통 체결되는지 (시작·마감에 몰리는 U자형)
+  const k = volKst(), m = k.getUTCHours() * 60 + k.getUTCMinutes() - 540;
+  if (m <= 0) return null;
+  if (m >= 390) return 1;
+  for (let i = 1; i < VOL_CURVE.length; i++) {
+    const [m0, f0] = VOL_CURVE[i - 1], [m1, f1] = VOL_CURVE[i];
+    if (m <= m1) return Math.max(0.08, f0 + (f1 - f0) * (m - m0) / (m1 - m0));
+  }
+  return 1;
+}
+function volSigMap(all) {
+  const out = {};
+  all.forEach((a, code) => { out[code] = VSIG.filter(sg => sg[4](a)).map(sg => sg[0]); });
+  return out;
+}
+function volApplyLive(d) {
+  if (!d || !d.s || !S.data) return;
+  const asof = S.data.meta.asof, today = volKst().toISOString().slice(0, 10), f = volFrac();
+  if (!VOL.prevSig) VOL.prevSig = volSigMap(volAll());  // 첫 적용 전 = 어제 종가 기준 신호
+  let n = 0;
+  S.data.stocks.forEach(s => {
+    const x = d.s[s.code]; if (!x || !x.bars || !s.spark) return;
+    if (!s._base) s._base = { c: s.spark, v: s.spark_vol, o: s.spark_o, h: s.spark_h, l: s.spark_l, tvalue: s.tvalue, volume: s.volume };
+    const B = s._base, has = !!(B.o && B.h && B.l);
+    const C = [...B.c], V = [...B.v], O = has ? [...B.o] : null, H = has ? [...B.h] : null, L = has ? [...B.l] : null;
+    let last = null;
+    x.bars.forEach(([dd, o, h, l, c, v]) => {
+      if (dd < asof) return;
+      const intr = dd === today && f != null && f < 1;
+      const vv = intr ? Math.round(v / f) : v;
+      const put = (A, val) => { if (!A) return; if (dd === asof) A[A.length - 1] = val; else { A.push(val); A.shift(); } };
+      put(C, c); put(V, vv); put(O, o); put(H, h); put(L, l);
+      last = { d: dd, raw: v, proj: vv, f: intr ? f : 1, intr, c, tv: c * v / 1e8 };
+    });
+    if (!last) return;
+    s.spark = C; s.spark_vol = V; if (has) { s.spark_o = O; s.spark_h = H; s.spark_l = L; }
+    s.tvalue = last.tv; s.volume = last.raw; s._vlive = { ...last, chg: x.chg, time: d.meta.time };
+    n++;
+  });
+  if (!n) return;  // 오늘 봉 정보가 아직 없는 요약(이전 버전) → 기존 종가 기준 유지
+  const nIntr = S.data.stocks.filter(s => s._vlive && s._vlive.intr).length;
+  VOL.all = null; VOL.mkt = null; VOL.liveTime = d.meta.time; VOL.liveN = n; VOL.liveF = nIntr ? f : 1;
+  const now = volSigMap(volAll()), prev = VOL.prevSig || {}, fresh = [];
+  Object.entries(now).forEach(([code, ks]) => ks.forEach(k => { if (!(prev[code] || []).includes(k)) fresh.push({ code, k }); }));
+  VOL.fresh = fresh; VOL.freshFrom = VOL.prevTime || `${asof} 종가`; VOL.prevTime = d.meta.time; VOL.prevSig = now;
+  volNotify(fresh);
+  renderVolTab();
+  const mount = $('#vaMount'), code = $('#clxMount') && $('#clxMount').dataset.code;
+  if (mount && code && $('#tab-analysis') && $('#tab-analysis').classList.contains('on')) {
+    const st = S.data.stocks.find(x => x.code === code); if (st) renderVolCard(st, 'vaMount');
+  }
+  const tab = $('button[data-tab="vol"]'); if (tab) tab.dataset.badge = fresh.filter(x => ['brk', 'bottom', 'trueUp', 'whale', 'flat', 'extreme'].includes(x.k)).length || '';
+}
+function volNotify(fresh) {
+  const KEY = ['brk', 'bottom', 'trueUp', 'whale', 'flat', 'extreme', 'burn'];
+  const hot = fresh.filter(x => KEY.includes(x.k));
+  if (!hot.length) return;
+  const M = Object.fromEntries(S.data.stocks.map(s => [s.code, s])), nm = k => (VSIG.find(v => v[0] === k) || [k, k])[1];
+  const txt = hot.slice(0, 4).map(x => `${(M[x.code] || {}).name || x.code}: ${nm(x.k)}`);
+  const t = $('#govToast');
+  if (t) { t.innerHTML = `📊 거래대금 신호 새로 켜짐 ${hot.length}건 — ${esc(txt[0])}`; t.classList.remove('hidden'); t.onclick = () => { switchTab('vol'); t.classList.add('hidden'); }; setTimeout(() => t.classList.add('hidden'), 15000); }
+  if (store.get('volNoti', false) && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('거래대금 신호 ' + hot.length + '건', { body: txt.join('\n') }); } catch (e) {}
+  }
+}
+function renderVolLive() {
+  const st = $('#vsLiveStatus'); if (!st) return;
+  if (!VOL.liveTime) { st.innerHTML = `실시간 대기 중 — 장중(평일 9:00~15:30)에는 15분마다 오늘 거래량으로 다시 계산돼요. 지금은 ${esc(S.data.meta.asof || '')} 종가 기준이에요.`; }
+  else {
+    const f = VOL.liveF;
+    st.innerHTML = `<span class="gov-live"></span> 실시간 <b>${esc(VOL.liveTime.slice(11))}</b> 기준 · ${VOL.liveN}종목 · ${f != null && f < 1 ? `장중 진행 약 ${Math.round(f * 100)}% 시점 — 거래량은 <b>하루 예상치로 환산</b>해 비교(실제 누적 ÷ ${f.toFixed(2)})` : '오늘 장 마감 기준'}`;
+  }
+  const M = Object.fromEntries(S.data.stocks.map(s => [s.code, s]));
+  const box = $('#vsFresh');
+  if (box) {
+    const fr = VOL.fresh || [];
+    const by = {}; fr.forEach(x => { (by[x.k] = by[x.k] || []).push(x.code); });
+    box.innerHTML = VOL.liveTime ? (fr.length ? `<h4>새로 켜진 신호 <small class="muted">${esc(VOL.freshFrom)} → ${esc(VOL.liveTime.slice(11))}</small></h4>` + VSIG.filter(v => by[v[0]]).map(v => `<div class="mn-grp"><span class="mn-gl ${v[2] === 'bad' ? 'bad' : v[2] === 'good' ? 'good' : ''}">${v[1]} ${by[v[0]].length}</span>${by[v[0]].slice(0, 15).map(c => M[c] ? `<button class="mn-chip ${v[2]}" data-an="${esc(c)}">${esc(M[c].name)} <small class="${cls((M[c]._vlive || {}).chg)} mono">${pct((M[c]._vlive || {}).chg, 1)}</small></button>` : '').join('')}</div>`).join('') : `<div class="hint">${esc(VOL.freshFrom)} 이후 새로 켜진 신호가 없어요.</div>`) : '';
+  }
+  const sb = $('#vsSurge');
+  if (sb && VOL.liveTime) {
+    const all = volAll();
+    const rows = S.data.stocks.filter(s => s._vlive && all.get(s.code)).map(s => ({ s, a: all.get(s.code) })).filter(x => x.a.rv >= 2).sort((a, b) => b.a.rv - a.a.rv).slice(0, 20);
+    sb.innerHTML = `<h4>실시간 거래량 급증 순위 <small class="muted">하루 예상 거래량 ÷ 20일 평균 · 2배 이상</small></h4>` + (rows.length ? `<table class="clx-tb"><thead><tr><th>종목</th><th>현재가</th><th>예상 거래량 배수</th><th>지금까지 거래대금</th><th>해석</th></tr></thead><tbody>${rows.map(({ s, a }) => {
+      const L = s._vlive, up = (L.chg || 0) > 0, flat = Math.abs(L.chg || 0) < 1;
+      const t = a.rv >= 10 ? '과열·이상 거래 의심' : flat && a.rv >= 5 ? '주가 제자리 + 폭증 — 세력 이탈 경계' : up ? (a.flags.brk ? '대량 거래 돌파' : '상승 + 거래 급증(매수세)') : '하락 + 거래 급증(매도세)';
+      return `<tr data-an="${esc(s.code)}"><td><b>${esc(s.name)}</b> <small class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'}</small></td><td class="mono">${fmt(L.c)} <small class="${cls(L.chg)}">${pct(L.chg, 1)}</small></td><td class="mono"><b>${vX(a.rv)}</b></td><td class="mono">${vEok(L.tv)}</td><td>${t}</td></tr>`;
+    }).join('')}</tbody></table>` : '<div class="hint">지금 평소의 2배 이상 거래되는 종목이 없어요.</div>');
+  } else if (sb) sb.innerHTML = '';
+  $$('#vsFresh [data-an], #vsSurge [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
+}
+function initVolLive() {
+  const nb = $('#volNoti'); if (!nb) return;
+  const draw = () => { nb.textContent = store.get('volNoti', false) ? '🔔 신호 알림 켜짐' : '🔕 신호 알림 켜기'; };
+  nb.onclick = async () => {
+    if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않아요.'); return; }
+    if (store.get('volNoti', false)) { store.set('volNoti', false); draw(); return; }
+    const p = await Notification.requestPermission(); store.set('volNoti', p === 'granted'); draw();
+  };
+  draw();
+}
