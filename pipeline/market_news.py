@@ -185,7 +185,7 @@ THEMES = [
      "stocks": ["한화에어로스페이스", "현대로템", "LIG디펜스앤에어로스페이스", "한국항공우주", "한화시스템", "풍산", "SNT다이내믹스", "퍼스텍",
                 "엠앤씨솔루션", "쎄트렉아이", "인텔리안테크"],
      "drivers": {"지정학": 1}},
-    {"name": "조선", "ko": ["조선", "선박", "LNG선", "컨테이너선", "조선소", "함정", "잠수함", "마스가", "MASGA", "특수선", "MRO"],
+    {"name": "조선", "ko": ["조선주", "조선업", "조선사", "조선 3사", "조선 빅3", "K조선", "K-조선", "조선·방산", "조선기자재", "선박", "LNG선", "컨테이너선", "조선소", "함정", "잠수함", "마스가", "MASGA", "특수선", "MRO"],
      "en": ["shipbuilding", "shipbuilder", "shipbuilders", "shipyard", "shipyards", "lng carrier"],
      "stocks": ["HD한국조선해양", "HD현대중공업", "삼성중공업", "한화오션", "HD현대마린솔루션", "한화엔진", "HD현대마린엔진", "대한조선",
                 "HJ중공업", "STX엔진", "세진중공업", "한국카본", "동성화인텍"],
@@ -223,7 +223,7 @@ THEMES = [
     {"name": "정유·에너지", "ko": ["정유", "정제마진", "석유", "LPG", "가스요금", "천연가스", "LNG 가격"], "en": ["refining", "refiner", "natural gas"],
      "stocks": ["S-Oil", "SK이노베이션", "GS", "E1", "SK가스", "한국가스공사", "흥구석유", "한국석유"],
      "drivers": {"유가": 1}},
-    {"name": "석유화학", "ko": ["석유화학", "화학업계", "에틸렌", "NCC", "공급과잉", "구조조정 화학"], "en": ["petrochemical", "petrochemicals"],
+    {"name": "석유화학", "ko": ["석유화학", "화학업계", "에틸렌", "NCC", "화학 공급과잉", "구조조정 화학"], "en": ["petrochemical", "petrochemicals"],
      "stocks": ["LG화학", "롯데케미칼", "금호석유화학", "대한유화", "한화솔루션", "효성화학", "SKC", "롯데정밀화학"],
      "drivers": {"유가": -1}},
     {"name": "항공·여행·카지노", "ko": ["항공", "항공사", "여행", "면세", "관광", "방한 관광객", "단체관광", "무비자", "카지노", "유커", "여객"],
@@ -299,6 +299,9 @@ def load_universe():
     return stocks, by_name
 
 
+KO_NEXT = "은는이가을를의에와과도로만측주그서보까부처엔랑께한며및발향社"
+
+
 def build_matchers(stocks, by_name):
     names = {}
     for s in stocks:
@@ -313,6 +316,8 @@ def build_matchers(stocks, by_name):
         p = re.escape(nm)
         if re.match(r"[A-Za-z0-9&.]$", nm[-1]):
             p += r"(?![A-Za-z0-9])"
+        else:  # 한글로 끝나는 이름 뒤에는 조사·'그룹' 등만 허용 (하이브 ≠ 하이브리드)
+            p += r"(?![가-힣])|" + p + r"(?=[" + KO_NEXT + r"])"
         pats.append(p)
     ko_re = re.compile(r"(?<![가-힣A-Za-z0-9])(" + "|".join(pats) + ")") if pats else None
     en_map = {k: by_name[v]["code"] for k, v in EN_ALIAS.items() if v in by_name}
@@ -355,6 +360,10 @@ def parse_rss(content, default_src=""):
         src = (it.findtext("source") or default_src or "").strip()
         if src and title.endswith(" - " + src):
             title = title[: -len(" - " + src)].strip()
+        m_tail = re.search(r"\s[-|]\s([^-|]{1,25})$", title)  # 끝에 붙은 ' - 언론사명' 제거
+        if m_tail and len(title) - len(m_tail.group(0)) >= 10:
+            src = src or m_tail.group(1).strip()
+            title = title[: m_tail.start()].strip()
         elif " - " in title and not default_src:
             title, _, src2 = title.rpartition(" - ")
             src = src or src2
