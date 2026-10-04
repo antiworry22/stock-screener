@@ -32,7 +32,7 @@ UA = mn.UA
 KST = mn.KST
 NOW = dt.datetime.now(KST)
 KEEP_DAYS = 7
-VER = 2
+VER = 3
 LOG = []
 KR = "https://www.korea.kr/briefing"
 
@@ -100,7 +100,7 @@ def kr_list(page):
         title = cand[0] if cand else None  # 첫 줄 = 제목 (그 뒤는 본문 미리보기)
         if not title:
             continue
-        title = re.sub(r"\s+", " ", title).strip()
+        title = htmllib.unescape(re.sub(r"\s+", " ", title)).strip()
         d = dt.date(int(date.group(1)), int(date.group(2)), int(date.group(3))) if date else NOW.date()
         out.append({"id": "kr:" + nid, "nid": nid, "t": title, "org": org or "정부", "date": d.isoformat(),
                     "u": f"{KR}/pressReleaseView.do?newsId={nid}"})
@@ -120,7 +120,7 @@ def kr_body(it):
     r.raise_for_status()
     m = re.search(r"""<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)""", r.text) or re.search(r"<title>(.*?)</title>", r.text, re.S)
     if m:
-        t = htmllib.unescape(re.sub(r"\s+", " ", m.group(1))).strip()
+        t = htmllib.unescape(htmllib.unescape(re.sub(r"\s+", " ", m.group(1)))).strip()
         t = re.split(r"\s+[|<\-–]\s+(?:보도자료|정책브리핑|대한민국)", t)[0].strip()
         if 6 <= len(t) <= 150:
             it["t"] = t
@@ -171,7 +171,7 @@ MEASURE = [
     (r"단기과열", "단기과열 지정", -1, 3), (r"매매거래정지", "매매거래 정지", -1, 3), (r"관리종목", "관리종목 지정", -1, 3),
     (r"상장적격성|상장폐지", "상장적격성·상장폐지 관련", -1, 3), (r"불성실공시", "불성실공시법인 지정", -1, 3),
     (r"조회공시요구|현저한시황변동", "조회공시 요구(주가 급변)", 0, 3), (r"공매도과열", "공매도 과열 지정", -1, 2),
-    (r"정리매매", "정리매매", -1, 3), (r"투자유의", "투자유의 안내", -1, 2), (r"풍문|보도", "풍문·보도 해명 요구", 0, 2),
+    (r"정리매매", "정리매매", -1, 3), (r"투자유의", "투자유의 안내", -1, 2), (r"풍문|보도", "풍문·보도 해명 공시", 0, 2),
 ]
 
 
@@ -197,6 +197,10 @@ def collect_dart():
                 for pat, label, sgn, imp in MEASURE:
                     if re.search(pat, rn):
                         lift = "해제" in rn
+                        tech = re.search(r"병합|분할|변경상장|전자등록|액면", (it.get("report_nm") or ""))
+                        if tech and "매매거래정지" in rn:
+                            label, sgn, imp = "기술적 거래정지(액면·주식 변경)", 0, 1
+                            lift = False
                         out.append({"id": "dart:" + it["rcept_no"], "src": "거래소 시장경보", "org": "한국거래소",
                                     "t": f"{it.get('corp_name', '')} — {(it.get('report_nm') or '').strip()}",
                                     "u": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={it['rcept_no']}",
@@ -292,7 +296,10 @@ def enrich(it, ctx):
     it["st"], it["dr"] = st, dr
     if it.get("kind") == "시장경보":
         nm = by_code[st[0]]["name"] if st else it["t"].split(" — ")[0]
-        it["note"] = f"{nm} — {it['label']}: " + ("단기 매매에 큰 위험 신호예요. 신규 매수는 피하는 게 원칙이에요." if it["tone"] < 0 else "해제 소식이에요. 거래 제한이 풀려요." if it["tone"] > 0 else "거래소가 주가 급변 이유를 물었어요. 회사 답변 공시를 꼭 확인하세요.")
+        if it["imp"] <= 2 and it["tone"] == 0:
+            it["note"] = f"{nm} — {it['label']}: " + ("회사가 언론 보도·소문에 대해 사실 여부를 밝힌 공시예요. 내용(확정/미확정)을 확인하세요." if "해명" in it["label"] else "주식 수·액면 변경 같은 절차상 잠깐 멈추는 거래정지예요. 위험 신호는 아니에요.")
+        else:
+          it["note"] = f"{nm} — {it['label']}: " + ("단기 매매에 큰 위험 신호예요. 신규 매수는 피하는 게 원칙이에요." if it["tone"] < 0 else "해제 소식이에요. 거래 제한이 풀려요." if it["tone"] > 0 else "거래소가 주가 급변 이유를 물었어요. 회사 답변 공시를 꼭 확인하세요.")
     else:
         it["note"] = mn.make_note(it, theme_eff, by_code, theme_stocks)
         imp = 1
@@ -300,10 +307,12 @@ def enrich(it, ctx):
             imp = 2
         if (st and IMP_W.search(title)) or it["kind"] in ("거시지표",) or (theme_eff and it["kind"] in ("허가·승인", "제재·조사", "계약·선정") and it["tone"] != 0):
             imp = 3
+        if not st and it["tone"] == 0 and it["kind"] == "정책·보도":
+            imp = 1
         it["imp"] = imp
     it["th"] = [[n, e] for n, e in theme_eff]
     it["dr"] = [[d, v] for d, v in dr.items()]
-    noise = re.search(r"동정|면담|접견|방문|간담회|훈련|캠페인|시상|기념식|개원|축제|공모전|봉사|청렴|채용|인사\s*발령|부고|브리핑\s*\(", title) and not st
+    noise = re.search(r"동정|면담|접견|방문|간담회|훈련|캠페인|시상|기념식|결혼식|개원|축제|공모전|봉사|청렴|채용|단속|팝업스토어|인사\s*발령|부고|브리핑\s*\(", title) and not st
     it["linked"] = bool(it.get("kind") in ("시장경보", "거시지표") or (not noise and (st or theme_eff)))
     return it
 

@@ -168,7 +168,7 @@ THEMES = [
      "en": ["nvidia", "semiconductor", "semiconductors", "chip", "chips", "chipmaker", "chipmakers", "hbm", "tsmc", "micron", "memory", "broadcom", "amd"],
      "stocks": ["삼성전자", "SK하이닉스", "한미반도체", "이수페타시스", "리노공업", "ISC", "주성엔지니어링", "원익IPS", "HPSP", "이오테크닉스",
                 "피에스케이", "하나마이크론", "솔브레인", "동진쎄미켐", "티씨케이", "DB하이텍", "대덕전자", "심텍", "테크윙", "유진테크", "파두"]},
-    {"name": "AI 전력·전선", "ko": ["데이터센터", "전력망", "변압기", "전력기기", "전선", "송전", "전력 수요", "초고압", "전력 인프라", "AI 전력"],
+    {"name": "AI 전력·전선", "ko": ["데이터센터", "전력망", "변압기", "전력기기", "전선업", "전선주", "전선 업체", "케이블", "송전", "전력 수요", "초고압", "전력 인프라", "AI 전력"],
      "en": ["data center", "data centers", "power grid", "transformer", "transformers", "electricity demand"],
      "stocks": ["HD현대일렉트릭", "LS ELECTRIC", "효성중공업", "산일전기", "대한전선", "LS", "일진전기", "가온전선", "대원전선", "제룡전기", "LS에코에너지"]},
     {"name": "2차전지·전기차", "ko": ["2차전지", "이차전지", "배터리", "전기차", "리튬", "양극재", "음극재", "ESS", "테슬라", "전고체", "캐즘"],
@@ -341,7 +341,14 @@ def match_stocks(title, lang, names, ko_re, en_map, en_re):
     return found[:6]
 
 
+# 테마 단어가 다른 낱말 속에 들어간 경우 (지방산림청의 '방산', 은행나무의 '은행' 등) — 매칭 전에 지움
+FALSE_SUB = ["지방산림", "방산림", "은행나무", "게임체인저", "게임 체인저", "구리시", "최전선", "전선에서", "수출 전선", "무역 전선", "공급 전선",
+             "대전선", "산림", "항공사진", "한국은행", "한은", "농식품부", "농림축산식품부", "식품의약품안전처", "위성도시", "화장실", "건설적", "로봇청소기 화재"]
+
+
 def match_themes(title, lang):
+    for w in FALSE_SUB:
+        title = title.replace(w, " ")
     low = title.lower()
     hits = []
     for th in THEMES:
