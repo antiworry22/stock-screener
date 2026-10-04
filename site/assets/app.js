@@ -161,7 +161,7 @@ function renderDash() {
   $('#macroCards').innerHTML =
     `<div class="card gate-${g.level}"><div class="k">매크로 게이트</div><div class="v">${{ green: '정상', yellow: '주의', red: '경고' }[g.level] || '–'}</div><div class="d muted">×${gateMult()}</div></div>` +
     macroCard('원/달러', M.usdkrw) + macroCard('미 10년물', M.us10y, 'bp') + macroCard('S&P500', M.sp500) + macroCard('나스닥', M.nasdaq) +
-    macroCard('SOX(반도체)', M.sox) + macroCard('코스피', M.kospi) + macroCard('코스닥', M.kosdaq);
+    macroCard('SOX(반도체)', M.sox) + (M.nq ? macroCard('나스닥 선물', M.nq) : '') + macroCard('코스피', M.kospi) + macroCard('코스닥', M.kosdaq);
 
   const st = S.data.stocks, N = S.cfg.outputs.top_n;
   const supply = st.filter(s => !s._ban.length && (s._sc.supply ?? 0) >= 50 && ((s.foreign_streak || 0) > 0 || (s.inst_streak || 0) > 0 || s.pension_5pct))
@@ -501,6 +501,7 @@ function renderAll() {
 
 /* ═════════════ 섹터 ═════════════ */
 function renderSector() {
+  if (typeof renderSectorLive === 'function') return renderSectorLive();
   const secs = S.data.sectors || [];
   $('#secTable').innerHTML = `<thead><tr><th class="l">업종</th><th>5일</th><th>코스피 대비</th><th>미국장 영향</th><th class="l">결합도</th><th>종목수</th><th>평균 종합</th></tr></thead><tbody>${secs.map(s => {
     const m = S.data.stocks.filter(x => x.sector === s.name); const avg = m.length ? m.reduce((a, x) => a + x._sc.total, 0) / m.length : null;
@@ -515,6 +516,7 @@ function renderSector() {
 /* ═════════════ 백테스트 ═════════════ */
 let btChart;
 function renderBT() {
+  if (!$('#btCards')) return;  // 백테스트 탭 삭제됨
   const b = S.bt;
   if (!b) { $('#btCards').innerHTML = '<div class="empty">backtest.json 이 없습니다. <code>python pipeline/backtest.py</code> 실행 후 생성됩니다.</div>'; return; }
   const m = b.metrics, mt = b.meta;

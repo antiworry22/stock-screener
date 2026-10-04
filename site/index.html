@@ -48,7 +48,6 @@
   <button data-tab="search">조건검색</button>
   <button data-tab="all">전체 종목</button>
   <button data-tab="sector">섹터·미국장</button>
-  <button data-tab="bt">백테스트</button>
   <button data-tab="settings">설정</button>
   <button data-tab="guide">판정 기준</button>
 </nav>
@@ -377,30 +376,21 @@
 
 <!-- ═══ 섹터·미국장 ═══ -->
 <section id="tab-sector" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>미국장 실시간 <small class="muted">(15분마다)</small></h2><span class="hint" id="usStatus"></span></div>
+    <div class="cards" id="usCards"></div>
+    <div class="hint" id="usNote"></div>
+  </div>
   <div class="grid2">
     <div class="panel">
-      <div class="ph"><h2>업종 상대강도 · 미국장 영향</h2><span class="hint">Σ(beta × 전일 미국 지표 수익률)</span></div>
+      <div class="ph"><h2>국내 업종 실시간 · 미국장 영향</h2><span class="hint" id="secStatus">Σ(beta × 미국 지표 수익률)</span></div>
       <div class="table-wrap"><table class="tbl" id="secTable"></table></div>
     </div>
     <div class="panel">
-      <div class="ph"><h2>섹터별 US 지표 매핑표 (상수)</h2><span class="hint">config/us_sector_map.json</span></div>
+      <div class="ph"><h2>업종별 미국 지표 연결표</h2><span class="hint">어느 미국 지표가 어느 국내 업종에 영향을 주나</span></div>
       <div class="table-wrap"><table class="tbl" id="mapTable"></table></div>
     </div>
   </div>
-</section>
-
-<!-- ═══ 백테스트 ═══ -->
-<section id="tab-bt" class="tab">
-  <div class="panel">
-    <div class="ph"><h2>백테스트 (과거 시점화 적용)</h2><span class="hint" id="btMeta"></span></div>
-    <div class="cards" id="btCards"></div>
-    <div class="chart-box"><canvas id="btChart"></canvas></div>
-  </div>
-  <div class="grid2">
-    <div class="panel"><div class="ph"><h2>월별 수익률</h2></div><div id="btMonthly" class="monthly"></div></div>
-    <div class="panel"><div class="ph"><h2>최근 거래</h2></div><div class="table-wrap"><table class="tbl" id="btTrades"></table></div></div>
-  </div>
-  <div class="panel note">백테스트는 가격·수급 기반 항목만 과거 시점으로 재현합니다(컨센서스·뉴스·공시·재무는 중립 처리). 현재 상장 종목만으로 유니버스를 만들어 생존편향이 있으므로 실제 성과는 이보다 낮을 수 있습니다. 갱신: <code>python pipeline/backtest.py</code></div>
 </section>
 
 <!-- ═══ 설정 ═══ -->
@@ -488,6 +478,7 @@
 <script src="assets/company.js"></script>
 <script src="assets/shorts.js"></script>
 <script src="assets/tvrank.js"></script>
+<script src="assets/market.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/app.js"></script>
 </body>
