@@ -19,6 +19,7 @@ import requests
 
 sys.path.insert(0, os.path.dirname(__file__))
 from clx.engine import run as clx_run  # noqa: E402
+from features import tech_features  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LATEST = os.path.join(ROOT, "site", "data", "latest.json")
@@ -113,9 +114,44 @@ def pick_source():
     return None
 
 
+# 장중 누적 거래량 비율 곡선 (화면 volume.js 의 VOL_CURVE 와 동일) — 09:00 기준 경과 분 → 하루 거래량 중 누적 비율
+VOL_CURVE = [(0, 0), (30, .20), (60, .30), (120, .44), (180, .54), (240, .63), (300, .73), (360, .88), (390, 1)]
+
+
+def vol_frac(now=None):
+    """지금이 장중이면 하루 거래량 중 이미 나온 비율(0~1), 장 마감·휴일이면 None"""
+    now = now or NOW
+    if now.weekday() >= 5:
+        return None
+    m = (now.hour - 9) * 60 + now.minute
+    if m < 0 or m >= 390:
+        return None
+    for (m0, f0), (m1, f1) in zip(VOL_CURVE, VOL_CURVE[1:]):
+        if m0 <= m <= m1:
+            return max(0.05, f0 + (f1 - f0) * (m - m0) / (m1 - m0))
+    return None
+
+
+TF_SKIP = ("spark",)
+# 화면에서 쓰지 않는 값은 빼서 요약 파일을 가볍게 (15분마다 받는 파일)
+TF_DROP = {"macd", "macd_sig", "rsi_min10", "ma5", "ma20", "ma120", "ma5_slope", "ma120_slope", "high52", "low52", "ret60", "bb_recover"}
+
+
 def one(code):
     df = fchart(code)
-    cs, cf = clx_run(df)
+    raw_v = df["거래량"].iloc[-1]
+    f = vol_frac()
+    calc = df
+    if f is not None and f < 1 and df.index[-1].date() == NOW.date():
+        # 장중: 오늘 봉 거래량을 하루 예상치로 환산해 계산 (거래량 축·거래대금 배율이 아침에 과소평가되지 않게)
+        calc = df.copy()
+        calc.iloc[-1, calc.columns.get_loc("거래량")] = raw_v / f
+    cs, cf = clx_run(calc)
+    if cs and cf and calc is not df:
+        try:  # 저장 파일의 마지막 봉 거래량은 실제 누적치로 되돌림
+            cf["v"][-1] = int(raw_v)
+        except Exception:
+            pass
     if not cs:
         return code, None, None
     c = df["종가"]
@@ -125,6 +161,16 @@ def one(code):
     # 최근 3봉(날짜·시가·고가·저가·종가·거래량) — 화면의 거래량·거래대금 실시간 분석용 (장중엔 마지막 봉이 진행 중)
     t3 = df.iloc[-3:]
     cs["bars"] = [[i.strftime("%Y-%m-%d"), int(r["시가"]), int(r["고가"]), int(r["저가"]), int(r["종가"]), int(r["거래량"])] for i, r in t3.iterrows()]
+    # 기술지표(RSI·MACD·볼린저·이평·52주 위치·ATR 등) — 화면의 대시보드·추천·패턴·종목분석 점수를 실시간으로 다시 매김
+    try:
+        tf = tech_features(calc, spark_len=1)
+        tf = {k: v for k, v in tf.items() if not k.startswith(TF_SKIP) and k not in TF_DROP}
+        tf["volume"] = int(raw_v)
+        tf["tvalue"] = round(float(c.iloc[-1]) * float(raw_v) / 1e8, 1)
+        tf["proj"] = round(f, 3) if calc is not df else None
+        cs["tf"] = tf
+    except Exception:
+        pass
     return code, cs, cf
 
 
