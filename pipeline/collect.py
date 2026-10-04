@@ -29,10 +29,16 @@ import requests
 
 sys.path.insert(0, os.path.dirname(__file__))
 from features import tech_features, streak, macro_gate, us_impact, _f  # noqa: E402
+try:
+    from clx.engine import run as clx_run  # 차트랩 6축 엔진 (첨부 chartlab_engine 이식·보완)
+except Exception as _e:  # 엔진이 없어도 기존 수집은 그대로
+    clx_run = None
+    print("차트랩 엔진 불러오기 실패:", _e)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "site")
 OUT = os.path.join(SITE, "data", "latest.json")
+CL_DIR = os.path.join(SITE, "data", "cl")  # 종목별 차트 파일 (main에는 올리지 않고 live-cl 보관 칸에 덮어씀)
 CFG = json.load(open(os.path.join(SITE, "config", "weights.json"), encoding="utf-8"))
 USMAP = json.load(open(os.path.join(SITE, "config", "us_sector_map.json"), encoding="utf-8"))
 
@@ -703,8 +709,11 @@ def main():
     shorts = safe(get_short_balance, days, codes_by_tv, default={})
 
     # 일봉 + 기술 피처
-    start = asof - dt.timedelta(days=420)
+    start = asof - dt.timedelta(days=560)  # 약 380거래일 — 200일선·주봉 판정에 필요
     stocks = []
+    os.makedirs(CL_DIR, exist_ok=True)
+    cl_ok = cl_fail = 0
+    cl_t = 0.0
     for i, code in enumerate(codes):
         df = safe(get_ohlcv, code, start, asof)
         if df is None:
@@ -717,6 +726,20 @@ def main():
              "sector": sec_of.get(code, "기타")}
         s.update(tf)
         s["is_fin"] = is_financial(s["sector"], s["name"])
+        if clx_run is not None:
+            _t = time.time()
+            try:
+                cs, cf = clx_run(df)
+                if cs:
+                    s["cl"] = cs
+                    with open(os.path.join(CL_DIR, f"{code}.json"), "w", encoding="utf-8") as f:
+                        json.dump(cf, f, ensure_ascii=False, separators=(",", ":"))
+                    cl_ok += 1
+            except Exception as e:
+                cl_fail += 1
+                if cl_fail <= 3:
+                    log(f"  ! 차트랩 분석 실패 {code}: {type(e).__name__} {str(e)[:80]}")
+            cl_t += time.time() - _t
         # 수급
         for inv, key in [("외국인", "foreign"), ("기관합계", "inst"), ("연기금", "pension")]:
             f = flows.get(inv)
@@ -736,6 +759,31 @@ def main():
         if i % 100 == 0:
             log(f"  일봉 {i}/{len(codes)}")
         time.sleep(0.05)
+
+    log(f"차트랩 6축 분석 {cl_ok}종목 (실패 {cl_fail}) · {cl_t / 60:.1f}분")
+    cl_index = {}
+    if clx_run is not None:
+        for nm, kc, fc in (("코스피", "1001", "KS11"), ("코스닥", "2001", "KQ11")):
+            try:
+                idf = None
+                try:
+                    from pykrx import stock as _st
+                    idf = _st.get_index_ohlcv(ymd(start), ymd(asof), kc)
+                except Exception:
+                    idf = None
+                if idf is None or len(idf) < 100:
+                    import FinanceDataReader as fdr
+                    idf = fdr.DataReader(fc, start, asof)
+                cs, cf = clx_run(idf)
+                if cs:
+                    cs["verdict_action"] = cf["r"]["action"]
+                    cs["notes"] = cf["r"]["axis_notes"]
+                    cl_index[nm] = cs
+                    with open(os.path.join(CL_DIR, f"IDX_{fc}.json"), "w", encoding="utf-8") as f:
+                        json.dump(cf, f, ensure_ascii=False, separators=(",", ":"))
+            except Exception as e:
+                log(f"  ! {nm} 지수 차트랩 실패: {type(e).__name__}")
+        log("지수 차트랩: " + ", ".join(f"{k} {v['s']:+.1f}({v['v']})" for k, v in cl_index.items()))
 
     # 수급 대체: KRX 수급이 5일치 미만이면 네이버 금융에서 외국인·기관 가져오기
     def _cols(inv):
@@ -818,7 +866,7 @@ def main():
                      "universe": len(stocks), "candidates": len(cand), "dart": bool(DART_KEY), "news": bool(NAVER_ID),
                      "kis": kis_ok, "flow_src": FLOW_SRC["v"], "stage": stage,
                      "elapsed_min": round((time.time() - t0) / 60, 1), "log_tail": LOG[-25:], "log": LOG[-400:]},
-            "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5),
+            "macro": macro, "gate": gate, "us_rets": us_rets, "kospi5": _f(kospi5), "cl_index": cl_index,
             "sectors": sorted(sec_info, key=lambda x: -(x["rel5"] or -99)),
             "stocks": stocks,
         }
