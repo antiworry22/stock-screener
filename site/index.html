@@ -38,6 +38,7 @@
   <button data-tab="mnews">시장 뉴스</button>
   <button data-tab="gov">공공기관</button>
   <button data-tab="rec">추천 종목</button>
+  <button data-tab="clx">차트 종합판정</button>
   <button data-tab="pattern">차트 패턴</button>
   <button data-tab="vol">거래대금 신호</button>
   <button data-tab="news">종목별 뉴스</button>
@@ -102,6 +103,31 @@
     <div id="recList" class="rec-grid mt"></div>
   </div>
   <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
+</section>
+
+<!-- ═══ 차트 종합판정 (6축 엔진) ═══ -->
+<section id="tab-clx" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>차트 종합판정 — 6축 점수 엔진 <small class="muted">(실시간)</small></h2>
+      <div class="row gap wrap"><button class="btn ghost small" id="clxRefresh">지금 새로고침</button><button class="btn ghost small" id="clxNoti">🔕 판정 변화 알림 켜기</button></div></div>
+    <div class="hint gov-status" id="clxStatus"></div>
+    <p class="hint">추세(26%)·모멘텀(20%)·거래량(16%)·구조/지지저항(20%)·패턴(12%)·주봉 정합(6%)을 각각 −1~+1로 매겨 더한 종합 점수(−100~+100)와 7단계 판정, 진입·손절·목표·손익비·권장 비중을 전 종목에 계산합니다. <b>장중(평일 9:00~15:45)에는 15분마다 오늘 움직임까지 넣어 다시 계산</b>하고, 이 화면은 3분마다 새 결과를 확인해 판정이 바뀐 종목을 알려줘요(시세 반영까지 최대 15~25분 지연). 「강력 매수 +55↑ · 매수 우위 +28↑ · 약한 매수 +8↑ · 중립 · 약한 매도 · 매도 우위 −28↓ · 강력 매도 −55↓」</p>
+    <div id="clxIdx" class="clx-idxs mt"></div>
+    <div id="clxChanges" class="mt"></div>
+    <div class="mn-filters mt">
+      <select id="clxV" class="inp"><option value="">모든 판정</option><option value="buy">매수 쪽(+8 이상)</option><option>강력 매수</option><option>매수 우위</option><option>약한 매수</option><option>중립·관망</option><option>약한 매도</option><option>매도 우위</option><option>강력 매도</option><option value="sell">매도 쪽(−8 이하)</option></select>
+      <select id="clxP" class="inp"></select>
+      <select id="clxM" class="inp"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select>
+      <select id="clxSort" class="inp"><option value="score">점수 높은 순</option><option value="rr">손익비 높은 순</option><option value="ck">체크리스트 많은 순</option><option value="week">주봉 점수 순</option><option value="low">점수 낮은 순</option></select>
+      <label class="small"><input type="checkbox" id="clxCk"> 5초 체크리스트 통과</label>
+      <label class="small"><input type="checkbox" id="clxRR"> 손익비 1.5 이상</label>
+      <label class="small"><input type="checkbox" id="clxW"> 주봉·일봉 같은 상승</label>
+      <label class="small"><input type="checkbox" id="clxNW"> 10계명 경고 없음</label>
+    </div>
+    <div class="hint mt-s" id="clxMeta"></div>
+    <div id="clxList" class="mt-s" style="overflow-x:auto"></div>
+  </div>
+  <div class="panel note">진입 전 5초 체크리스트: ① 주봉·일봉 같은 방향(필수) ② 지지선 위(필수) ③ 손익비 1.5 이상(필수) ④ 거래량이 방향 확인 ⑤ 패턴이 방향과 일치 ⑥ 종합 +28 이상 — 필수 3개 + 전체 4개 이상이면 통과. 손절은 협상 대상이 아니며, 손실은 항상 계좌의 1%로 고정합니다(권장 비중 = 1% ÷ 손절 거리%).</div>
 </section>
 
 <!-- ═══ 차트 패턴 ═══ -->
@@ -379,6 +405,7 @@
 <script src="assets/pattern.js"></script>
 <script src="assets/chartlab.js"></script>
 <script src="assets/volume.js"></script>
+<script src="assets/chartx.js"></script>
 <script src="assets/analysis.js"></script>
 <script src="assets/marketnews.js"></script>
 <script src="assets/publicfeed.js"></script>
