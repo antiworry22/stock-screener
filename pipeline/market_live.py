@@ -65,39 +65,142 @@ def yahoo(sym):
     raise last_e
 
 
+UA_M = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "application/json, text/plain, */*", "Accept-Language": "ko-KR,ko;q=0.9", "Referer": "https://m.stock.naver.com/"}
+
+
+def _num(x):
+    try:
+        return float(str(x).replace(",", "").replace("%", "").replace("+", "").strip())
+    except Exception:
+        return None
+
+
+def _lists(o, out):
+    """JSON 안의 '딕셔너리 목록'을 모두 찾음"""
+    if isinstance(o, list):
+        if o and all(isinstance(x, dict) for x in o[:3]):
+            out.append(o)
+        for x in o:
+            _lists(x, out)
+    elif isinstance(o, dict):
+        for v in o.values():
+            _lists(v, out)
+    return out
+
+
+def _key(d, *subs):
+    for k in d:
+        kl = k.lower()
+        if any(s in kl for s in subs):
+            return k
+    return None
+
+
+def _sector_rows(j):
+    best = []
+    for L in _lists(j, []):
+        d = L[0]
+        nk = _key(d, "name", "nm")
+        rk = _key(d, "changerate", "fluctuationsratio", "ratio", "rate")
+        ck = _key(d, "industrycode", "groupno", "no", "code", "id")
+        if nk and rk and ck and len(L) > len(best):
+            best = [{"no": str(x.get(ck)), "name": str(x.get(nk)).strip(), "chg": _num(x.get(rk)),
+                     "n": _num(x.get(_key(x, "total", "count") or "")), "up": _num(x.get(_key(x, "rise", "up") or "")),
+                     "down": _num(x.get(_key(x, "fall", "down") or "")), "flat": _num(x.get(_key(x, "steady", "flat", "unchanged") or ""))} for x in L]
+    return [r for r in best if r["name"] and r["chg"] is not None]
+
+
 def naver_sectors():
+    # ① 네이버 증권 모바일 업종 API
+    for url in ("https://m.stock.naver.com/api/stocks/industry", "https://m.stock.naver.com/api/stocks/industry/list"):
+        try:
+            r = S.get(url, params={"page": 1, "pageSize": 200}, headers=UA_M, timeout=(5, 12))
+            DIAG["업종 API " + url.rsplit("/", 1)[-1]] = f"HTTP {r.status_code} {r.text[:200]!r}"
+            if r.status_code == 200:
+                rows = _sector_rows(r.json())
+                if len(rows) >= 20:
+                    DIAG["업종 경로"] = url
+                    return rows
+        except Exception as e:
+            DIAG["업종 API 오류"] = f"{type(e).__name__}: {str(e)[:100]}"
+    # ② 새 네이버 금융 페이지 안에 들어 있는 자료(__NEXT_DATA__)
     r = S.get("https://finance.naver.com/sise/sise_group.naver", params={"type": "upjong"}, timeout=(5, 12))
-    html = r.content.decode("euc-kr", errors="ignore")
+    raw = r.content
+    try:
+        html = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        html = raw.decode("euc-kr", errors="ignore")
+    m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if m:
+        rows = _sector_rows(json.loads(m.group(1)))
+        if len(rows) >= 20:
+            DIAG["업종 경로"] = "PC 페이지 내장 자료"
+            return rows
+        DIAG["PC 내장 자료"] = m.group(1)[:600]
+    # ③ 옛 표 형식
     out = []
-    for m in re.finditer(r'sise_group_detail\.naver\?type=upjong&(?:amp;)?no=(\d+)"[^>]*>([^<]+)</a>(.*?)</tr>', html, re.S):
-        no, name, rest = m.group(1), m.group(2).strip(), m.group(3)
-        txt = re.sub(r"<[^>]+>", " ", rest)
-        pctm = re.search(r"([+-]?\d+\.\d+)%", txt)
+    for mm in re.finditer(r'sise_group_detail\.naver\?type=upjong&(?:amp;)?no=(\d+)"[^>]*>([^<]+)</a>(.*?)</tr>', html, re.S):
+        txt = re.sub(r"<[^>]+>", " ", mm.group(3))
+        pm = re.search(r"([+-]?\d+\.\d+)%", txt)
         nums = [int(x) for x in re.findall(r"(?<![\d.])(\d+)(?![\d.%])", txt)]
-        chg = float(pctm.group(1)) if pctm else None
-        if chg is not None and "nv01" in rest and chg > 0:  # 파란색(하락) 표시인데 부호가 없을 때
-            chg = -chg
-        row = {"no": no, "name": name, "chg": chg}
+        row = {"no": mm.group(1), "name": mm.group(2).strip(), "chg": float(pm.group(1)) if pm else None}
         if len(nums) >= 4:
             row.update({"n": nums[0], "up": nums[1], "flat": nums[2], "down": nums[3]})
         out.append(row)
     if len(out) < 20:
         i = html.find("upjong")
-        raise ValueError(f"업종 표 해석 실패(행 {len(out)}, 길이 {len(html)}) 예: {html[max(0, i - 80):i + 220]!r}")
+        raise ValueError(f"업종 자료를 찾지 못함(길이 {len(html)}) 예: {html[max(0, i - 80):i + 220]!r}")
     return out
 
 
 def naver_sector_map(secs):
     mp = {}
-    for i, s in enumerate(secs):
+    # ① 업종별 종목 목록 API
+    for s in secs:
+        got = 0
+        for page in (1, 2, 3):
+            try:
+                r = S.get(f"https://m.stock.naver.com/api/stocks/industry/{s['no']}", params={"page": page, "pageSize": 100}, headers=UA_M, timeout=(5, 12))
+                if r.status_code != 200:
+                    DIAG.setdefault("업종 구성 API", f"HTTP {r.status_code} {r.text[:150]!r}")
+                    break
+                L = [x for x in _lists(r.json(), []) if _key(x[0], "itemcode", "stockcode", "code")]
+                items = max(L, key=len) if L else []
+                for x in items:
+                    c = str(x.get(_key(x, "itemcode", "stockcode", "code")) or "")[-6:]
+                    if re.fullmatch(r"\d{6}", c):
+                        mp.setdefault(c, s["name"]); got += 1
+                if len(items) < 100:
+                    break
+            except Exception as e:
+                DIAG.setdefault("업종 구성 오류", f"{s['name']}: {type(e).__name__}")
+                break
+            time.sleep(0.15)
+        if not got and not mp and secs.index(s) >= 3:
+            break  # API가 안 되면 ②로
+    if len(mp) >= 500:
+        return mp
+    # ② 종목별 종합 API의 업종 코드 (느리지만 확실)
+    from concurrent.futures import ThreadPoolExecutor
+    names = {s["no"]: s["name"] for s in secs}
+    try:
+        codes = [x["code"] for x in json.load(open(os.path.join(ROOT, "site", "data", "latest.json"), encoding="utf-8"))["stocks"]]
+    except Exception:
+        codes = []
+
+    def one(c):
         try:
-            r = S.get("https://finance.naver.com/sise/sise_group_detail.naver", params={"type": "upjong", "no": s["no"]}, timeout=(5, 12))
-            html = r.content.decode("euc-kr", errors="ignore")
-            for code in set(re.findall(r"/item/main\.naver\?code=(\d{6})", html)):  # 종목 링크
-                mp.setdefault(code, s["name"])
-        except Exception as e:
-            DIAG.setdefault("업종 구성 오류", f"{s['name']}: {type(e).__name__}")
-        time.sleep(0.25)
+            j = S.get(f"https://m.stock.naver.com/api/stock/{c}/integration", headers=UA_M, timeout=(5, 10)).json()
+            ic = str(j.get("industryCode") or "")
+            return c, names.get(ic) or (f"업종{ic}" if ic else None)
+        except Exception:
+            return c, None
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for c, nm in ex.map(one, codes):
+            if nm:
+                mp[c] = nm
+    DIAG["업종 연결 방식"] = "종목별 업종 코드"
     return mp
 
 
