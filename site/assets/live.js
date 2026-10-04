@@ -80,6 +80,7 @@ function renderLiveDash() {
     <div class="lv-status">${liveTimeChip('차트·거래대금', cl && cl.time, cl ? `${LIVE.tfN || cl.n}종목${proj ? ' · ' + proj : ''}${chgN ? ` · 판정 변화 ${chgN}` : ''}` : '장중 15분마다')}
       ${liveTimeChip('시장 뉴스', mn && mn.generated, mn ? `${(MN.d.items || []).length}건` : '')}
       ${liveTimeChip('공공기관', gv && gv.generated, gv ? `${(GOV.d.items || []).length}건` : '')}
+      ${typeof shortChip === 'function' ? `<span class="lv-chip ${SHORT.d ? 'on' : ''}">${SHORT.d ? '<span class="gov-live"></span>' : '○'} ${shortChip()}</span>` : ''}
       ${typeof flowChip === 'function' ? `<span class="lv-chip ${FLOW.d ? 'on' : ''}">${FLOW.d ? '<span class="gov-live"></span>' : '○'} ${flowChip()}</span>` : ''}
       ${LIVE.n ? `<span class="hint">점수 재계산 ${LIVE.n}회 · 마지막 ${esc((LIVE.last || '').slice(11))}</span>` : ''}</div>
     <div class="grid3 lv-grid">
