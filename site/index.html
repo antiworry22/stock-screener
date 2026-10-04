@@ -152,14 +152,17 @@
 <!-- ═══ 거래대금 신호 ═══ -->
 <section id="tab-vol" class="tab">
   <div class="panel">
-    <div class="ph"><h2>거래량·거래대금 신호 찾기</h2>
+    <div class="ph"><h2>거래량·거래대금 신호 찾기 <small class="muted">(실시간)</small></h2>
       <div class="row gap wrap">
         <label class="small">신호 <select id="vsType"></select></label>
         <label class="small">시장 <select id="vsMarket"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
       </div>
     </div>
     <p class="hint">「거래량·거래대금 해석 관점 총정리」 보고서의 8개 관점을 규칙으로 바꿔 전 종목을 매일 검사합니다. 초록 = 좋은 신호, 빨강 = 경보. 종목을 누르면 종합 분석 화면에서 <b>실전 행동 가이드</b>(매수 신호 조건 · 손절 기준 · 경보선)와 관점별 해석을 볼 수 있어요.</p>
+    <div class="row gap wrap mt-s"><div class="hint gov-status" id="vsLiveStatus" style="flex:1"></div><button class="btn ghost small" id="volNoti">🔕 신호 알림 켜기</button></div>
     <div id="vsMkt" class="mt"></div>
+    <div id="vsFresh" class="mt"></div>
+    <div id="vsSurge" class="mt" style="overflow-x:auto"></div>
     <div id="vsChips" class="row gap wrap mt"></div>
     <div class="hint mt" id="vsDesc"></div>
     <div id="vsList" class="vs-grid mt"></div>
