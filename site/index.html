@@ -34,6 +34,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
   <button data-tab="mnews">시장 뉴스</button>
   <button data-tab="gov">공공기관</button>
@@ -75,6 +76,28 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 실시간 종합 (뉴스 × 거래대금 × 차트) ═══ -->
+<section id="tab-fuse" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>실시간 종합 — 재료 × 돈 × 추세</h2>
+      <div class="row gap wrap"><button class="btn ghost small" id="fuNoti">🔕 종합 변화 알림 켜기</button></div></div>
+    <p class="hint"><b>재료</b>(시장 뉴스·공공기관 자료 = 왜 움직이나) × <b>돈</b>(거래대금 = 정말 큰돈이 들어오나) × <b>추세</b>(차트 종합판정 = 가격이 따라가나)를 종목마다 하나로 묶어 읽습니다. 셋이 같은 방향이면 신뢰도가 높고(3박자 정렬), 호재인데 큰돈이 빠지는 식으로 엇갈리면 그 엇갈림이 경고입니다. 각 자료가 새로 들어올 때마다 다시 계산해 바뀐 종목을 아래 피드에 쌓고, 뉴스와 거래대금·차트가 30분 안에 함께 바뀐 종목은 <b>동시 변화</b>로 표시해요.</p>
+    <div class="hint gov-status" id="fuStatus"></div>
+    <h4 class="mt">실시간 변화 피드 <small class="muted">새 자료가 들어와 판단이 바뀐 종목 (최신순)</small></h4>
+    <div id="fuFeed" class="fu-feed"></div>
+  </div>
+  <div class="panel">
+    <div class="mn-filters">
+      <select id="fuSort" class="inp"><option value="total">종합 점수 높은 순</option><option value="news">뉴스 점수 순</option><option value="vol">거래대금 점수 순</option><option value="chart">차트 점수 순</option><option value="low">종합 점수 낮은 순</option></select>
+      <select id="fuMkt" class="inp"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select>
+      <span class="hint" id="fuMeta"></span>
+    </div>
+    <div id="fuKinds" class="row gap wrap mt-s"></div>
+    <div id="fuList" class="mt-s" style="overflow-x:auto"></div>
+    <p class="hint mt">종합 = 차트 45% + 거래대금 30% + 뉴스·공공기관 25% (자료가 없는 항목은 빼고 비율을 다시 맞춤). 뉴스는 종목 이름이 직접 나온 기사를 2배(공공기관 2.5배)로, 최근 기사일수록 크게(하루 지나면 약 1/3) 반영합니다. 거래소 시장경보가 있으면 다른 신호와 상관없이 '시장경보'로 표시돼요.</p>
   </div>
 </section>
 
@@ -412,6 +435,7 @@
 <script src="assets/analysis.js"></script>
 <script src="assets/marketnews.js"></script>
 <script src="assets/publicfeed.js"></script>
+<script src="assets/fusion.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
