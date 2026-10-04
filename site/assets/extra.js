@@ -177,7 +177,7 @@ function initExtra() {
   const b = $('#easyBtn');
   const label = () => { b.textContent = easyOn() ? '쉬운 말 켜짐' : '쉬운 말 꺼짐'; b.classList.toggle('on', easyOn()); };
   label();
-  b.onclick = () => { store.set('easy', !easyOn()); label(); renderAll(); runSearch(true); renderGlossary(); };
+  b.onclick = () => { store.set('easy', !easyOn()); label(); renderAll(); runSearch(true); renderGlossary(); ['clxMount', 'clxOneMount'].forEach(id => { const m = $('#' + id); const st = m && m.dataset.code && S.data.stocks.find(x => x.code === m.dataset.code); if (st && typeof renderClx === 'function') renderClx(st, id); }); };
   ['recMarket', 'recN'].forEach(id => { const el = $('#' + id); if (el) el.onchange = renderRecs; });
   if ($('#newsMode')) $('#newsMode').onchange = renderNews;
   const go = $('#recGo'); if (go) go.onclick = () => switchTab('rec');

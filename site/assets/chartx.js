@@ -112,8 +112,86 @@ function clxDraw(f, range) {
   CLX.charts.push(new Chart($('#clxSto'), { data: { labels, datasets: [line('%K', cut(st.k), '#0ea5e9', null, 1.4), line('%D', cut(st.d), '#f97316', null, 1.2), flat('80', 80, dn, [3, 3], 1), flat('20', 20, up, [3, 3], 1)] }, options: { ...base, scales: { x: { display: false }, y: { ...base.scales.y, min: 0, max: 100, ticks: { color: txt, stepSize: 40 } } } } }));
 }
 
+/* 지표 전체 — 쉬운 말 버전: 무엇을 재는지 · 지금 숫자가 무슨 뜻인지 · 네 묶음(방향·과열·돈 흐름·흔들림)으로 정리 */
+function clxIndEasy(ind, price) {
+  if (!ind) return '';
+  const G = { dir: [], heat: [], money: [], move: [] };
+  // tone: good(좋음) / bad(나쁨) / warn(주의) / ''(보통)
+  const add = (g, name, term, val, now, what, tone = '') => G[g].push({ name, term, val, now, what, tone });
+  const won0 = v => fmt(v) + '원';
+  // ── 방향(추세) ──
+  const mas = [5, 10, 20, 60, 120, 200].map(n => [n, ind['ma' + n]]).filter(x => x[1] != null);
+  const vals = mas.map(x => x[1]);
+  const full = vals.length >= 4 && vals.every((v, i) => !i || vals[i - 1] > v), rev = vals.length >= 4 && vals.every((v, i) => !i || vals[i - 1] < v);
+  add('dir', '평균선 줄서기', '이동평균 배열', full ? '가지런함' : rev ? '거꾸로' : '뒤엉킴',
+    full ? '짧은 기간 평균이 위, 긴 기간 평균이 아래로 차례대로 — 꾸준히 오르는 종목의 전형적인 모습이에요.' : rev ? '긴 기간 평균이 위에 있어요 — 꾸준히 내려온 종목의 모습이에요.' : '평균선들이 서로 엉켜 있어요 — 오를지 내릴지 아직 방향을 정하는 중이에요.',
+    '여러 기간의 평균 가격을 위아래로 비교한 것. 짧은 것부터 위로 줄서 있으면 오름세예요.', full ? 'good' : rev ? 'bad' : '');
+  if (mas.length) {
+    const above = mas.filter(([, v]) => price >= v).length;
+    const nm = { 5: '1주', 10: '2주', 20: '1달', 60: '3달', 120: '6달', 200: '10달' };
+    add('dir', '평균 가격선 위·아래', '5·10·20·60·120·200일선', `${mas.length}개 중 ${above}개 위`,
+      (above === mas.length ? '지금 가격이 모든 평균선 위 — 최근 1주부터 10달 사이에 산 사람 대부분이 이익인 상태라 분위기가 좋아요.' : above === 0 ? '지금 가격이 모든 평균선 아래 — 최근에 산 사람 대부분이 손해라 반등 때마다 팔려는 물량이 나와요.' : `짧은 기간 선 ${mas.filter(([n, v]) => n <= 20 && price >= v).length}개 · 긴 기간 선 ${mas.filter(([n, v]) => n > 20 && price >= v).length}개 위에 있어요.`)
+      + '<span class="ez-ma">' + mas.map(([n, v]) => `<i class="${price >= v ? 'up' : 'down'}">${nm[n]} ${fmt(v)} (${clxPct(price, v)})</i>`).join('') + '</span>',
+      'N일선 = 최근 N일 동안의 평균 가격. 가격이 선 위에 있으면 그 기간에 산 사람들이 대체로 이익이에요. 20일선(1달)은 단기 분위기, 120·200일선은 장기 흐름의 기준선이에요.', above >= mas.length - 1 ? 'good' : above <= 1 ? 'bad' : '');
+  }
+  if (ind.ema9 != null) { const up = ind.ema9 > ind.ema21 && ind.ema21 > ind.ema50, dn = ind.ema9 < ind.ema21;
+    add('dir', '최근 가격에 무게 둔 평균선', 'EMA 9·21·50', up ? '오름 순서' : dn ? '내림 순서' : '섞임', up ? '가장 빠른 선이 맨 위 — 최근 며칠 흐름이 오름세예요.' : dn ? '빠른 선이 아래로 내려왔어요 — 최근 며칠 흐름이 약해졌어요.' : '선들이 섞여 있어요 — 단기 방향이 애매해요.', '최근 날짜의 가격을 더 중요하게 계산한 평균선이라 보통 평균선보다 빨리 반응해요.', up ? 'good' : dn ? 'bad' : ''); }
+  if (ind.hull21 != null) add('dir', '가장 빨리 반응하는 평균선', 'Hull 이동평균(21)', price > ind.hull21 ? '가격이 위' : '가격이 아래', price > ind.hull21 ? `가격(${won0(price)})이 이 선(${won0(ind.hull21)}) 위 — 방향 전환을 가장 먼저 잡는 선 기준으로 상승 쪽이에요.` : `가격이 이 선(${won0(ind.hull21)}) 아래로 내려갔어요 — 단기 약세로 바뀌는 첫 신호일 수 있어요.`, '흔들림을 줄이면서도 늦지 않게 만든 평균선. 방향이 바뀌는 순간을 빨리 보여 줘요.', price > ind.hull21 ? 'good' : 'bad');
+  if (ind.adx14 != null) { const trend = ind.adx14 > 25, flat = ind.adx14 < 20, upw = ind.pdi > ind.mdi;
+    add('dir', '추세의 세기 · 오르는 힘 vs 내리는 힘', 'ADX(14) · DMI', `세기 ${fmt(ind.adx14, 0)} · ${fmt(ind.pdi, 0)} 대 ${fmt(ind.mdi, 0)}`,
+      `${trend ? '뚜렷한 추세가 있어요(25 이상) — 가는 방향을 따라가는 매매가 잘 맞는 때예요.' : flat ? '추세가 약해요(20 미만) — 일정 범위에서 오르내리는 박스권일 가능성이 커요. 바닥에서 사고 위에서 파는 방식이 맞는 때예요.' : '추세가 막 생기는 중이에요(20~25).'} 오르려는 힘 ${fmt(ind.pdi, 0)} 대 내리려는 힘 ${fmt(ind.mdi, 0)}으로 ${upw ? '오르는 쪽이 우세' : '내리는 쪽이 우세'}해요.`,
+      'ADX는 방향과 상관없이 "추세가 얼마나 강한지"(0~100), +DI·−DI는 각각 오르려는 힘과 내리려는 힘이에요.', trend && upw ? 'good' : trend ? 'bad' : ''); }
+  // ── 과열·침체 ──
+  if (ind.rsi14 != null) { const r = ind.rsi14;
+    add('heat', '과열 온도계', 'RSI(14)', `${fmt(r, 0)}도`, r >= 70 ? `70을 넘어 과열 구간이에요 — 최근 2~3주 동안 오른 날이 내린 날보다 훨씬 많았다는 뜻. 쉬어 갈 수 있지만, 아주 강한 종목은 80 근처까지 버티기도 해요.` : r <= 30 ? '30 아래 침체 구간 — 많이 떨어져 반등이 나올 수 있는 자리예요.' : r >= 50 ? '50~70 — 오르는 힘이 조금 더 센 건강한 구간이에요.' : '30~50 — 내리는 힘이 조금 더 센 구간이에요.',
+      '최근 14일 동안 오른 폭과 내린 폭을 비교해 0~100으로 만든 숫자. 70 이상은 과열, 30 이하는 침체.', r >= 70 ? 'warn' : r <= 30 ? 'good' : r >= 50 ? 'good' : 'bad'); }
+  if (ind.rsi2 != null) add('heat', '초단기 과열 온도계', 'RSI(2)', `${fmt(ind.rsi2, 0)}도`, ind.rsi2 >= 90 ? '최근 2~3일 동안 거의 쉬지 않고 올랐어요 — 하루 이틀 숨 고르기가 나오기 쉬워요.' : ind.rsi2 <= 10 ? '최근 2~3일 급하게 떨어졌어요 — 짧은 반등이 나오기 쉬운 자리예요.' : '보통이에요.', '위 온도계를 2일짜리로 만든 것. 며칠 단위 단타 타이밍을 볼 때 써요.', ind.rsi2 >= 90 ? 'warn' : ind.rsi2 <= 10 ? 'good' : '');
+  if (ind.stoch_k != null) add('heat', '최근 2주 가격 범위 중 위치', '스토캐스틱 14·3·3', `위에서 ${fmt(100 - ind.stoch_k, 0)}% 아래`,
+    `최근 2주 최저가를 0, 최고가를 100으로 봤을 때 지금 가격은 ${fmt(ind.stoch_k, 0)} 지점이에요(3일 평균 ${fmt(ind.stoch_d, 0)}). ` + (ind.stoch_k < 20 && ind.stoch_k > ind.stoch_d ? '바닥 근처에서 고개를 드는 중 — 매수 타이밍 신호예요.' : ind.stoch_k > 80 && ind.stoch_k < ind.stoch_d ? '꼭대기 근처에서 꺾이는 중 — 매도 타이밍 신호예요.' : ind.stoch_k > 80 ? '꼭대기 근처예요.' : ind.stoch_k < 20 ? '바닥 근처예요.' : '중간쯤이에요.'),
+    '최근 14일 가격 범위 안에서 지금 가격이 어디쯤인지(0~100). 20 아래에서 오르면 매수, 80 위에서 꺾이면 매도 신호로 봐요.', ind.stoch_k < 20 && ind.stoch_k > ind.stoch_d ? 'good' : ind.stoch_k > 80 && ind.stoch_k < ind.stoch_d ? 'bad' : '');
+  if (ind.bb_pctb != null) { const b = ind.bb_pctb;
+    add('heat', '평소 움직임 범위를 벗어났나', '볼린저밴드 %B · 폭', b > 1 ? '범위 위로 넘음' : b < 0 ? '범위 아래로 이탈' : `범위 안 ${fmt(b * 100, 0)}% 높이`,
+      (b > 1 ? `평소 움직이는 범위의 위쪽 끝을 넘어섰어요(${fmt(b * 100, 0)}%) — 힘이 강하다는 뜻이지만 단기 과열이기도 해요. 다시 범위 안으로 들어오면 쉬어 가는 신호.` : b < 0 ? '평소 범위 아래로 떨어졌어요 — 많이 밀린 상태예요.' : `평소 범위 안에서 ${b >= 0.8 ? '위쪽' : b <= 0.2 ? '아래쪽' : '가운데쯤'}에 있어요.`)
+      + ` 범위의 폭은 ${fmt(ind.bb_bw, 1)}%로 최근 6개월 중 ${ind.bb_bw_rank <= 15 ? '가장 좁은 편 — 크게 움직이기 직전의 응축 상태일 수 있어요.' : `하위 ${fmt(ind.bb_bw_rank, 0)}% 수준이에요.`}`,
+      '최근 20일 평균 ± 흔들림의 2배로 "보통 움직이는 범위"를 그린 것. 0%=아래 끝, 100%=위 끝.', b > 1 ? 'warn' : b < 0 ? 'bad' : ind.bb_bw_rank <= 15 ? 'good' : ''); }
+  if (ind.squeeze != null) add('heat', '폭발 전 응축 상태', '스퀴즈', ind.squeeze ? '응축 중' : '아님', ind.squeeze ? `최근 20일 중 ${ind.squeeze_days}일 동안 가격 움직임이 유난히 좁아요 — 곧 한쪽으로 크게 움직일 수 있으니 터지는 방향을 지켜보세요.` : '지금은 에너지를 모으는 상태가 아니에요(이미 움직이고 있거나 평범한 상태).', '움직임이 아주 좁아지는 구간. 이런 구간 뒤에는 큰 움직임이 나오는 경우가 많아요.', ind.squeeze ? 'good' : '');
+  if (ind.cci20 != null) add('heat', '평균에서 얼마나 멀리 갔나', 'CCI(20) · Williams %R', `${fmt(ind.cci20, 0)} · ${fmt(ind.willr14, 0)}`,
+    (ind.cci20 > 200 ? '평균보다 아주 멀리 위로 올라갔어요 — 상승 힘은 강하지만 되돌림도 클 수 있어요.' : ind.cci20 > 100 ? '평균보다 꽤 위 — 오르는 탄력이 붙어 있어요.' : ind.cci20 < -100 ? '평균보다 꽤 아래 — 내리는 탄력이 붙어 있어요.' : '평균 근처예요.') + ` 최근 2주 최고가 대비로는 ${ind.willr14 >= -20 ? '꼭대기 근처' : ind.willr14 <= -80 ? '바닥 근처' : '중간쯤'}이에요.`,
+    'CCI: 20일 평균 가격에서 얼마나 떨어졌는지(±100 넘으면 강함). Williams %R: 최근 2주 최고가 0, 최저가 −100.', ind.cci20 > 200 ? 'warn' : ind.cci20 > 100 ? 'good' : ind.cci20 < -100 ? 'bad' : '');
+  // ── 돈의 흐름 ──
+  if (ind.macd_hist != null) add('money', '오르는 힘 측정기', 'MACD', ind.macd_hist > 0 ? '오르는 힘 우세' : '내리는 힘 우세', `${ind.macd_hist > 0 ? '짧은 평균이 긴 평균보다 빠르게 벌어지는 중 — 오르는 힘이 더 커요.' : '짧은 평균이 긴 평균 아래로 — 내리는 힘이 더 커요.'} ${ind.macd > 0 ? '큰 흐름도 상승 쪽으로 넘어와 있어요.' : '큰 흐름은 아직 하락 쪽이에요.'}`, '짧은 평균선과 긴 평균선의 차이. 0 위면 오름세의 힘이 살아 있다는 뜻이에요.', ind.macd_hist > 0 ? 'good' : 'bad');
+  if (ind.cmf20 != null) add('money', '돈이 들어오나 나가나', 'CMF(20)', ind.cmf20 > 0.05 ? '들어옴' : ind.cmf20 < -0.05 ? '나감' : '비슷', ind.cmf20 > 0.05 ? `최근 20일 동안 그날 높은 가격 쪽에서 끝나는 날이 많았어요(${fmt(ind.cmf20, 2)}) — 사려는 돈이 들어오는 중이에요.` : ind.cmf20 < -0.05 ? '최근 20일 동안 낮은 가격 쪽에서 끝나는 날이 많았어요 — 돈이 빠져나가는 중이에요.' : '들어오고 나가는 돈이 비슷해요.', '하루 중 어디서 끝났는지(고가 쪽/저가 쪽)에 거래량을 곱해 20일간 더한 것. 0보다 크면 매수세.', ind.cmf20 > 0.05 ? 'good' : ind.cmf20 < -0.05 ? 'bad' : '');
+  if (ind.mfi14 != null) add('money', '거래량 실은 과열 온도계', 'MFI(14)', `${fmt(ind.mfi14, 0)}도`, ind.mfi14 >= 80 ? '돈이 몰리며 과열됐어요 — 추격 매수 조심.' : ind.mfi14 <= 20 ? '돈이 빠지며 침체됐어요 — 반등 후보.' : ind.mfi14 >= 60 ? '돈이 꽤 들어와 있지만 과열은 아니에요.' : '보통이에요.', '과열 온도계(RSI)에 거래량을 더한 것. 80 이상 과열, 20 이하 침체.', ind.mfi14 >= 80 ? 'warn' : ind.mfi14 <= 20 ? 'good' : '');
+  if (ind.obv_up20 != null) add('money', '거래량 누적 방향', 'OBV(20일)', ind.obv_up20 ? '늘어남' : '줄어듦', ind.obv_up20 ? '최근 20일 동안 오른 날 거래가 내린 날보다 많았어요 — 누군가 사 모으는 쪽이에요.' : '최근 20일 동안 내린 날 거래가 더 많았어요 — 팔고 나가는 쪽이에요.', '오른 날 거래량은 더하고 내린 날 거래량은 빼서 쌓은 값. 늘어나면 매집, 줄어들면 이탈.', ind.obv_up20 ? 'good' : 'bad');
+  if (ind.vol_ratio != null) add('money', '오늘 거래량 / 평소', '거래량 배수', fmt(ind.vol_ratio, 1) + '배', ind.vol_ratio >= 3 ? `평소의 ${fmt(ind.vol_ratio, 1)}배 — 큰 관심이 몰렸어요. 오르면서 터진 거래량이면 진짜 힘, 제자리에서 터지면 누군가 넘기는 중일 수 있어요.` : ind.vol_ratio >= 1.5 ? '평소보다 많아요 — 지금 움직임(오름/내림)이 진짜인지 확인해 주는 신호예요.' : ind.vol_ratio <= 0.6 ? '평소보다 한산해요 — 관심이 줄었거나 큰 움직임 전 조용한 상태.' : '평소 수준이에요.', '오늘 거래량을 최근 20일 평균과 비교한 배수.', ind.vol_ratio >= 1.5 ? 'good' : '');
+  // ── 흔들림·속도 ──
+  if (ind.atr_pct != null) add('move', '하루 평균 흔들림 폭', 'ATR(14)', `약 ${fmt(ind.atr14)}원 (${fmt(ind.atr_pct, 1)}%)`, `이 종목은 하루에 보통 ${fmt(ind.atr14)}원(${fmt(ind.atr_pct, 1)}%) 정도 오르내려요. 손절선은 이 폭의 1.5~2.5배(${fmt(ind.atr14 * 1.5)}~${fmt(ind.atr14 * 2.5)}원) 아래에 두면 평범한 흔들림에 털리지 않아요.`, '최근 14일 동안 하루 고가~저가 폭의 평균. 손절 폭과 매수 수량을 정할 때 써요.', ind.atr_pct >= 6 ? 'warn' : '');
+  if (ind.roc10 != null) add('move', '최근 2주 상승률 · 1년 기준 흔들림', 'ROC(10) · 역사적 변동성', `${pct(ind.roc10, 1)} · ${fmt(ind.hv20, 0)}%`, `최근 10거래일 동안 ${ind.roc10 >= 0 ? fmt(ind.roc10, 1) + '% 올랐어요' : fmt(-ind.roc10, 1) + '% 내렸어요'}. 최근 흔들림을 1년으로 환산하면 ${fmt(ind.hv20, 0)}% — ${ind.hv20 >= 50 ? '아주 크게 흔들리는 종목이라 비중을 작게.' : ind.hv20 >= 30 ? '꽤 흔들리는 편이에요.' : '비교적 차분한 편이에요.'}`, 'ROC: 10일 전 대비 몇 % 변했나. 변동성: 최근 20일 흔들림을 1년 기준으로 바꾼 값(대형주 20~30%가 보통).', ind.hv20 >= 50 ? 'warn' : '');
+
+  // ── 한눈에 요약 ──
+  const score = arr => arr.reduce((a, x) => a + (x.tone === 'good' ? 1 : x.tone === 'bad' ? -1 : 0), 0);
+  const warnN = G.heat.filter(x => x.tone === 'warn').length + G.money.filter(x => x.tone === 'warn').length;
+  const dS = score(G.dir), mS = score(G.money);
+  const dirT = dS >= 2 ? '오름세' : dS <= -2 ? '내림세' : '방향 탐색 중';
+  const monT = mS >= 2 ? '돈이 들어오는 중' : mS <= -2 ? '돈이 빠지는 중' : '돈 흐름은 엇갈림';
+  const heatT = warnN >= 2 ? '단기 과열 신호 여러 개' : warnN === 1 ? '과열 신호 하나' : G.heat.some(x => x.tone === 'good' && /침체|바닥|응축/.test(x.now)) ? '쉬어 간 자리·응축' : '과열 아님';
+  let say;
+  if (dS >= 2 && mS >= 1 && warnN >= 2) say = '가격은 평균선 위에서 오르고 돈도 들어오고 있지만, 짧은 기간에 많이 올라 과열 신호가 여러 개 켜져 있어요. 새로 산다면 하루 이틀 쉬어 갈 때(눌림)를 기다리는 편이 안전하고, 이미 가지고 있다면 손절선을 올려 이익을 지키며 보유하는 자리예요.';
+  else if (dS >= 2 && mS >= 1) say = '오름세이고 돈도 들어오는, 차트상 건강한 상태예요. 과열 신호도 크지 않아요. 손절선을 정해 두고 접근할 만한 자리예요.';
+  else if (dS <= -2 && mS <= -1) say = '내림세이고 돈도 빠져나가는 중이에요. 반등을 기대하고 사기보다는 평균선 위로 다시 올라서는지 먼저 확인하세요.';
+  else if (dS <= -2) say = '아직 내림세지만 돈 흐름은 나쁘지 않아요. 바닥을 다지는 중일 수 있으니 20일선(1달 평균) 위로 올라서는지 지켜보세요.';
+  else if (dS >= 2) say = '방향은 오름세지만 돈 흐름이 약해요. 거래량이 붙는지 확인하고 들어가는 편이 좋아요.';
+  else say = '평균선들이 엉켜 방향을 정하는 중이에요. 위나 아래로 거래량을 실어 벗어나는 쪽을 따라가는 게 무난해요.';
+  const groups = [['dir', '① 방향 — 어느 쪽으로 가고 있나', dirT], ['heat', '② 과열·침체 — 너무 많이 오르거나 떨어졌나', heatT], ['money', '③ 돈의 흐름 — 사는 돈이 들어오나', monT], ['move', '④ 흔들림 — 하루에 얼마나 움직이나', '']];
+  const card = x => `<div class="ez ${x.tone}"><div class="ez-h"><b>${x.name}</b><span class="mono">${x.val}</span></div><small class="ez-t">${x.term}</small><p>${x.now}</p><details><summary>이게 뭐예요?</summary>${x.what}</details></div>`;
+  return `<div class="ez-sum"><b>한눈에 보기</b> <span class="tag ${dS >= 2 ? 'good' : dS <= -2 ? 'bad' : ''}">방향: ${dirT}</span><span class="tag ${warnN >= 2 ? 'warn' : ''}">과열: ${heatT}</span><span class="tag ${mS >= 2 ? 'good' : mS <= -2 ? 'bad' : ''}">돈: ${monT}</span><p>${say}</p></div>`
+    + groups.filter(([g]) => G[g].length).map(([g, t, st]) => `<h5 class="ez-g">${t}${st ? ` <small>→ ${st}</small>` : ''}</h5><div class="clx-inds ez-grid">${G[g].map(card).join('')}</div>`).join('')
+    + '<div class="hint mt-s">색 띠: 초록 = 좋은 신호 · 빨강 = 나쁜 신호 · 주황 = 주의(과열) · 회색 = 보통. 위쪽 "쉬운 말" 버튼을 끄면 전문가용 원래 표로 바뀌어요.</div>';
+}
+
 function clxIndHtml(ind, price) {
   if (!ind) return '';
+  if (typeof easyOn === 'function' && easyOn()) return clxIndEasy(ind, price);
   const rows = [];
   const add = (k, v, t, cls = '') => rows.push(`<div class="clx-ind ${cls}"><span>${k}</span><b class="mono">${v}</b><em>${t}</em></div>`);
   const mas = [5, 10, 20, 60, 120, 200].map(n => [n, ind['ma' + n]]).filter(x => x[1] != null);
@@ -198,7 +276,7 @@ function clxCardHtml(s, f) {
       ${(r.support || []).slice(0, 4).map(x => `<div class="clx-lv s"><span>지지</span><b class="mono">${clxWon(x.price)}</b><small>${clxPct(x.price, r.price)} · ${x.touches}번 터치</small><i style="width:${Math.min(100, x.strength * 25)}%"></i></div>`).join('')}
       <div class="hint">현재가가 저항 2% 이내면 구조 점수 감점 — "좋은 종목도 벽 앞에선 쉬어간다"</div></div>
   </div>
-  <h4 class="mt">지표 전체 (전문가 표준 설정)</h4>${clxIndHtml(r.ind, r.price)}` : ''}
+  <h4 class="mt">${typeof easyOn === 'function' && easyOn() ? '지표 전체 — 쉬운 설명' : '지표 전체 (전문가 표준 설정)'}</h4>${clxIndHtml(r.ind, r.price)}` : ''}
   <div class="hint mt">※ 6축 엔진은 현재 상태의 확률적 우위를 숫자로 바꾼 것이며 미래를 맞히지 않아요. 공시·유상증자 같은 돌발 악재는 차트에 미리 반영되지 않아요. 계산 기준일 ${esc(r ? r.last_date : S.data.meta.asof)} · 일봉 ${r ? r.bars : '–'}개.</div>`;
 }
 

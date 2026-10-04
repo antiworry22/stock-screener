@@ -569,3 +569,18 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ob-feed div:first-child { font-weight: 600; animation: obIn .5s ease; }
 .ob-feed .good { color: var(--up); } .ob-feed .bad { color: var(--down); } .ob-feed .key { color: var(--warn); } .ob-feed .sum { color: var(--muted); }
 @keyframes obIn { from { background: var(--accent-soft); } to { background: transparent; } }
+
+/* ── 지표 쉬운 설명(clxIndEasy) ── */
+.ez-sum { background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+.ez-sum b { margin-right: 6px; } .ez-sum p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.55; }
+.tag.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.ez-g { margin: 12px 0 6px; font-size: 13.5px; } .ez-g small { color: var(--muted); font-weight: 500; }
+.ez-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.ez { background: var(--panel2); border-radius: 8px; padding: 8px 11px; border-left: 3px solid var(--line); min-width: 0; }
+.ez.good { border-left-color: var(--ok); } .ez.bad { border-left-color: var(--bad); } .ez.warn { border-left-color: var(--warn); }
+.ez-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; } .ez-h b { font-size: 13.5px; } .ez-h span { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.ez-t { color: var(--muted); font-size: 11px; }
+.ez p { margin: 4px 0; font-size: 12.8px; line-height: 1.5; }
+.ez details { font-size: 12px; color: var(--muted); } .ez summary { cursor: pointer; color: var(--accent); }
+.ez-ma { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; } .ez-ma i { font-style: normal; font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--panel); }
+.ez-ma i.up { color: var(--up); } .ez-ma i.down { color: var(--down); }
