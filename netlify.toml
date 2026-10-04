@@ -2,6 +2,7 @@
 [build]
   publish = "site"
   command = ""
-  # 15분마다 갱신되는 공공기관 자료(public.json)·시장 뉴스(news.json)만 바뀐 커밋은 재배포하지 않음
-  # (사이트가 GitHub에서 직접 최신 파일을 읽으므로 배포 없이도 실시간 반영 → Netlify 배포 횟수 절약)
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)site/data/public.json' ':(exclude)site/data/news.json'"
+  # 크레딧 절약: 데이터 파일(site/data/*)이나 수집 프로그램(pipeline, .github)만 바뀐 커밋은 재배포하지 않음
+  # → 화면 파일(site/index.html, site/assets, site/config)을 고쳤을 때만 배포
+  # (사이트는 최신 데이터를 GitHub에서 직접 읽으므로 배포 없이도 매일 갱신됨)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- site ':(exclude)site/data'"
