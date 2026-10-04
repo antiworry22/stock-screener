@@ -1,0 +1,38 @@
+name: public-feed
+# 공공기관 자료(정책브리핑 보도자료 · 거래소 시장경보 · 기관 발표 보도) 15분마다 수집
+# Actions → public-feed → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    # 매일 06:00~22:45 KST, 15분 간격 (UTC 21~23시, 0~13시)
+    - cron: "*/15 21-23,0-13 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: public-feed
+  cancel-in-progress: false
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+      - name: 공공기관 자료 수집
+        timeout-minutes: 8
+        env:
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+        run: python pipeline/public_feed.py
+      - name: 결과 커밋 (사이트는 GitHub에서 바로 읽음 · 재배포 없음)
+        run: |
+          git config user.name "screener-bot"
+          git config user.email "screener-bot@users.noreply.github.com"
+          git add site/data/public.json
+          git diff --cached --quiet && exit 0
+          git commit -m "public: $(date -u +'%F %H:%M')"
+          for i in 1 2 3; do
+            git pull --rebase -X theirs origin main && git push && break
+            sleep 5
+          done
