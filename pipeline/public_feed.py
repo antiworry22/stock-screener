@@ -48,9 +48,16 @@ S = requests.Session()
 S.headers.update({**UA, "Accept-Language": "ko-KR,ko;q=0.9"})
 
 
-def get(url, **kw):
-    kw.setdefault("timeout", 15)
-    return S.get(url, **kw)
+def get(url, tries=3, **kw):
+    """접속 실패 시 잠깐 쉬었다가 다시 시도 (정부 사이트는 가끔 응답이 늦음)"""
+    kw.setdefault("timeout", (10, 25))
+    for k in range(tries):
+        try:
+            return S.get(url, **kw)
+        except (requests.ConnectionError, requests.Timeout):
+            if k == tries - 1:
+                raise
+            time.sleep(4 * (k + 1))
 
 
 def strip(h):
@@ -160,7 +167,7 @@ def collect_kr(prev_ids):
             break  # 이미 아는 자료까지 왔으면 멈춤
         if min(x["date"] for x in got) < cutoff:
             break
-        time.sleep(0.3)
+        time.sleep(0.8)
     log(f"정책브리핑 목록 {len(items)}건")
     return items, fails
 
@@ -346,8 +353,13 @@ def main():
     # 정책브리핑: 새 자료만 본문 받기
     new_kr = [x for x in kr if x["id"] not in items and x["date"] >= cutoff]
     log(f"정책브리핑 새 자료 {len(new_kr)}건 본문 읽기")
-    with ThreadPoolExecutor(6) as ex:
-        bodies = list(ex.map(lambda x: (x, _safe_body(x)), new_kr[:150]))
+    def _slow(x):
+        time.sleep(0.4)  # 정부 사이트에 부담 주지 않게 천천히 (한 번에 최대 40건)
+        return (x, _safe_body(x))
+    with ThreadPoolExecutor(3) as ex:
+        bodies = list(ex.map(_slow, new_kr[:40]))
+    for x in new_kr[40:]:  # 나머지는 본문 없이 제목만으로 (다음 실행 때 본문 보충 안 함)
+        bodies.append((x, {"body": "", "sum": ""}))
     for x, b in bodies:
         x.update(b or {"body": "", "sum": ""})
         x.update({"src": "정책브리핑", "seen": now_s})
