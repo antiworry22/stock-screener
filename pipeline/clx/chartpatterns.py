@@ -112,6 +112,17 @@ def detect_chart_patterns(df: pd.DataFrame, left: int = 5, right: int = 5,
     out = []
 
     def add(key, name, direction, weight, level, desc, target=None, neckline=None, confirmed=None):
+        # [보완] '지금' 의미 있는 패턴만: 이미 돌파 후 10% 넘게 진행했거나 목표가에 도달한 패턴은 끝난 것으로 보고 제외
+        ref = neckline if neckline is not None else level
+        if confirmed and ref and key not in ("breakout_high", "breakdown_low"):
+            if direction > 0 and price > ref * 1.10:
+                return
+            if direction < 0 and price < ref * 0.90:
+                return
+        if target is not None and direction > 0 and price >= target:
+            return
+        if target is not None and direction < 0 and price <= target:
+            return
         out.append({"key": key, "name": name, "direction": direction, "weight": weight,
                     "level": float(level) if level is not None else None,
                     "neckline": float(neckline) if neckline is not None else None,
@@ -130,7 +141,10 @@ def detect_chart_patterns(df: pd.DataFrame, left: int = 5, right: int = 5,
         if _tolerance(a["price"], b["price"], 0.04) and b["pos"] - a["pos"] >= 8 and b["pos"] >= recent and valley:
             top = (a["price"] + b["price"]) / 2
             neck = min(p["price"] for p in valley)
-            if top / neck < 1.05 or rng_pos(top) < 0.65:   # [보완] 골이 5% 이상 + 6개월 범위 위쪽에서만 '천장'
+            pre_lo = float(d["low"].iloc[max(0, a["pos"] - 30):a["pos"] + 1].min())
+            if (top / neck < 1.05 or rng_pos(top) < 0.65
+                    or b["pos"] - a["pos"] > 60 or b["pos"] < span - 20
+                    or pre_lo > a["price"] / 1.10):                 # 첫 천장 전에 10% 이상 상승이 있어야 '천장'
                 neck = None
         else:
             neck = None
@@ -144,7 +158,10 @@ def detect_chart_patterns(df: pd.DataFrame, left: int = 5, right: int = 5,
         if _tolerance(a["price"], b["price"], 0.04) and b["pos"] - a["pos"] >= 8 and b["pos"] >= recent and peak:
             bot = (a["price"] + b["price"]) / 2
             neck = max(p["price"] for p in peak)
-            if neck / bot < 1.05 or rng_pos(bot) > 0.35:   # [보완] 봉우리 5% 이상 + 6개월 범위 아래쪽에서만 '바닥'
+            pre_hi = float(d["high"].iloc[max(0, a["pos"] - 30):a["pos"] + 1].max())
+            if (neck / bot < 1.05 or rng_pos(bot) > 0.35       # [보완] 봉우리 5% 이상 + 6개월 범위 아래쪽
+                    or b["pos"] - a["pos"] > 60 or b["pos"] < span - 20   # 두 바닥 간격 60봉 이내, 두 번째 바닥은 최근 20봉
+                    or pre_hi < a["price"] * 1.10):                 # 첫 바닥 전에 10% 이상 하락이 있어야 '바닥'
                 neck = None
         else:
             neck = None
@@ -156,19 +173,25 @@ def detect_chart_patterns(df: pd.DataFrame, left: int = 5, right: int = 5,
     # ---- 헤드앤숄더 / 역헤드앤숄더 ----  목표 = 목선 ∓ (머리 − 목선)
     if len(highs) >= 3:
         l_, m_, r_ = highs[-3], highs[-2], highs[-1]
-        if (m_["price"] > max(l_["price"], r_["price"]) * 1.02 and _tolerance(l_["price"], r_["price"], 0.06) and r_["pos"] >= recent):
+        if (m_["price"] > max(l_["price"], r_["price"]) * 1.02 and _tolerance(l_["price"], r_["price"], 0.06) and r_["pos"] >= span - 20):
             vs = [p["price"] for p in lows if l_["pos"] < p["pos"] < r_["pos"]]
             neck = min(vs) if vs else min(l_["price"], r_["price"])
             conf = price < neck
-            add("head_shoulders", "헤드앤숄더(천장형)", -1, 3, m_["price"], f"머리 {m_['price']:,.0f} · 목선 {neck:,.0f}" + (" 이탈(확정)" if conf else " 이탈 시 하락 반전"),
+            if not conf and price > neck * 1.07:   # [보완] 목선보다 7% 넘게 위면 아직 '천장형'으로 보기 이르다
+                neck = None
+            if neck is not None:
+              add("head_shoulders", "헤드앤숄더(천장형)", -1, 3, m_["price"], f"머리 {m_['price']:,.0f} · 목선 {neck:,.0f}" + (" 이탈(확정)" if conf else " 이탈 시 하락 반전"),
                 target=neck - (m_["price"] - neck), neckline=neck, confirmed=conf)
     if len(lows) >= 3:
         l_, m_, r_ = lows[-3], lows[-2], lows[-1]
-        if (m_["price"] < min(l_["price"], r_["price"]) * 0.98 and _tolerance(l_["price"], r_["price"], 0.06) and r_["pos"] >= recent):
+        if (m_["price"] < min(l_["price"], r_["price"]) * 0.98 and _tolerance(l_["price"], r_["price"], 0.06) and r_["pos"] >= span - 20):
             ps = [p["price"] for p in highs if l_["pos"] < p["pos"] < r_["pos"]]
             neck = max(ps) if ps else max(l_["price"], r_["price"])
             conf = price > neck
-            add("inverse_head_shoulders", "역헤드앤숄더(바닥형)", 1, 3, m_["price"], f"머리 {m_['price']:,.0f} · 목선 {neck:,.0f}" + (" 돌파(확정)" if conf else " 돌파 시 상승 반전"),
+            if not conf and price < neck * 0.93:
+                neck = None
+            if neck is not None:
+              add("inverse_head_shoulders", "역헤드앤숄더(바닥형)", 1, 3, m_["price"], f"머리 {m_['price']:,.0f} · 목선 {neck:,.0f}" + (" 돌파(확정)" if conf else " 돌파 시 상승 반전"),
                 target=neck + (neck - m_["price"]), neckline=neck, confirmed=conf)
 
     # ---- 삼각형 / 쐐기 ---- (최근 75% 구간의 스윙 고점·저점 회귀선)
