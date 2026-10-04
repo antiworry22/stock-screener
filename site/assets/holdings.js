@@ -133,6 +133,7 @@ function hCard(o) {
       <button class="btn small" data-h="buy" data-id="${h.id}">추가 매수</button><button class="btn small" data-h="sell" data-id="${h.id}">매도 기록</button>
       <button class="btn ghost small" data-h="edit" data-id="${h.id}">손절·목표 수정</button><button class="btn ghost small" data-h="log" data-id="${h.id}">${open ? '거래 내역 닫기' : '거래 내역'}</button>
       <button class="btn ghost small" data-an="${esc(h.code)}">종목 분석 →</button>
+      <button class="btn ghost small danger" data-h="del" data-id="${h.id}">🗑 삭제</button>
     </div>
     ${HOLD.form && HOLD.form.id === h.id ? hFormHtml(o) : ''}
     ${open ? hLogHtml(o) : ''}
@@ -239,7 +240,7 @@ function hBind(root) {
     if (k === 'buy' || k === 'sell' || k === 'edit') { HOLD.form = { id, kind: k }; return renderHold(); }
     if (k === 'log') { HOLD.open = HOLD.open === id ? null : id; return renderHold(); }
     const { d, h } = hFind(id); if (!h) return;
-    if (k === 'del') { if (!confirm(`${h.name} 기록을 모두 지울까요?`)) return; d.items = d.items.filter(x => x.id !== id); }
+    if (k === 'del') { if (!confirm(`${h.name}을(를) 내 보유 종목에서 삭제할까요?\n(삭제 후 10초 안에 '되돌리기'로 살릴 수 있어요)`)) return; hTrash([h], `${h.name} 삭제됨`); d.items = d.items.filter(x => x.id !== id); if (HOLD.form && HOLD.form.id === id) HOLD.form = null; }
     else if (k === 'mp') { const v = Number(($(`[data-mp="${id}"]`) || {}).value); if (!(v > 0)) return; h.mp = v; }
     else if (k === 'rmrow') { const arr = h[b.dataset.k]; if (!arr || !confirm('이 거래를 지울까요?')) return; arr.splice(+b.dataset.i, 1); if (!h.lots.length) d.items = d.items.filter(x => x.id !== id); }
     else if (k === 'saveEdit') { h.stop = hNum('#hfStop'); h.t1 = hNum('#hfT1'); h.t2 = hNum('#hfT2'); h.memo = $('#hfMemo').value.trim(); HOLD.form = null; }
@@ -252,6 +253,30 @@ function hBind(root) {
     }
     hSave(d); renderHold();
   });
+}
+/* 삭제 되돌리기 (10초) */
+function hTrash(items, msg) {
+  HOLD.trash = { items: JSON.parse(JSON.stringify(items)), msg };
+  clearTimeout(HOLD.trashT);
+  HOLD.trashT = setTimeout(() => { HOLD.trash = null; hUndoBar(); }, 10000);
+  setTimeout(hUndoBar, 0);
+}
+function hUndoBar() {
+  const el = $('#holdUndo'); if (!el) return;
+  if (!HOLD.trash) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = `🗑 ${esc(HOLD.trash.msg)} <button class="btn small" id="hUndoGo">되돌리기</button>`;
+  $('#hUndoGo').onclick = () => {
+    const d = hLoad(), ids = new Set(d.items.map(x => x.id));
+    d.items.push(...HOLD.trash.items.filter(x => !ids.has(x.id)));
+    hSave(d); HOLD.trash = null; clearTimeout(HOLD.trashT); hUndoBar(); renderHold();
+  };
+}
+function hClearAll() {
+  const d = hLoad(); if (!d.items.length) { alert('지울 종목이 없어요.'); return; }
+  if (!confirm(`내 보유 종목 ${d.items.length}개를 모두 삭제할까요?\n(10초 안에 '되돌리기'로 살릴 수 있어요. 오래 보관하려면 먼저 '백업 파일 저장'을 하세요)`)) return;
+  hTrash(d.items, `보유 종목 ${d.items.length}개 전체 삭제됨`);
+  d.items = []; hSave(d); HOLD.form = null; renderHold();
 }
 function hAdd() {
   const q = $('#hAddName').value.trim();
@@ -295,6 +320,7 @@ function initHold() {
   $('#hAddGo').onclick = hAdd;
   ['#hAddP', '#hAddQ'].forEach(x => $(x).onkeydown = e => { if (e.key === 'Enter') hAdd(); });
   $('#hExport').onclick = hExport;
+  if ($('#hClear')) $('#hClear').onclick = hClearAll;
   $('#hImport').onclick = () => $('#hImportFile').click();
   $('#hImportFile').onchange = e => { if (e.target.files[0]) hImport(e.target.files[0]); e.target.value = ''; };
   const nb = $('#hNoti');

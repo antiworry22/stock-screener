@@ -520,3 +520,4 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .h-list { align-items: start; }
 .h-add label, .h-form label { text-align: left; align-items: stretch; }
 .h-log td { white-space: nowrap; }
+.h-undo { margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: var(--warn-soft); display: flex; gap: 10px; align-items: center; font-size: 13.5px; }
