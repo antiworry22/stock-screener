@@ -561,3 +561,11 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ob-pl small { font-size: 11px; color: var(--muted); } .ob-pl b { font-size: 15px; } .ob-pl em { font-style: normal; font-size: 11px; color: var(--muted); }
 .ob-mine { margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; }
 @media (max-width: 760px) { .ob-pl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ob-live { border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; background: var(--panel); }
+.ob-live.good { border-left-color: var(--up); } .ob-live.bad { border-left-color: var(--down); }
+.ob-live-h { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; } .ob-live-h .btn { margin-left: auto; }
+.ob-hl { font-weight: 600; font-size: 14.5px; }
+.ob-feed { margin: 8px 0 4px; font-size: 13px; } .ob-feed div { padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.ob-feed div:first-child { font-weight: 600; animation: obIn .5s ease; }
+.ob-feed .good { color: var(--up); } .ob-feed .bad { color: var(--down); } .ob-feed .key { color: var(--warn); } .ob-feed .sum { color: var(--muted); }
+@keyframes obIn { from { background: var(--accent-soft); } to { background: transparent; } }

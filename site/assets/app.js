@@ -197,7 +197,7 @@ function item(s, i, tags, right) {
     <div class="nm"><b>${esc(s.name)}</b><small>${esc(s.sector)} · ${fmt(s.close)} <span class="${cls(s.chg)}">${pct(s.chg)}</span></small><div>${tags}</div></div>
     <div class="rt">${right}</div></div>`;
 }
-function bindItems(root = document) { $$('[data-code]', root).forEach(el => el.onclick = () => openDetail(el.dataset.code)); }
+function bindItems(root = document) { $$('[data-code]:not([id$="Mount"])', root).forEach(el => el.onclick = () => openDetail(el.dataset.code)); }
 
 /* ═════════════ 조건검색 ═════════════ */
 const F = [

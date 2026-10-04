@@ -4,6 +4,15 @@ const UA_M = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac O
 const UA_PC = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36', 'Accept-Language': 'ko-KR,ko;q=0.9', 'Referer': 'https://finance.naver.com/' };
 const num = x => { if (x == null) return null; const v = parseFloat(String(x).replace(/[,+%\s원주]/g, '')); return Number.isFinite(v) ? v : null; };
 const keyOf = (o, re) => Object.keys(o || {}).find(k => re.test(k));
+// '3조 1,401억', '8,123억', '512만' 같은 한글 단위 금액 → 원
+function won(x) {
+  if (x == null) return null;
+  const s = String(x).replace(/[,\s원]/g, '');
+  if (!/[조억만]/.test(s)) { const v = parseFloat(s); return Number.isFinite(v) ? v : null; }
+  let v = 0; const m = s.match(/(?:([\d.]+)조)?(?:([\d.]+)억)?(?:([\d.]+)만)?/);
+  if (m) v = (+m[1] || 0) * 1e12 + (+m[2] || 0) * 1e8 + (+m[3] || 0) * 1e4;
+  return v || null;
+}
 
 async function get(url, headers, ms = 4500) {
   const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
@@ -60,11 +69,19 @@ function quoteFromJson(j) {
   const d = (j && (j.datas || j.result || j.data)) ? (j.datas || j.result || j.data) : j;
   const o = Array.isArray(d) ? d[0] : d; if (!o || typeof o !== 'object') return null;
   const g = re => { const k = keyOf(o, re); return k ? o[k] : null; };
-  const price = num(g(/^closePrice$|^nowVal$|^now$|currentPrice|tradePrice/i));
+  const price = num(g(/^closePrice$|^nowVal$|^now$|^currentPrice$|^tradePrice$/i));
   if (!price) return null;
-  return { price, chgPct: num(g(/fluctuationsRatio|ratio|rate/i)), chg: num(g(/compareToPreviousClosePrice|change$/i)), vol: num(g(/accumulatedTradingVolume|^aq$|volume/i)),
-    value: num(g(/accumulatedTradingValue|^aa$/i)), status: g(/marketStatus|status/i), t: g(/localTradedAt|tradedAt|time/i), name: g(/stockName|^nm$|name/i),
-    high: num(g(/highPrice|^hv$/i)), low: num(g(/lowPrice|^lv$/i)), open: num(g(/openPrice|^ov$/i)) };
+  // 등락 방향: compareToPreviousPrice.name = RISING/UPPER_LIMIT/FALLING/LOWER_LIMIT/EVEN
+  const dirO = o.compareToPreviousPrice, dirS = dirO && typeof dirO === 'object' ? String(dirO.name || dirO.code || '') : '';
+  const sgn = /FALL|LOWER|^5$|^4$/i.test(dirS) ? -1 : 1;
+  let chgPct = num(o.fluctuationsRatio ?? g(/^fluctuationsRatio|^cr$|^rf$/i));
+  let chg = num(o.compareToPreviousClosePrice ?? g(/^cv$/i));
+  if (chgPct != null && chgPct > 0 && sgn < 0) chgPct = -chgPct;
+  if (chg != null && chg > 0 && sgn < 0) chg = -chg;
+  if (chgPct == null && chg != null) chgPct = Math.round(chg / (price - chg) * 10000) / 100;
+  return { price, chgPct, chg, vol: num(o.accumulatedTradingVolume ?? g(/^aq$|^accumulatedTradingVolume/i)),
+    value: won(o.accumulatedTradingValue ?? g(/^aa$|^accumulatedTradingValue/i)), status: o.marketStatus ?? g(/^marketStatus$/i), t: o.localTradedAt ?? g(/tradedAt$/i), name: o.stockName ?? g(/^stockName$|^nm$/i),
+    high: num(o.highPrice ?? g(/^hv$/i)), low: num(o.lowPrice ?? g(/^lv$/i)), open: num(o.openPrice ?? g(/^ov$/i)) };
 }
 
 export default async (req) => {
@@ -88,7 +105,7 @@ export default async (req) => {
   } catch (e) { D.ask = '해석 실패 ' + String(e).slice(0, 100) + (diag && R.ask && R.ask.buf ? ' ' + text(R.ask.buf).slice(0, 300) : ''); }
   // ② 실시간 시세(현재가·거래량)
   try {
-    if (R.poll && R.poll.status === 200) { const j = JSON.parse(text(R.poll.buf)); D.poll = diag ? JSON.stringify(j).slice(0, 1200) : 'ok'; const q = quoteFromJson(j); if (q) { quote = q; src.push('실시간 시세'); } }
+    if (R.poll && R.poll.status === 200) { const j = JSON.parse(text(R.poll.buf)); D.poll = diag ? (u.searchParams.get('raw') === 'poll' ? ((j.datas || [])[0] || j) : JSON.stringify(j).slice(0, 1200)) : 'ok'; const q = quoteFromJson(j); if (q) { quote = q; src.push('실시간 시세'); } }
     else D.poll = R.poll && (R.poll.err || `HTTP ${R.poll.status}`);
   } catch (e) { D.poll = '해석 실패 ' + String(e).slice(0, 100); }
   // ③ PC 시세 페이지(호가표) — ①이 안 될 때
