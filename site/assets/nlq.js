@@ -306,6 +306,16 @@ function nlqParse(text) {
   }
   const BOX = /박스\s*권?\s*(을\s*)?돌파\S*|횡보\s*(후|하다가?)\s*돌파\S*/;
   if (BOX.test(text)) { pre.push({ f: 'pat_box', op: 'is', v: true }); text = text.replace(BOX, ' '); }
+  // 차트 종합판정(6축 엔진) 표현
+  if (/강력\s*매수/.test(text)) { pre.push({ f: 'cl_score', op: '>=', v: 55 }); text = text.replace(/강력\s*매수\S*/, ' '); }
+  else if (/매수\s*우위/.test(text)) { pre.push({ f: 'cl_score', op: '>=', v: 28 }); text = text.replace(/매수\s*우위\S*/, ' '); }
+  const CLP = [[/이중\s*바닥|W\s*자/i, '이중바닥'], [/역\s*헤드\s*앤?\s*숄더/, '역헤드앤숄더'], [/컵\s*앤?\s*핸들/, '컵앤핸들'], [/강세\s*깃발|상승\s*깃발/, '강세 깃발'],
+    [/상승\s*삼각형/, '상승 삼각형'], [/하락\s*쐐기/, '하락 쐐기'], [/상승\s*장악형/, '상승장악형'], [/샛별형/, '샛별형'], [/적삼병/, '적삼병'], [/망치형/, '망치형']];
+  CLP.forEach(([re, nm]) => { if (re.test(text)) { pre.push({ f: 'cl_pat', op: 'has', v: nm }); text = text.replace(new RegExp(re.source + '\\S*', re.flags), ' '); } });
+  if (/체크\s*리스트\s*(를\s*)?통과/.test(text)) { pre.push({ f: 'cl_ckp', op: 'is', v: true }); text = text.replace(/체크\s*리스트\s*(를\s*)?통과\S*/, ' '); }
+  const RRm = text.match(/손익비\s*(가)?\s*(\d+(?:\.\d+)?)\s*(대\s*1|:\s*1)?\s*(이상|넘는|넘)\S*/);
+  if (RRm) { pre.push({ f: 'cl_rr', op: '>=', v: +RRm[2] }); text = text.replace(RRm[0], ' '); }
+  if (/주봉\s*(도|이)?\s*(상승|정합|좋)/.test(text)) { pre.push({ f: 'cl_week', op: '>', v: 0 }); text = text.replace(/주봉\s*(도|이)?\s*(상승|정합|좋)\S*/, ' '); }
   // 거래량 해석 표현
   const VB = /(대량\s*거래|거래량|거래대금)\s*(이|을|를|가)?\s*(터지|실리|실린|동반|붙)\S*\s*(며|면서|고)?\s*(박스권?\s*)?(고점\s*)?돌파\S*|돌파\S*\s*(하면서|하며)?\s*(대량\s*거래|거래량\s*(이|을)?\s*(터진|실린|동반))\S*|유효\s*돌파/;
   if (VB.test(text)) { pre.push({ f: 'vs_brk', op: 'is', v: true }); text = text.replace(VB, ' '); }
@@ -396,7 +406,7 @@ function nlqEasy(c) {
     disc_pos: v => v ? '호재 공시 있음' : '호재 공시 없음',
   };
   if (fd.type === 'bool') { const b = c.v === true || c.v === 'true'; return special[c.f] ? special[c.f](b) : `${name} ${b ? '해당' : '해당 안 됨'}`; }
-  if (c.op === 'has') return `업종: ${String(c.v).split('|').join('·')}`;
+  if (c.op === 'has') return `${c.f === 'sector' ? '업종' : name}: ${String(c.v).split('|').join('·')}`;
   if (c.op === 'is') return `${name}: ${c.v === 'KOSPI' ? '코스피' : c.v === 'KOSDAQ' ? '코스닥' : c.v}`;
   if (c.f === 'chg' && c.op === '>=' && c.v === 0) return '오늘 주가 안 내림';
   if (c.f === 'ret5' && c.op === '>=' && c.v === 0) return '최근 1주 주가 안 내림';

@@ -3,7 +3,7 @@
 'use strict';
 
 const GOV = { d: null, org: '', kind: '', imp: '0', tone: 'all', mkt: 'all', q: '', code: '', shown: 40, timer: null, next: 0, newIds: new Set(), first: true,
-  RAW: 'https://raw.githubusercontent.com/antiworry22/stock-screener/main/site/data/public.json' };
+  RAW: 'https://raw.githubusercontent.com/antiworry22/stock-screener/live-public/public.json' };
 
 const govMap = () => { if (!GOV._m && S.data) { GOV._m = {}; S.data.stocks.forEach(s => { GOV._m[s.code] = s; }); } return GOV._m || {}; };
 const govStars = n => '★'.repeat(n || 1) + '☆'.repeat(3 - (n || 1));

@@ -168,7 +168,7 @@ function mnInitUI() {
   $('#mnMore').onclick = () => { MN.shown += 40; mnRenderList(); };
 }
 
-const MN_RAW = 'https://raw.githubusercontent.com/antiworry22/stock-screener/main/site/data/news.json';
+const MN_RAW = 'https://raw.githubusercontent.com/antiworry22/stock-screener/live-news/news.json';
 MN.newIds = new Set(); MN.first = true; MN.next = 0;
 
 async function mnLoad(manual) {

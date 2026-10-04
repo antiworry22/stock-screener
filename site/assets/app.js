@@ -46,7 +46,7 @@ async function boot() {
   S.capital = saved.capital || 30000000;
   S.conds = store.get('conds', []);
   S.logic = store.get('logic', 'AND');
-  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis(); if (typeof initVolume === 'function') initVolume();
+  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis(); if (typeof initVolume === 'function') initVolume(); if (typeof initClx === 'function') initClx();
   refresh();
   if (S.conds.length) runSearch();
 }
@@ -121,7 +121,7 @@ function riskCalc(s, entry) {
 function refresh() {
   S.data.stocks.forEach(s => { s._sc = scoreStock(s); s._ban = banReasons(s); });
   const wl = new Set(whitelist()); S.data.stocks.forEach(s => { s._white = wl.has(s); });
-  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns(); if (typeof renderVolume === 'function') renderVolume();
+  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns(); if (typeof renderVolume === 'function') renderVolume(); if (typeof renderClxAll === 'function') renderClxAll();
   if (S.lastResult.length || S.conds.length) runSearch(true);
 }
 

@@ -51,6 +51,7 @@ function analysisHtml(s) {
       <div class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector)} · 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}</div></div>
     <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div></div>
   </div>
+  <div class="an-card an-wide"><h4>차트 종합 판정 <small class="muted">— 6축 점수 엔진(추세·모멘텀·거래량·구조·패턴·주봉) · 진입·손절·목표·손익비·체크리스트</small></h4><div id="clxMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 정밀 분석 · 평가 점수 · 추천 여부</h4><div id="clMount"></div></div>
   <div class="an-card an-wide"><h4>거래량·거래대금 정밀 해석 <small class="muted">— 지금 이 종목에 돈이 어떻게 들어오고 나가나</small></h4><div id="vaMount"></div></div>
   <div class="an-grid">
@@ -89,6 +90,7 @@ function showAnalysis(code) {
   $('#anInput').value = s.name;
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
+  if (typeof renderClx === 'function') renderClx(s, 'clxMount');
   if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');
   if (typeof renderVolCard === 'function') renderVolCard(s, 'vaMount');
   if (typeof mnFillAnalysis === 'function') mnFillAnalysis();
