@@ -32,6 +32,7 @@ UA = mn.UA
 KST = mn.KST
 NOW = dt.datetime.now(KST)
 KEEP_DAYS = 7
+VER = 2
 LOG = []
 KR = "https://www.korea.kr/briefing"
 
@@ -61,6 +62,11 @@ def strip(h):
 
 
 ORG_RE = re.compile(r"^[가-힣·]{2,14}(부|처|청|원|위원회|실|본부|공사|은행|공단|재단)$")
+ORGS = set("""기획재정부 재정경제부 기획예산처 교육부 과학기술정보통신부 외교부 통일부 법무부 국방부 행정안전부 국가보훈부 문화체육관광부
+농림축산식품부 산업통상부 산업통상자원부 보건복지부 환경부 기후에너지환경부 고용노동부 성평등가족부 여성가족부 국토교통부 해양수산부 중소벤처기업부
+인사혁신처 법제처 식품의약품안전처 국세청 관세청 조달청 통계청 국가데이터처 재외동포청 검찰청 병무청 방위사업청 경찰청 소방청 국가유산청 농촌진흥청
+산림청 특허청 지식재산처 기상청 행정중심복합도시건설청 새만금개발청 해양경찰청 우주항공청 질병관리청 국무조정실 국무총리비서실 공정거래위원회 금융위원회
+국민권익위원회 개인정보보호위원회 원자력안전위원회 방송미디어통신위원회 방송통신위원회 금융감독원 한국은행 국민연금공단 한국거래소 대통령실 범정부 범부처""".split())
 DATE_RE = re.compile(r"(20\d\d)[.\-/](\d{1,2})[.\-/](\d{1,2})")
 
 
@@ -80,11 +86,18 @@ def kr_list(page):
         for x in pieces + after:
             if date is None and DATE_RE.search(x):
                 date = DATE_RE.search(x)
-            for tok in re.split(r"[\s|/]+", x):
-                if org is None and ORG_RE.match(tok) and len(tok) <= 14:
+        for x in pieces + after:  # 1순위: 짧은 칸 하나가 통째로 기관명
+            if len(x) <= 16 and (x in ORGS or ORG_RE.match(x)):
+                org = x
+                break
+        if org is None:  # 2순위: 제목 줄에 나온 기관명
+            for tok in re.split(r"[\s|/·,]+", (pieces or [""])[0]):
+                tok = re.sub(r"(은|는|이|가|의|에서|,)$", "", tok)
+                if tok in ORGS:
                     org = tok
+                    break
         cand = [x for x in pieces if not DATE_RE.fullmatch(x) and x != org and len(x) >= 6]
-        title = max(cand, key=len) if cand else None
+        title = cand[0] if cand else None  # 첫 줄 = 제목 (그 뒤는 본문 미리보기)
         if not title:
             continue
         title = re.sub(r"\s+", " ", title).strip()
@@ -105,6 +118,12 @@ SKIP_LINE = re.compile(r"담당\s*부서|문의|첨부|저작권|공공누리|�
 def kr_body(it):
     r = get(it["u"])
     r.raise_for_status()
+    m = re.search(r"""<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)""", r.text) or re.search(r"<title>(.*?)</title>", r.text, re.S)
+    if m:
+        t = htmllib.unescape(re.sub(r"\s+", " ", m.group(1))).strip()
+        t = re.split(r"\s+[|<\-–]\s+(?:보도자료|정책브리핑|대한민국)", t)[0].strip()
+        if 6 <= len(t) <= 150:
+            it["t"] = t
     lines = [re.sub(r"\s+", " ", x).strip() for x in strip(r.text).split("\n")]
     lines = [x for x in lines if x]
     key = it["t"][:12]
@@ -256,7 +275,9 @@ def enrich(it, ctx):
     if it.get("kind") != "시장경보":
         kind, tone = classify(head, title)
         it["kind"], it["tone"] = kind, tone
-    ths = mn.match_themes(title, "ko") or mn.match_themes(it.get("sum") or "", "ko")[:2]  # 제목 우선, 없으면 요약에서 2개까지
+    ths = mn.match_themes(title, "ko")  # 테마는 제목에서만 (본문·요약은 잡음이 많음)
+    if not ths and it.get("src") == "기관 발표 보도":
+        ths = mn.match_themes(it.get("sum") or "", "ko")[:1]
     dr = mn.driver_dirs(title, "ko")
     for d in dr:
         for th in mn.THEMES:
@@ -282,7 +303,8 @@ def enrich(it, ctx):
         it["imp"] = imp
     it["th"] = [[n, e] for n, e in theme_eff]
     it["dr"] = [[d, v] for d, v in dr.items()]
-    it["linked"] = bool(st or theme_eff or it.get("kind") in ("시장경보", "거시지표"))
+    noise = re.search(r"동정|면담|접견|방문|간담회|훈련|캠페인|시상|기념식|개원|축제|공모전|봉사|청렴|채용|인사\s*발령|부고|브리핑\s*\(", title) and not st
+    it["linked"] = bool(it.get("kind") in ("시장경보", "거시지표") or (not noise and (st or theme_eff)))
     return it
 
 
@@ -290,7 +312,9 @@ def main():
     prev = {}
     if os.path.exists(OUT):
         try:
-            prev = {x["id"]: x for x in json.load(open(OUT, encoding="utf-8")).get("items", [])}
+            pj = json.load(open(OUT, encoding="utf-8"))
+            if pj.get("meta", {}).get("ver") == VER:  # 분류 규칙이 바뀌면 처음부터 다시
+                prev = {x["id"]: x for x in pj.get("items", [])}
         except Exception:
             prev = {}
     stocks, by_name = mn.load_universe()
@@ -334,7 +358,8 @@ def main():
         ws = mn._words(x["t"])
         if any(ws and w and len(ws & w) / max(1, min(len(ws), len(w))) >= 0.6 for w in have_words):
             continue
-        if x["s"] in mn.BLOCK_SRC or any(w in x["t"].lower() for w in mn.SPAM_W):
+        x["t"] = re.sub(r"\s*[:|]\s*(네이버|다음|티스토리)\s*블로그.*$", "", x["t"]).strip()
+        if x["s"] in mn.BLOCK_SRC or any(w in x["t"].lower() for w in mn.SPAM_W) or "블로그" in (x["s"] or "") or "blog" in (x["u"] or ""):
             continue
         it = {"id": hid, "src": "기관 발표 보도", "org": x["org"], "t": x["t"], "u": x["u"], "s": x["s"],
               "date": (x["ts"] or NOW).astimezone(KST).date().isoformat(),
@@ -372,7 +397,7 @@ def main():
     for x in keep:
         orgs[x["org"]] = orgs.get(x["org"], 0) + 1
     themes = {th["name"]: {"stocks": theme_stocks[th["name"]]} for th in mn.THEMES}
-    meta = {"generated": NOW.strftime("%Y-%m-%d %H:%M"), "n": len(keep), "new": sum(1 for x in keep if x.get("seen") == now_s),
+    meta = {"ver": VER, "generated": NOW.strftime("%Y-%m-%d %H:%M"), "n": len(keep), "new": sum(1 for x in keep if x.get("seen") == now_s),
             "by_src": {k: sum(1 for x in keep if x["src"] == k) for k in ("정책브리핑", "거래소 시장경보", "기관 발표 보도")},
             "kr_listed": len(kr), "dart": bool(DART_KEY), "fails": f1 + f2 + f3, "elapsed_s": round(time.time() - T0, 1), "log": LOG[-40:]}
     data = {"meta": meta, "items": keep, "stocks": agg, "orgs": dict(sorted(orgs.items(), key=lambda kv: -kv[1])), "themes": themes}
