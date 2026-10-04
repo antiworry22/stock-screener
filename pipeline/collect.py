@@ -571,6 +571,14 @@ def _pick(d, *must):
 def naver_flow(code):
     """외국인·기관 일별 순매매(주) + 외국인 보유율 — KRX 수급이 막혔을 때 대체.
     ① 네이버 모바일 API(JSON) ② PC 페이지(HTML) 순서로 시도"""
+    try:  # 실시간 수급 수집기(flows.py)와 같은 경로 — 모바일 브라우저 헤더로 요청해야 응답함
+        from flows import src_m_trend
+        rows = sorted(src_m_trend(code, requests), key=lambda r: r["d"])[-10:]
+        if rows:
+            return {"inst": [r["i"] for r in rows], "frgn": [r["f"] for r in rows], "close": [r["c"] for r in rows],
+                    "hold": next((r["h"] for r in reversed(rows) if r.get("h") is not None), None)}
+    except Exception:
+        pass
     try:
         j = requests.get(f"https://m.stock.naver.com/api/stock/{code}/trend", params={"pageSize": 10},
                          headers=UA, timeout=8).json()
