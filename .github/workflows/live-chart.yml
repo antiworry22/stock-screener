@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - run: pip install pandas numpy requests
+      - run: pip install pandas numpy requests finance-datareader
       - name: 직전 결과 불러오기 (이번에 실패한 종목은 직전 값 유지)
         continue-on-error: true
         run: |
@@ -30,7 +30,7 @@ jobs:
           git fetch -q --depth=1 origin live-cl && git --work-tree=livecl checkout FETCH_HEAD -- . && echo "직전 파일 $(ls livecl | wc -l)개" || echo "직전 결과 없음(처음 실행)"
           git reset -q
       - name: 전 종목 6축 재계산
-        timeout-minutes: 11
+        timeout-minutes: 12
         env:
           LIVE_DIR: livecl
         run: python pipeline/live_chart.py
@@ -44,4 +44,4 @@ jobs:
             ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
               && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
               && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
-          [ -f livecl/summary.json ] && publish live-cl livecl && echo "올림: $(ls livecl | wc -l)개 파일"
+          ( [ -f livecl/summary.json ] || [ -f livecl/status.json ] ) && publish live-cl livecl && echo "올림: $(ls livecl | wc -l)개 파일"
