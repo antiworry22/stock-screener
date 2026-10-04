@@ -28,15 +28,20 @@ async function getJSON(url) {
   if (!r.ok) throw new Error(url + ' ' + r.status);
   return r.json();
 }
+/* 데이터 파일은 GitHub 저장소에서 바로 읽음 (데이터만 바뀔 때 Netlify 재배포 불필요 → 크레딧 절약). 실패하면 사이트 사본 */
+const GH_DATA = 'https://raw.githubusercontent.com/antiworry22/stock-screener/main/site/';
+async function getData(path) {
+  try { return await getJSON(GH_DATA + path); } catch (e) { return getJSON(path); }
+}
 async function boot() {
   try {
-    const [cfg, usmap, data] = await Promise.all([getJSON('config/weights.json'), getJSON('config/us_sector_map.json'), getJSON('data/latest.json')]);
+    const [cfg, usmap, data] = await Promise.all([getJSON('config/weights.json'), getJSON('config/us_sector_map.json'), getData('data/latest.json')]);
     S.cfg = cfg; S.usmap = usmap; S.data = data;
   } catch (e) {
     $('#asofLine').textContent = '데이터를 불러오지 못했습니다: ' + e.message;
     return;
   }
-  try { S.bt = await getJSON('data/backtest.json'); } catch (e) { S.bt = null; }
+  try { S.bt = await getData('data/backtest.json'); } catch (e) { S.bt = null; }
   const saved = store.get('settings', {});
   const custom = store.get('customMode', null);
   if (custom) S.cfg.modes.custom = custom;
