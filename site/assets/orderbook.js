@@ -314,6 +314,8 @@ async function obPoll() {
     const j = r.ok ? await r.json() : null;
     if (!j || !j.ok) throw new Error(j && j.err || ('HTTP ' + r.status));
     const s = S.data.stocks.find(x => x.code === OB.code);
+    // 장 마감 뒤 네이버 시세가 등락률을 0으로 돌려줄 때가 있어, 그때는 수집된 당일 등락률로 보정
+    if (j.quote && !obMarketOpen() && !j.quote.chgPct && s && s.chg && j.quote.price === s.close) j.quote.chgPct = s.chg;
     const x = obAnalyze(j);
     obNarrate(x, s);
     box.innerHTML = obHtml(x, s);
