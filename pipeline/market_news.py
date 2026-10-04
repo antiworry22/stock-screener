@@ -18,6 +18,7 @@
 """
 import datetime as dt
 import email.utils
+import hashlib
 import json
 import os
 import re
@@ -559,10 +560,38 @@ def main():
         it = {"t": x["t"], "u": x["u"], "s": x["s"], "lang": lang, "reg": reg,
               "cats": [x["cat"]] if x["cat"] else [], "tone": tone, "kw": kw, "st": st, "dr": dr,
               "ts": x["ts"].astimezone(KST).strftime("%Y-%m-%dT%H:%M") if x["ts"] else None,
-              "desc": (x["desc"] or "")[:140], "linked": linked, "_w": ws}
+              "desc": (x["desc"] or "")[:140], "linked": linked, "_w": ws,
+              "id": hashlib.md5(key.encode()).hexdigest()[:10], "seen": NOW.strftime("%Y-%m-%dT%H:%M")}
         it["th"] = theme_eff
         seen[key] = it
         items.append(it)
+
+    # 이전 결과와 합치기 — 처음 본 시각(seen) 유지, 이번에 안 잡힌 기사도 기간 안이면 유지
+    prev = []
+    if os.path.exists(OUT):
+        try:
+            prev = json.load(open(OUT, encoding="utf-8")).get("items", [])
+        except Exception:
+            prev = []
+    cut_s = cutoff.strftime("%Y-%m-%dT%H:%M")
+    have = {i["id"]: i for i in items}
+    for p in prev:
+        if not p.get("id"):
+            continue
+        if p["id"] in have:
+            have[p["id"]]["seen"] = p.get("seen") or have[p["id"]]["seen"]
+            continue
+        if (p.get("ts") or p.get("seen") or "") < cut_s:
+            continue
+        ws = _words(p["t"])
+        if any(ws and len(ws & q["_w"]) / max(1, min(len(ws), len(q["_w"]))) >= 0.6 for q in items[-400:] if q["_w"]):
+            continue
+        p["_w"], p["linked"] = ws, bool(p.get("st") or p.get("th"))
+        p["dr"] = dict(p["dr"]) if isinstance(p.get("dr"), list) else (p.get("dr") or {})
+        p["th"] = [tuple(x) for x in p.get("th", [])]
+        p.pop("i", None)
+        items.append(p)
+        have[p["id"]] = p
 
     # 묶음별(국내 / 해외 한글 / 영문) 최대 개수 안에서 '종목 연결된 기사' 우선, 그다음 최신순
     grp = lambda i: "en" if i["lang"] == "en" else ("국내" if i["reg"] == "국내" else "해외ko")
@@ -601,8 +630,8 @@ def main():
                 if len(a["it"]) < 40:
                     a["it"].append(idx)
         it["th"] = [[n, e] for n, e in it["th"]]
-        it["dr"] = [[d, v] for d, v in it["dr"].items()]
-        del it["linked"]
+        it["dr"] = [[d, v] for d, v in it["dr"].items()] if isinstance(it["dr"], dict) else it["dr"]
+        it.pop("linked", None)
     for a in agg.values():
         a["pos"], a["neg"] = int(a["pos"]), int(a["neg"])
         a["it"] = sorted(set(a["it"]))[:40]
@@ -624,7 +653,8 @@ def main():
     src_cnt = {}
     for it in items:
         src_cnt[it["s"] or "기타"] = src_cnt.get(it["s"] or "기타", 0) + 1
-    meta = {"generated": NOW.strftime("%Y-%m-%d %H:%M"), "window_h": WINDOW_H, "n": len(items),
+    now_s = NOW.strftime("%Y-%m-%dT%H:%M")
+    meta = {"generated": NOW.strftime("%Y-%m-%d %H:%M"), "window_h": WINDOW_H, "n": len(items), "new": sum(1 for i in items if i.get("seen") == now_s),
             "n_kr": sum(1 for i in items if i["reg"] == "국내"), "n_os": sum(1 for i in items if i["reg"] == "해외"),
             "n_en": sum(1 for i in items if i["lang"] == "en"), "n_linked": sum(1 for i in items if i["st"] or i["th"]),
             "n_stocks": len(agg), "sources": dict(sorted(src_cnt.items(), key=lambda kv: -kv[1])[:20]),
