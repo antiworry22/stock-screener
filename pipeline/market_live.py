@@ -204,6 +204,33 @@ def naver_sector_map(secs):
     return mp
 
 
+def krx_sector_map():
+    """거래소(KRX) 업종 분류(전기전자·의약품·운수장비 …) — pykrx, KRX_ID/KRX_PW 로그인"""
+    from pykrx import stock
+    d = NOW.date()
+    for _ in range(10):
+        if d.weekday() < 5:
+            ymd = d.strftime("%Y%m%d")
+            mp = {}
+            for mkt in ("KOSPI", "KOSDAQ"):
+                try:
+                    df = stock.get_market_sector_classifications(ymd, mkt)
+                except Exception as e:
+                    DIAG.setdefault("KRX 업종 오류", f"{type(e).__name__}: {str(e)[:120]}")
+                    df = None
+                if df is not None and len(df):
+                    col = next((c for c in df.columns if "업종" in str(c)), None)
+                    if col:
+                        for code, nm in df[col].items():
+                            if nm:
+                                mp[str(code)[-6:]] = str(nm).strip()
+            if len(mp) >= 500:
+                DIAG["KRX 업종"] = f"{ymd} · {len(mp)}종목 · {len(set(mp.values()))}개 업종"
+                return mp
+        d -= dt.timedelta(days=1)
+    return {}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     t0 = time.time()
@@ -229,8 +256,14 @@ def main():
     log(DIAG["네이버 업종"])
     mp, map_time = prev.get("map") or {}, prev.get("map_time")
     stale = not mp or not map_time or (NOW - dt.datetime.strptime(map_time, "%Y-%m-%d %H:%M").replace(tzinfo=KST)).total_seconds() > 20 * 3600
-    if secs and (stale or os.environ.get("FORCE_MAP")):
-        new = naver_sector_map(secs)
+    if stale or os.environ.get("FORCE_MAP"):
+        new = {}
+        try:
+            new = krx_sector_map()   # ① 거래소 업종 분류 (하루 한 번)
+        except Exception as e:
+            DIAG["KRX 업종"] = f"실패 {type(e).__name__}: {str(e)[:150]}"
+        if len(new) < 500 and secs:
+            new = naver_sector_map(secs)  # ② 네이버 업종(되는 경우만)
         if len(new) >= 500:
             mp, map_time = new, NOW.strftime("%Y-%m-%d %H:%M")
         DIAG["업종 구성"] = f"{len(new)}종목 연결"

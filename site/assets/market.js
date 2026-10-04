@@ -5,18 +5,19 @@
 const MKT = { RAW: 'https://raw.githubusercontent.com/antiworry22/stock-screener/live-market/', d: null, st: null };
 // 네이버 업종 이름 → 미국 지표 연결 (config 표의 업종 묶음 이름으로 바꿔 줌)
 const MKT_RULES = [
-  [/반도체|전자장비|전자제품|디스플레이|핸드셋|컴퓨터|전기제품|IT/, '전기·전자/반도체'],
-  [/소프트웨어|IT서비스|양방향|인터넷|게임|미디어|광고|방송/, 'IT서비스/인터넷'],
-  [/제약|생물|생명과학|건강관리|의료|바이오/, '제약/바이오'],
-  [/은행|증권|보험|카드|금융|창업투자|기타금융/, '금융'],
-  [/화학|석유|가스(?!유틸)|에너지|정유/, '에너지/화학'],
-  [/자동차|운송인프라|항공화물|해운|도로|철도|운송/, '자동차/운송장비'],
+  [/전기·가스|전기가스|수도|유틸리티|전력/, '통신/유틸리티'],
+  [/반도체|전기전자|전기·전자|일반전기전자|전자장비|전자제품|디스플레이|핸드셋|컴퓨터 ?하드|IT H\/W|정보기기|통신장비|전기제품/, '전기·전자/반도체'],
+  [/소프트웨어|IT S\/W|IT서비스|컴퓨터서비스|서비스업|양방향|인터넷|게임|디지털컨텐츠|오락|미디어|방송|출판|광고/, 'IT서비스/인터넷'],
+  [/의약품|제약|생물|생명과학|건강관리|의료|바이오/, '제약/바이오'],
+  [/은행|증권|보험|카드|금융|창업투자/, '금융'],
+  [/화학|석유|에너지|정유/, '에너지/화학'],
+  [/자동차|운수장비|운송장비|운수창고|운송|해운|항공화물/, '자동차/운송장비'],
   [/조선|기계|우주항공|국방|건축제품|전기장비/, '기계/조선/방산'],
   [/철강|비철|금속|종이|목재|포장/, '철강/소재'],
   [/건설|건축자재/, '건설'],
-  [/백화점|상점|판매|소매|호텔|레저|화장품|섬유|의류|가구|가정용|교육|레저용/, '유통/소비재'],
-  [/식품|음료|담배|가정용품/, '생필품/음식료'],
-  [/통신|유틸리티|전력/, '통신/유틸리티'],
+  [/음식료|식품|음료|담배/, '생필품/음식료'],
+  [/유통|백화점|상점|판매|소매|호텔|레저|화장품|섬유|의류|의복|가구|교육/, '유통/소비재'],
+  [/통신/, '통신/유틸리티'],
 ];
 function mktGroup(name) { const r = MKT_RULES.find(([re]) => re.test(name || '')); return r ? r[1] : null; }
 function mktImpact(name, ur) {
@@ -42,8 +43,9 @@ async function mktLoad() {
   try { const r = await fetch(MKT.RAW + 'status.json?t=' + Date.now(), { cache: 'no-store' }); if (r.ok) st = await r.json(); } catch (e) {}
   MKT.st = st;
   if (!d || !S.data) { if (typeof renderSectorLive === 'function') renderSectorLive(); return; }
-  if (MKT.d && MKT.d.meta.time === d.meta.time) return;
-  MKT.d = d;
+  const tf = typeof LIVE !== 'undefined' ? LIVE.tfTime : null;  // 종목 실시간 시세가 바뀌어도 업종 등락을 다시 계산
+  if (MKT.d && MKT.d.meta.time === d.meta.time && MKT.tf === tf) return;
+  MKT.d = d; MKT.tf = tf;
   const U = d.us || {}, M = S.data.macro = S.data.macro || {};
   const pk = (o, extra) => o ? { v: o.v, date: (o.t || '').slice(0, 10), chg: o.chg, chg1: o.chg, chg20: o.chg20, t: o.t, state: o.state, ...(extra || {}) } : undefined;
   if (U.SP500) M.sp500 = pk(U.SP500); if (U.NASDAQ) M.nasdaq = pk(U.NASDAQ); if (U.SOX) M.sox = pk(U.SOX);
@@ -61,10 +63,13 @@ async function mktLoad() {
   S.data.stocks.forEach(s => { (by[s.sector] = by[s.sector] || []).push(s); });
   const wavg = arr => { const w = arr.filter(s => s.ret5 != null); const W = w.reduce((a, s) => a + (s.mcap || 1), 0); return W ? w.reduce((a, s) => a + s.ret5 * (s.mcap || 1), 0) / W : null; };
   const mkt5 = wavg(S.data.stocks);
-  const secs = (d.sectors || []).map(x => {
+  // 업종 목록: 네이버 업종 등락이 있으면 그것을, 없으면 거래소 업종 분류로 묶어 이 사이트의 실시간 시세로 직접 계산(시가총액 가중)
+  const wchg = arr => { const w = arr.filter(s => s.chg != null); const W = w.reduce((a, s) => a + (s.mcap || 1), 0); return W ? Math.round(w.reduce((a, s) => a + s.chg * (s.mcap || 1), 0) / W * 100) / 100 : null; };
+  const base = (d.sectors && d.sectors.length) ? d.sectors : Object.keys(by).filter(k => k && k !== '기타').map(k => ({ name: k, chg: wchg(by[k]), n: by[k].length, up: by[k].filter(s => (s.chg || 0) > 0).length, down: by[k].filter(s => (s.chg || 0) < 0).length, own: true }));
+  const secs = base.map(x => {
     const mem = by[x.name] || [], r5 = wavg(mem), im = mktImpact(x.name, S.data.us_rets);
     return { name: x.name, no: x.no, chg: x.chg, up: x.up, down: x.down, flat: x.flat, n: x.n, ret5: r5 != null ? Math.round(r5 * 10) / 10 : null,
-      rel5: r5 != null && mkt5 != null ? Math.round((r5 - mkt5) * 10) / 10 : null, us_impact: im.v, coupling: im.coupling, us_syms: im.syms, group: im.group, count: mem.length };
+      rel5: r5 != null && mkt5 != null ? Math.round((r5 - mkt5) * 10) / 10 : null, us_impact: im.v, coupling: im.coupling, us_syms: im.syms, group: im.group, count: mem.length, own: !!x.own };
   }).sort((a, b) => (b.chg ?? -99) - (a.chg ?? -99));
   S.data.sectors = secs;
   const SM = Object.fromEntries(secs.map(x => [x.name, x]));
@@ -95,7 +100,7 @@ function renderSectorLive() {
       : `<tbody><tr><td class="l">${MKT.st ? '업종 자료 수집 오류: ' + esc(MKT.st.msg || '') : '업종 실시간 자료를 불러오는 중…'}</td></tr></tbody>`;
     $$('#secTable tr[data-sec]').forEach(tr => tr.onclick = () => { S.conds = [{ f: 'sector', op: 'is', v: tr.dataset.sec }]; drawConds(); switchTab('search'); runSearch(); });
   }
-  if ($('#secStatus')) $('#secStatus').innerHTML = MKT.d ? `<span class="gov-live"></span> 업종 등락 ${esc(MKT.d.meta.time.slice(11))} · 네이버 금융 업종 ${secs.length}개 · 줄을 누르면 그 업종 종목 검색` : '';
+  if ($('#secStatus')) $('#secStatus').innerHTML = MKT.d ? `<span class="gov-live"></span> 업종 등락 ${esc(MKT.d.meta.time.slice(11))} · ${secs.length && secs[0].own ? `거래소 업종 ${secs.length}개 — 등락은 분석 종목 실시간 시세의 시가총액 가중 평균` : `네이버 금융 업종 ${secs.length}개`} · 줄을 누르면 그 업종 종목 검색` : '';
   const ur = S.data.us_rets || {}, names = { ...(S.usmap.us_symbols || {}) };
   if ($('#mapTable')) $('#mapTable').innerHTML = `<thead><tr><th class="l">국내 업종 묶음</th><th class="l">미국 지표 × 민감도</th><th class="l">결합도</th><th>지금 영향</th></tr></thead><tbody>${S.usmap.map.map(m => {
     const v = m.us.reduce((a, u) => a + (ur[u.sym] ?? 0) * u.beta, 0);
