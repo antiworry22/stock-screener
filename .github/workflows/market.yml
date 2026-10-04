@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11" }
-      - run: pip install requests
+      - run: pip install requests pandas "pykrx>=1.2.9"
       - name: 직전 결과 불러오기
         continue-on-error: true
         run: |
@@ -26,6 +26,9 @@ jobs:
           git fetch -q --depth=1 origin live-market && git --work-tree=livemkt checkout FETCH_HEAD -- . && echo "직전 결과 불러옴" || echo "처음 실행"
       - name: 섹터·미국장 수집
         timeout-minutes: 7
+        env:
+          KRX_ID: ${{ secrets.KRX_ID }}
+          KRX_PW: ${{ secrets.KRX_PW }}
         run: python pipeline/market_live.py
       - name: 결과 → 보관 칸(live-market)
         env:
