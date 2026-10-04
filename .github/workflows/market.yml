@@ -1,0 +1,39 @@
+name: market
+# 섹터·미국장 실시간 — 15분마다 (미국 지수·업종 ETF·금리·환율·선물 + 국내 업종 등락)
+# Actions → market → Run workflow 로 아무 때나 즉시 실행 가능
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: market
+  cancel-in-progress: false
+jobs:
+  market:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+      - name: 직전 결과 불러오기
+        continue-on-error: true
+        run: |
+          mkdir -p livemkt
+          git fetch -q --depth=1 origin live-market && git --work-tree=livemkt checkout FETCH_HEAD -- . && echo "직전 결과 불러옴" || echo "처음 실행"
+      - name: 섹터·미국장 수집
+        timeout-minutes: 7
+        run: python pipeline/market_live.py
+      - name: 결과 → 보관 칸(live-market)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          publish() { BR="$1"; shift; T="$(mktemp -d)"
+            for p in "$@"; do if [ -d "$p" ]; then cp -r "$p"/. "$T"/; elif [ -f "$p" ]; then cp "$p" "$T"/; fi; done
+            ( cd "$T" && git init -q && git checkout -q -b "$BR" && git config user.name screener-bot && git config user.email screener-bot@users.noreply.github.com \
+              && git add -A && git commit -q -m "$BR $(date -u +'%F %H:%M')" \
+              && for i in 1 2 3; do git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BR:$BR" && break; sleep 5; done ) }
+          publish live-market livemkt
