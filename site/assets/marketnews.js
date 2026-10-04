@@ -50,8 +50,8 @@ function mnItemHtml(it) {
     return `<div class="mn-grp"><span class="mn-gl ${e > 0 ? 'good' : e < 0 ? 'bad' : ''}">${esc(n)} ${e > 0 ? '▲ 유리' : e < 0 ? '▼ 부담' : '· 관련'}</span>${cs.map(c => mnChip(c, e, false)).join('')}</div>`;
   }).join('');
   const dirHtml = direct.filter(c => MN.mkt === 'all' || M[c].market === MN.mkt).map(c => mnChip(c, it.tone, true)).join('');
-  return `<article class="mn-item">
-    <div class="mn-top"><span class="tag ${it.reg === '해외' ? 'os' : 'kr'}">${it.reg}</span>${mnToneTag(it.tone)}${it.lang === 'en' ? '<span class="tag">영문 원문</span>' : ''}
+  return `<article class="mn-item ${MN.newIds && MN.newIds.has(it.id) ? 'gov-new' : ''}">
+    <div class="mn-top">${MN.newIds && MN.newIds.has(it.id) ? '<span class="tag gov-newtag">NEW</span>' : ''}<span class="tag ${it.reg === '해외' ? 'os' : 'kr'}">${it.reg}</span>${mnToneTag(it.tone)}${it.lang === 'en' ? '<span class="tag">영문 원문</span>' : ''}
       <span class="mn-cat">${esc(it.cats.slice(0, 2).join(' · '))}</span><span class="ns">${esc(it.s || '')} · ${mnTime(it.ts)}</span></div>
     <a class="mn-t" href="${esc(it.u)}" target="_blank" rel="noopener">${esc(it.t)}</a>
     ${it.desc ? `<div class="mn-desc">${esc(it.desc)}</div>` : ''}
@@ -69,6 +69,7 @@ function mnFilter() {
   if (MN.tone === 'pos') rows = rows.filter(i => i.tone > 0 || i.th.some(x => x[1] > 0));
   if (MN.tone === 'neg') rows = rows.filter(i => i.tone < 0 || i.th.some(x => x[1] < 0));
   if (MN.tone === 'direct') rows = rows.filter(i => i.st.length);
+  if (MN.tone === 'new') rows = rows.filter(i => MN.newIds && MN.newIds.has(i.id));
   if (MN.mkt !== 'all') rows = rows.filter(i => mnLinked(i).some(x => M[x.c] && M[x.c].market === MN.mkt));
   if (MN.code) {
     const a = d.stocks[MN.code]; const set = new Set(a ? a.it : []);
@@ -167,17 +168,71 @@ function mnInitUI() {
   $('#mnMore').onclick = () => { MN.shown += 40; mnRenderList(); };
 }
 
-async function initMarketNews() {
-  try {
-    MN.d = await getJSON('data/news.json');
-  } catch (e) {
-    MN.err = e.message;
+const MN_RAW = 'https://raw.githubusercontent.com/antiworry22/stock-screener/main/site/data/news.json';
+MN.newIds = new Set(); MN.first = true; MN.next = 0;
+
+async function mnLoad(manual) {
+  let d = null;
+  try { const r = await fetch(MN_RAW + '?t=' + Date.now(), { cache: 'no-store' }); if (r.ok) d = await r.json(); } catch (e) { /* GitHub 직접 읽기 실패 → 사이트 사본 */ }
+  if (!d) { try { d = await getJSON('data/news.json'); } catch (e) { d = null; } }
+  MN.next = Date.now() + 180e3;
+  if (!d) {
+    MN.err = 'no data';
     if ($('#mnSum')) $('#mnSum').innerHTML = '<div class="empty">시장 뉴스 파일(news.json)이 아직 없어요. GitHub Actions에서 수집이 한 번 돌면 자동으로 채워집니다.</div>';
     mnFillAnalysis();
     return;
   }
-  MN._map = null;
-  mnInitUI(); mnRenderSummary(); mnRenderList(); mnFillAnalysis();
+  (d.items || []).forEach(i => { if (!i.id) i.id = i.t; });
+  const seen = new Set(store.get('mnSeen', []));
+  const fresh = d.items.filter(i => !seen.has(i.id));
+  if (MN.first) MN.newIds = new Set(seen.size ? fresh.map(i => i.id) : []);
+  else fresh.forEach(i => MN.newIds.add(i.id));
+  const changed = !MN.d || MN.d.meta.generated !== d.meta.generated;
+  MN.d = d; MN._map = null;
+  store.set('mnSeen', d.items.map(i => i.id).concat([...seen]).slice(0, 4000));
+  if (!MN.first && fresh.length) mnNotify(fresh);
+  if (changed || manual || MN.first) { mnInitUI(); mnRenderSummary(); mnRenderList(); mnFillAnalysis(); }
+  MN.first = false;
+  mnStatus();
+  const tab = $('button[data-tab="mnews"]');
+  if (tab) tab.dataset.badge = MN.newIds.size ? MN.newIds.size : '';
+}
+
+function mnNotify(fresh) {
+  // 종목 이름이 직접 나온 호재·악재 기사, 또는 원인(유가·금리·환율·전쟁) 뉴스만 알림
+  const imp = fresh.filter(i => (i.st.length && i.tone !== 0) || (i.dr && i.dr.length));
+  if (!imp.length) return;
+  const M = mnMap(), nm = i => i.st.map(c => (M[c] || {}).name).filter(Boolean).slice(0, 2).join('·');
+  const t = $('#govToast');
+  if (t) { t.innerHTML = `📰 새 시장 뉴스 ${fresh.length}건 (주요 ${imp.length}건): ${esc(imp[0].t)}`; t.classList.remove('hidden'); t.onclick = () => { switchTab('mnews'); t.classList.add('hidden'); }; setTimeout(() => t.classList.add('hidden'), 15000); }
+  if (store.get('mnNoti', false) && 'Notification' in window && Notification.permission === 'granted') {
+    try { new Notification('시장 뉴스 ' + imp.length + '건', { body: imp.slice(0, 3).map(i => `${i.tone > 0 ? '▲' : i.tone < 0 ? '▼' : '•'} ${nm(i) ? '[' + nm(i) + '] ' : ''}${i.t}`).join('\n') }); } catch (e) {}
+  }
+}
+
+function mnStatus() {
+  if (!MN.d || !$('#mnStatus')) return;
+  const sec = Math.max(0, Math.round((MN.next - Date.now()) / 1000)), m = MN.d.meta;
+  const mins = Math.round((Date.now() - new Date(m.generated.replace(' ', 'T') + ':00+09:00')) / 60000);
+  $('#mnStatus').innerHTML = `<span class="gov-live"></span> 마지막 수집 <b>${esc(m.generated.slice(11))}</b> (${mins < 1 ? '방금' : mins < 60 ? mins + '분 전' : Math.round(mins / 60) + '시간 전'}) · 이번에 새로 잡힌 기사 ${m.new ?? '–'}건 · 다음 확인 ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+function initMarketNews() {
+  if ($('#mnRefresh')) $('#mnRefresh').onclick = () => mnLoad(true);
+  if ($('#mnReadAll')) $('#mnReadAll').onclick = () => { MN.newIds.clear(); mnRenderList(); const tab = $('button[data-tab="mnews"]'); if (tab) tab.dataset.badge = ''; };
+  const nb = $('#mnNoti');
+  if (nb) {
+    const draw = () => { nb.textContent = store.get('mnNoti', false) ? '🔔 바탕화면 알림 켜짐' : '🔕 바탕화면 알림 켜기'; };
+    nb.onclick = async () => {
+      if (!('Notification' in window)) { alert('이 브라우저는 알림을 지원하지 않아요.'); return; }
+      if (store.get('mnNoti', false)) { store.set('mnNoti', false); draw(); return; }
+      const p = await Notification.requestPermission(); store.set('mnNoti', p === 'granted'); draw();
+    };
+    draw();
+  }
+  mnLoad();
+  setInterval(() => mnLoad(), 180e3);  // 3분마다 새 뉴스 확인
+  setInterval(mnStatus, 1000);
 }
 
 (function waitBoot() {
