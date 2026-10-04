@@ -75,6 +75,7 @@ function analysisHtml(s) {
     <div class="an-card"><h4>뉴스·공시</h4>${ns.length ? ns.map(p => `<p class="an-p">${p}</p>`).join('') : '<div class="hint">최근 수집된 뉴스·공시가 없어요.</div>'}
       ${(s.news || []).slice(0, 4).map(n => `<a class="news-item" href="${esc(n.u)}" target="_blank" rel="noopener"><span class="tag ${n.tone > 0 ? 'good' : n.tone < 0 ? 'bad' : ''}">${n.tone > 0 ? '긍정' : n.tone < 0 ? '부정' : '중립'}</span><span class="nt">${esc(n.t)}</span><span class="ns">${esc(n.d || '')}</span></a>`).join('')}
     </div>
+    <div class="an-card"><h4>시장 뉴스 속 이 종목 (국내·해외)</h4><div id="mnAnMount" data-code="${esc(s.code)}"></div></div>
     <div class="an-card"><h4>같은 업종 비교</h4>${top.length ? top.map(x => `<div class="an-peer" data-an="${esc(x.code)}"><span>${esc(x.name)}</span><span class="mono ${cls(x.chg)}">${pct(x.chg)}</span><span class="score ${sCls(x._sc.total)}">${fmt(x._sc.total, 1)}</span></div>`).join('') + '<div class="hint">누르면 그 종목을 분석합니다</div>' : '<div class="hint">같은 업종 정보가 없어요.</div>'}</div>
   </div>
   <div class="row gap wrap mt"><button class="btn primary" id="anDetail">차트·15개 항목 자세히 보기</button><a class="btn ghost" href="https://finance.naver.com/item/main.naver?code=${esc(s.code)}" target="_blank" rel="noopener">네이버 증권에서 보기</a></div>`;
@@ -87,6 +88,7 @@ function showAnalysis(code) {
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
   if (typeof renderChartLab === 'function') renderChartLab(s, 'clMount');
+  if (typeof mnFillAnalysis === 'function') mnFillAnalysis();
   $$('#anOut [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
   try { const h = store.get('anHist', []).filter(c => c !== code); h.unshift(code); store.set('anHist', h.slice(0, 8)); } catch (e) {}
   drawAnHist();
