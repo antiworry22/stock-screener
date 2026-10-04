@@ -193,6 +193,7 @@ async function mnLoad(manual) {
   if (!MN.first && fresh.length) mnNotify(fresh);
   if (changed || manual || MN.first) { mnInitUI(); mnRenderSummary(); mnRenderList(); mnFillAnalysis(); }
   MN.first = false;
+  if ((changed || manual) && typeof fuOnUpdate === 'function') { try { fuOnUpdate('news', fresh); } catch (e) { console.error(e); } }
   mnStatus();
   const tab = $('button[data-tab="mnews"]');
   if (tab) tab.dataset.badge = MN.newIds.size ? MN.newIds.size : '';

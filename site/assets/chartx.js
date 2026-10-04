@@ -288,6 +288,7 @@ async function clxLive(manual) {
     const st = S.data.stocks.find(x => x.code === box.dataset.code); if (st) renderClx(st, 'clxMount');
   }
   const tab = $('button[data-tab="clx"]'); if (tab) tab.dataset.badge = (d.changes || []).filter(c => c.up).length || '';
+  if (typeof fuOnUpdate === 'function') { try { fuOnUpdate('chart'); } catch (e) { console.error(e); } }
   clxStatus();
 }
 function clxStatus() {

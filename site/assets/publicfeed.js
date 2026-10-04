@@ -112,6 +112,7 @@ async function govLoad(manual) {
   if (!GOV.first && fresh.length) govNotify(fresh);
   GOV.first = false;
   if (changed || manual) { govInitUI(); govRenderTop(); govRenderList(); govFillAnalysis(); }
+  if ((changed || manual) && typeof fuOnUpdate === 'function') { try { fuOnUpdate('gov', fresh); } catch (e) { console.error(e); } }
   govStatus();
   const tab = $('button[data-tab="gov"]');
   if (tab) tab.dataset.badge = GOV.newIds.size ? GOV.newIds.size : '';
