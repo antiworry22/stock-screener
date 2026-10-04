@@ -478,3 +478,45 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .clx-search #clxQ { flex: 1; min-width: 220px; max-width: 460px; }
 .rec-mv { display: block; font-size: 10.5px; font-weight: 700; color: var(--muted); line-height: 1.1; }
 .rec-mv.up { color: var(--up); } .rec-mv.down { color: var(--down); }
+
+/* ── 내 보유 종목(holdings.js) ── */
+.h-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 8px; }
+.h-add label { display: flex; flex-direction: column; gap: 3px; }
+.h-add label .inp { width: 130px; }
+.h-add label.grow { flex: 1; min-width: 160px; } .h-add label.grow .inp { width: 100%; }
+.h-sum .card .v.small { font-size: 13px; font-weight: 600; }
+.h-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; }
+.h-card { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel); min-width: 0; }
+.h-card.act-alert, .h-card.act-stop { border-left-color: var(--bad); }
+.h-card.act-protect, .h-card.act-near, .h-card.act-weak { border-left-color: var(--warn); }
+.h-card.act-t1, .h-card.act-t2 { border-left-color: var(--ok); }
+.h-card.closed { opacity: .7; }
+.h-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.h-nm { cursor: pointer; font-size: 15px; }
+.h-pnl { text-align: right; } .h-pnl b { display: block; font-size: 18px; } .h-pnl small { font-size: 12px; }
+.h-act { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin-left: 4px; background: var(--panel2); color: var(--muted); }
+.h-act.bad { background: var(--bad-soft); color: var(--bad); } .h-act.warn { background: var(--warn-soft); color: var(--warn); }
+.h-act.good { background: var(--ok-soft); color: var(--ok); } .h-act.ok { background: var(--accent-soft); color: var(--accent); }
+.h-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0 6px; }
+.h-grid div { display: flex; flex-direction: column; min-width: 0; } .h-grid small { color: var(--muted); font-size: 11.5px; }
+.h-grid b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .h-grid em { font-style: normal; font-size: 11.5px; color: var(--muted); }
+.h-grid em.up { color: var(--up); } .h-grid em.down { color: var(--down); }
+.h-bar { position: relative; height: 10px; border-radius: 5px; background: var(--panel2); margin: 10px 0 2px; }
+.h-zone { position: absolute; top: 0; bottom: 0; background: rgba(194,65,12,.18); } .h-zone.g { background: rgba(17,132,91,.18); }
+.h-mk { position: absolute; top: -3px; width: 2px; height: 16px; background: var(--muted); transform: translateX(-1px); }
+.h-mk.st { background: var(--bad); } .h-mk.av { background: var(--text); } .h-mk.t { background: var(--ok); }
+.h-mk.px { width: 10px; height: 10px; top: 0; border-radius: 50%; transform: translateX(-5px); border: 2px solid var(--panel); }
+.h-mk.px.up { background: var(--up); } .h-mk.px.down { background: var(--down); }
+.h-bar-l { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); gap: 4px; flex-wrap: wrap; }
+.h-todo { margin-top: 8px; padding: 7px 10px; border-radius: 8px; background: var(--panel2); font-size: 13px; }
+.h-todo b { margin-right: 6px; } .h-todo.bad { background: var(--bad-soft); } .h-todo.good { background: var(--ok-soft); } .h-todo.warn { background: var(--warn-soft); }
+.h-sig { margin-top: 6px; } .h-sig .tag { white-space: normal; }
+.h-form { margin-top: 10px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; }
+.h-form label { display: inline-flex; flex-direction: column; gap: 3px; } .h-form .inp { width: 120px; } .h-form label.grow { flex: 1; } .h-form label.grow .inp { width: 100%; }
+.h-log { margin-top: 10px; overflow-x: auto; }
+.h-need .item { cursor: pointer; } .h-need small { display: block; white-space: normal; }
+.btn.danger { color: var(--bad); }
+@media (max-width: 700px) { .h-list { grid-template-columns: 1fr; } .h-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .h-add label .inp { width: 100%; } .h-add label { flex: 1 1 45%; } }
+.h-list { align-items: start; }
+.h-add label, .h-form label { text-align: left; align-items: stretch; }
+.h-log td { white-space: nowrap; }

@@ -34,6 +34,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="hold">내 보유 종목</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
   <button data-tab="mnews">시장 뉴스</button>
@@ -54,6 +55,7 @@
 <main>
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
+  <div class="panel hidden" id="holdDash"></div>
   <div class="panel lv-panel" id="liveDash"></div>
   <div class="cards" id="macroCards"></div>
   <div class="panel">
@@ -155,6 +157,29 @@
     <div id="clxList" class="mt-s" style="overflow-x:auto"></div>
   </div>
   <div class="panel note">진입 전 5초 체크리스트: ① 주봉·일봉 같은 방향(필수) ② 지지선 위(필수) ③ 손익비 1.5 이상(필수) ④ 거래량이 방향 확인 ⑤ 패턴이 방향과 일치 ⑥ 종합 +28 이상 — 필수 3개 + 전체 4개 이상이면 통과. 손절은 협상 대상이 아니며, 손실은 항상 계좌의 1%로 고정합니다(권장 비중 = 1% ÷ 손절 거리%).</div>
+</section>
+
+<!-- ═══ 내 보유 종목 ═══ -->
+<section id="tab-hold" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>내 보유 종목 관리</h2>
+      <div class="row gap wrap"><button class="btn ghost small" id="hNoti">🔕 보유 종목 알림 켜기</button><button class="btn ghost small" id="hExport">백업 파일 저장</button><button class="btn ghost small" id="hImport">백업 불러오기</button><input type="file" id="hImportFile" accept=".json,application/json" class="hidden"></div></div>
+    <p class="hint">산 종목을 넣어 두면 <b>실시간 손익</b>과 함께 <b>손절선·수익보호선·1차/2차 목표</b>를 자동으로 계산하고, 차트 종합판정·거래대금 신호·뉴스·공공기관(시장경보)까지 묶어 <b>"지금 할 일"</b>을 알려 드려요. 상태가 바뀌면(손절선 근접·이탈, 목표 도달, 시장경보, 약세 전환) 화면 알림이 떠요.</p>
+    <div class="h-add">
+      <label class="small grow">종목 <input id="hAddName" class="inp" list="stockNames" placeholder="이름 또는 6자리 코드" autocomplete="off"></label>
+      <label class="small">매수가(원) <input id="hAddP" class="inp" type="number" min="0"></label>
+      <label class="small">수량(주) <input id="hAddQ" class="inp" type="number" min="0"></label>
+      <label class="small">매수일 <input id="hAddD" class="inp" type="date"></label>
+      <label class="small">손절가(선택) <input id="hAddStop" class="inp" type="number" min="0" placeholder="비우면 자동"></label>
+      <label class="small grow">메모(선택) <input id="hAddMemo" class="inp" placeholder="매수 이유"></label>
+      <button class="btn primary" id="hAddGo">추가</button>
+    </div>
+    <div class="hint mt-s">같은 종목을 다시 넣으면 <b>추가 매수</b>로 합쳐서 평균단가를 다시 계산해요. 기록은 <b>이 기기의 브라우저</b>에만 저장되니, 휴대폰·다른 PC에서도 보려면 '백업 파일 저장' 후 그 기기에서 '백업 불러오기'를 하세요.</div>
+    <div id="holdSum" class="mt"></div>
+    <div class="hint" id="holdMeta"></div>
+    <div id="holdList" class="h-list mt-s"></div>
+  </div>
+  <div class="panel note">관리 원칙: ① 손절선(평균단가 − 하루 평균 흔들림 ATR × 설정 배수)은 처음 정하면 내리지 않아요. ② 1차 목표(위험폭의 2배)에서 절반 이익 실현 + 손절선을 본전 이상으로. ③ 오른 뒤에는 최고가 − ATR × 배수 의 <b>수익보호선</b>이 따라 올라가요. ④ 시장경보·큰손 이탈·차트 매도 우위가 겹치면 추가 매수 금지. 판정은 공개 데이터를 규칙으로 계산한 참고용이에요.</div>
 </section>
 
 <!-- ═══ 차트 패턴 ═══ -->
@@ -441,6 +466,7 @@
 <script src="assets/publicfeed.js"></script>
 <script src="assets/fusion.js"></script>
 <script src="assets/live.js"></script>
+<script src="assets/holdings.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
