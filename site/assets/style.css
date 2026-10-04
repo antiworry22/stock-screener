@@ -635,3 +635,11 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .usi-box { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 9px; padding: 8px 11px; margin-bottom: 8px; }
 .usi-box.good { border-left-color: var(--up); } .usi-box.bad { border-left-color: var(--down); }
 .usi-h { display: flex; justify-content: space-between; align-items: baseline; } .usi-chips { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+/* ── 섹터 종합 순위(sectorrank.js) ── */
+.sr-tabs { align-items: center; margin-bottom: 8px; }
+.sr-tb td { white-space: nowrap; } .sr-row { cursor: pointer; } .sr-row.open td { background: var(--accent-soft); }
+.sr-tb .rec-mv { display: inline; margin-left: 4px; }
+.sr-why { white-space: normal !important; min-width: 220px; }
+.sr-mini { display: inline-block; width: 54px; height: 7px; border-radius: 4px; background: var(--panel2); overflow: hidden; vertical-align: middle; }
+.sr-mini i { display: block; height: 100%; background: var(--muted); } .sr-mini i.g { background: var(--ok); } .sr-mini i.b { background: var(--bad); }
+.sr-dash h4 { margin: 0 0 6px; } .sr-dash .tbl { font-size: 12.5px; }

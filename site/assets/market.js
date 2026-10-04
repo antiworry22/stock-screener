@@ -84,6 +84,7 @@ function mktState(o) {
   return age <= 30 ? '<span class="tag good">거래 중</span>' : '<span class="tag">마감</span>';
 }
 function renderSectorLive() {
+  if (typeof renderSectorRank === 'function') renderSectorRank();
   const U = (MKT.d && MKT.d.us) || {};
   const card = (k, nm, unit) => { const o = U[k]; if (!o) return '';
     const v = k === 'US10Y' ? fmt(o.v, 3) + '%' : k === 'USDKRW' ? fmt(o.v, 1) + '원' : fmt(o.v, 2);

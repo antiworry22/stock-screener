@@ -62,6 +62,7 @@
     <div class="ph"><h2>오늘의 추천 TOP 5</h2><span class="row gap"><span class="hint">모든 항목을 종합해 좋은 점이 가장 많은 종목</span><button class="btn ghost small" id="recGo">전체 추천 보기 →</button></span></div>
     <div id="recDash" class="rec-grid"></div>
   </div>
+  <div class="panel" id="srDash" style="overflow-x:auto"></div>
   <div class="panel" id="tvDash" style="overflow-x:auto"></div>
   <div class="grid3">
     <div class="panel">
@@ -377,6 +378,10 @@
 <!-- ═══ 섹터·미국장 ═══ -->
 <section id="tab-sector" class="tab">
   <div class="panel">
+    <div class="ph"><h2>섹터 종합 순위 <small class="muted">(코스피·코스닥 업종별 · 실시간)</small></h2><span class="hint">오늘 등락·상승 종목 비율·5일 강도·종합점수·차트·수급·뉴스·미국장을 합친 점수</span></div>
+    <div id="srBox"></div>
+  </div>
+  <div class="panel">
     <div class="ph"><h2>미국장 실시간 <small class="muted">(15분마다)</small></h2><span class="hint" id="usStatus"></span></div>
     <div class="cards" id="usCards"></div>
     <div class="hint" id="usNote"></div>
@@ -481,6 +486,7 @@
 <script src="assets/shorts.js"></script>
 <script src="assets/tvrank.js"></script>
 <script src="assets/market.js"></script>
+<script src="assets/sectorrank.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/app.js"></script>
 </body>
