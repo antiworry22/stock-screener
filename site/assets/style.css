@@ -608,3 +608,16 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .sh-bars { display: flex; gap: 6px; align-items: flex-end; height: 64px; margin: 6px 0; }
 .sh-bars span { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 .sh-bars i { width: 70%; background: var(--down); border-radius: 3px 3px 0 0; min-height: 2px; } .sh-bars small { font-size: 10px; color: var(--muted); }
+.h-total { border: 1px solid var(--accent); }
+.h-wt { margin-top: 12px; } .h-wt h4 { margin: 0 0 6px; }
+.h-stack { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--panel2); margin-bottom: 8px; }
+.h-stack i { display: block; height: 100%; }
+.h-wtb { width: 100%; border-collapse: collapse; font-size: 13px; }
+.h-wtb th { text-align: left; font-size: 11.5px; color: var(--muted); font-weight: 500; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.h-wtb td { padding: 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.h-wtb tbody tr { cursor: pointer; } .h-wtb tbody tr:hover { background: var(--panel2); }
+.h-wtb tfoot td { border-bottom: 0; background: var(--panel2); }
+.h-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.h-wbar { display: inline-block; width: 80px; height: 7px; background: var(--panel2); border-radius: 4px; margin-right: 6px; vertical-align: middle; overflow: hidden; } .h-wbar i { display: block; height: 100%; }
+.h-wt { overflow-x: auto; }
+.h-sum .card .v.mono { font-size: 19px; white-space: nowrap; }

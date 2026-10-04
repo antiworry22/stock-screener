@@ -23,8 +23,10 @@ function hBizDays(from, to) {  // 매수일~오늘 사이 거래일 수(주말 �
   let n = 0; for (let d = new Date(a); d < b; d.setUTCDate(d.getUTCDate() + 1)) { const w = d.getUTCDay(); if (w && w < 6) n++; }
   return n;
 }
-const hMoney = v => v == null ? '–' : (v < 0 ? '−' : '') + won(Math.abs(Math.round(v)));
-const hSigned = v => v == null ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + won(Math.abs(Math.round(v)));
+// 금액: 1억 이상은 '1억 4,110만원'처럼 정확히
+const hWon = v => { v = Math.round(Math.abs(v)); if (v >= 1e8) { const e = Math.floor(v / 1e8), m = Math.round((v % 1e8) / 1e4); return `${fmt(e)}억${m ? ' ' + fmt(m) + '만' : ''}원`; } return fmt(v) + '원'; };
+const hMoney = v => v == null ? '–' : (v < 0 ? '−' : '') + hWon(v);
+const hSigned = v => v == null ? '–' : (v > 0 ? '+' : v < 0 ? '−' : '') + hWon(v);
 
 /* ── 한 종목 계산 ── */
 function hInfo(h) {
@@ -121,7 +123,7 @@ function hCard(o) {
     </div>
     <div class="h-grid">
       <div><small>현재가</small><b class="mono">${fmt(o.price)}</b><em class="${cls(s && s.chg)}">${s ? pct(s.chg) : ''}</em></div>
-      <div><small>평균단가 × 수량</small><b class="mono">${fmt(Math.round(o.avg))} × ${fmt(o.qty)}</b><em>${hMoney(o.invested)}</em></div>
+      <div><small>평균단가 × 수량</small><b class="mono">${fmt(Math.round(o.avg))} × ${fmt(o.qty)}</b><em>투자 ${hMoney(o.invested)}${HOLD.inv ? ` · 비중 ${fmt(o.invested / HOLD.inv * 100, 1)}%` : ''}</em></div>
       <div><small>평가금액</small><b class="mono">${hMoney(o.value)}</b><em class="${cls(o.day)}">오늘 ${hSigned(o.day)}</em></div>
       <div><small>${o.protect ? '수익보호선' : '손절선'}</small><b class="mono">${fmt(o.stop)}</b><em>${pct((o.stop / o.price - 1) * 100, 1)} · 도달 시 ${hSigned(-o.lossAtStop)}</em></div>
     </div>
@@ -176,7 +178,8 @@ function hSumHtml(sm, compact) {
   const secTop = sm.sec.slice(0, 4).map(([k, v]) => `${esc(k)} ${Math.round(v / sm.val * 100)}%`).join(' · ');
   const conc = sm.sec.length && sm.sec[0][0] !== '기타' && sm.sec[0][1] / sm.val >= 0.5 && sm.n >= 2;
   return `<div class="cards h-sum">
-    <div class="card"><div class="k">평가금액</div><div class="v mono">${hMoney(sm.val)}</div><div class="d muted">투자 ${hMoney(sm.inv)} · ${sm.n}종목</div></div>
+    <div class="card h-total"><div class="k">총 투자금액</div><div class="v mono">${hMoney(sm.inv)}</div><div class="d muted">${sm.n}종목 · 운용 자본 ${won(S.capital)}의 ${fmt(sm.inv / S.capital * 100, 1)}%</div></div>
+    <div class="card"><div class="k">평가금액</div><div class="v mono">${hMoney(sm.val)}</div><div class="d muted">투자금 대비 ${pct(sm.pnlPct, 1)}</div></div>
     <div class="card"><div class="k">평가 손익</div><div class="v mono ${cls(sm.pnl)}">${hSigned(sm.pnl)}</div><div class="d ${cls(sm.pnl)}">${pct(sm.pnlPct, 2)}</div></div>
     <div class="card"><div class="k">오늘 변동</div><div class="v mono ${cls(sm.day)}">${hSigned(sm.day)}</div><div class="d muted">실현 손익 ${hSigned(sm.realized)}</div></div>
     <div class="card"><div class="k">손절선 도달 시</div><div class="v mono down">${hSigned(-sm.risk)}</div><div class="d muted">평가금액의 ${sm.val ? fmt(sm.risk / sm.val * 100, 1) : 0}% · 자본의 ${fmt(sm.risk / S.capital * 100, 1)}%</div></div>
@@ -184,6 +187,29 @@ function hSumHtml(sm, compact) {
   </div>`;
 }
 
+/* 종목별 투자금액·비중 */
+const H_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#06b6d4', '#a855f7'];
+function hWeightHtml(list, sm) {
+  const act = list.filter(o => o.qty > 0 && o.price).sort((a, b) => b.invested - a.invested);
+  if (!act.length) return '';
+  const col = i => H_COLORS[i % H_COLORS.length];
+  const big = act.filter(o => o.invested / sm.inv >= 0.3 && act.length >= 2);
+  return `<div class="h-wt">
+    <h4>종목별 투자금액과 비중 <small class="muted">— 투자 비중 = 산 금액 기준 · 평가 비중 = 지금 가치 기준</small></h4>
+    <div class="h-stack" title="투자 비중">${act.map((o, i) => `<i style="width:${o.invested / sm.inv * 100}%;background:${col(i)}" title="${esc(o.name)} ${fmt(o.invested / sm.inv * 100, 1)}%"></i>`).join('')}</div>
+    <table class="h-wtb"><thead><tr><th>종목</th><th>투자금액</th><th>투자 비중</th><th>평가금액</th><th>평가 비중</th><th>손익</th></tr></thead><tbody>
+    ${act.map((o, i) => { const wi = o.invested / sm.inv * 100, wv = sm.val ? o.value / sm.val * 100 : 0; return `<tr data-an="${esc(o.h.code)}">
+      <td><span class="h-dot" style="background:${col(i)}"></span><b>${esc(o.name)}</b></td>
+      <td class="mono">${hMoney(o.invested)}</td>
+      <td><div class="h-wbar"><i style="width:${wi}%;background:${col(i)}"></i></div><b class="mono">${fmt(wi, 1)}%</b></td>
+      <td class="mono">${hMoney(o.value)}</td>
+      <td class="mono">${fmt(wv, 1)}%</td>
+      <td class="mono ${cls(o.pnl)}">${hSigned(o.pnl)} <small>(${pct(o.pnlPct, 1)})</small></td></tr>`; }).join('')}
+    </tbody><tfoot><tr><td><b>합계</b></td><td class="mono"><b>${hMoney(sm.inv)}</b></td><td class="mono">100%</td><td class="mono"><b>${hMoney(sm.val)}</b></td><td class="mono">100%</td><td class="mono ${cls(sm.pnl)}"><b>${hSigned(sm.pnl)}</b> <small>(${pct(sm.pnlPct, 1)})</small></td></tr></tfoot></table>
+    ${big.length ? `<div class="hint down">⚠ ${big.map(o => esc(o.name)).join(', ')} 비중이 30% 이상이에요 — 한 종목이 크게 흔들리면 전체 계좌가 함께 흔들려요.</div>` : ''}
+    ${sm.inv > S.capital ? `<div class="hint down">투자금액 합계가 설정한 운용 자본(${won(S.capital)})보다 많아요 — 설정 탭에서 운용 자본을 실제 금액으로 바꾸면 권장 수량·위험 계산이 정확해져요.</div>` : `<div class="hint">운용 자본 ${won(S.capital)} 중 투자 ${fmt(sm.inv / S.capital * 100, 1)}% · 남은 금액 약 ${won(S.capital - sm.inv)} (설정 탭에서 운용 자본 변경)</div>`}
+  </div>`;
+}
 function renderHold() {
   const box = $('#holdList'); if (!S.data) return;
   const list = hAll(), sm = hSummary(list);
@@ -191,7 +217,9 @@ function renderHold() {
   const tab = $('button[data-tab="hold"]'); if (tab) tab.dataset.badge = sm.need.filter(o => ['alert', 'stop', 'protect', 'near', 't1', 't2'].includes(o.act)).length || '';
   renderHoldDash(list, sm);
   if (!box) return;
-  $('#holdSum').innerHTML = sm.n ? hSumHtml(sm) : '';
+  HOLD.inv = sm.inv;
+  $('#holdSum').innerHTML = sm.n ? hSumHtml(sm) + hWeightHtml(list, sm) : '';
+  $$('#holdSum [data-an]').forEach(x => x.onclick = () => showAnalysis(x.dataset.an));
   const order = list.slice().sort((a, b) => (a.qty <= 0) - (b.qty <= 0) || (H_ACT[a.act] || H_ACT.hold)[2] - (H_ACT[b.act] || H_ACT.hold)[2] || (b.value || 0) - (a.value || 0));
   box.innerHTML = order.length ? order.map(hCard).join('') : '<div class="empty">아직 등록한 종목이 없어요. 위에서 산 종목·가격·수량을 넣으면 실시간으로 관리해 드려요.</div>';
   const t = typeof LIVE !== 'undefined' && LIVE.tfTime;
