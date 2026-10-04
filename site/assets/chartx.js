@@ -278,6 +278,7 @@ async function clxLive(manual) {
   if (!changed && !manual) { clxStatus(); return; }
   S.data.stocks.forEach(s => { const x = d.s[s.code]; if (x) { s.cl = x; s._live = { c: x.c, chg: x.chg, d: x.d }; } });
   if (d.idx && Object.keys(d.idx).length) S.data.cl_index = d.idx;
+  if (typeof liveApplyTf === 'function') { try { liveApplyTf(d); } catch (e) { console.error(e); } }
   if (typeof volApplyLive === 'function') { try { volApplyLive(d); } catch (e) { console.error(e); } }
   CLX.chg = Object.fromEntries((d.changes || []).map(c => [c.code, c]));
   if (!CLX.first) clxNotify(d.changes || []);

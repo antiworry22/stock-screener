@@ -68,6 +68,9 @@ function scoreStock(s) {
   if (n(s.tech3)) add('technical', s.tech3 * 10, 30);
   if (n(s.sr20)) add('technical', s.ma_align ? 25 : s.sr20 === '지지' && (s.ma20_slope || 0) > 0 ? 15 : s.sr20 === '지지' ? 8 : s.sr20 === '저항' ? 0 : 3, 25);
   if (n(s.pos52)) { const lt = s.low_tests || 0; add('technical', s.pos52 < T.pos52_undervalued && lt >= T.low_tests ? 25 : s.pos52 < T.pos52_undervalued ? 12 : s.pos52 >= 0.95 && s.ma_align ? 18 : 6, 25); }
+  // 차트 종합판정(6축, −100~100)과 거래대금 해석 점수(0~100) — 장중엔 15분마다 새 값
+  if (s.cl && n(s.cl.s)) add('technical', Math.round((Math.max(-100, Math.min(100, s.cl.s)) + 100) / 200 * 30), 30);
+  if (n(s._vsc)) add('technical', Math.round(s._vsc / 100 * 20), 20);
   if (n(s.rsi) && s.rsi > T.rsi_overbought + 5 && P.technical) P.technical[0] = Math.max(0, P.technical[0] - 10);
   // 수급
   const sp = (v, full) => { if (!n(v)) return null; const d = T.streak_days; return v >= d ? full : v >= 3 ? Math.round(full * .66) : v >= 1 ? Math.round(full * .33) : v <= -d ? 0 : Math.round(full * .15); };
@@ -79,7 +82,10 @@ function scoreStock(s) {
   if (n(s.op_yoy) || s.op_turn) add('earnings', s.op_turn || (s.op_yoy || 0) >= T.yoy_growth ? 30 : (s.op_yoy || 0) > 0 ? 15 : 0, 30);
   if (n(s.sales_yoy)) add('earnings', s.sales_yoy >= T.yoy_growth ? 20 : s.sales_yoy > 0 ? 10 : 0, 20);
   if (n(s.upside)) add('earnings', s.upside >= T.upside_min ? 20 : s.upside >= 15 ? 10 : 3, 20);
-  if (n(s.news_score)) add('earnings', Math.round((s.news_score + 1) / 2 * 15), 15);
+  // 뉴스: 아침 수집 종목 뉴스(news_score −1~1) + 실시간 시장뉴스·공공기관(_newsLive −100~100)을 반반 섞음
+  const nl = n(s._newsLive) ? s._newsLive / 100 : null;
+  const nsv = n(s.news_score) && nl != null ? (s.news_score + nl) / 2 : n(s.news_score) ? s.news_score : nl;
+  if (nsv != null) add('earnings', Math.round((Math.max(-1, Math.min(1, nsv)) + 1) / 2 * 15), 15);
   if (dartOn) add('earnings', (s.disc_neg || 0) > 0 ? 0 : (s.disc_pos || 0) > 0 ? 15 : 8, 15);
   if ((s.roe3 || []).length >= 3) add('earnings', s.roe3.every(r => (r || 0) >= T.roe_min) ? 10 : 3, 10);
   // 섹터·미국장
@@ -111,6 +117,9 @@ function banReasons(s) {
   if ((s.debt_ratio || 0) > 300) r.push('부채비율 300%↑');
   if (s.tvalue && s.mcap && s.tvalue >= s.mcap) r.push('하루 거래대금 ≥ 시가총액(극단 과열)');
   if (s.sr120 === '저항' && s.sr20 === '저항') r.push('20·120일선 동시 저항');
+  if (s._alert) r.push('거래소 시장경보: ' + s._alert);
+  if (s._fu && ['호재 속 이탈', '3박자 하락'].includes(s._fu.kind)) r.push('실시간 ' + s._fu.kind);
+  if (s.cl && s.cl.v === '강력 매도') r.push('차트 판정 강력 매도');
   return r;
 }
 function riskCalc(s, entry) {
@@ -133,7 +142,7 @@ function refresh() {
 /* ═════════════ 헤더·대시보드 ═════════════ */
 function renderHeader() {
   const m = S.data.meta;
-  $('#asofLine').textContent = `기준일 ${m.asof} · 생성 ${m.generated} · ${fmt(m.universe)}종목 · 모드 ${S.cfg.modes[S.mode].label}`;
+  $('#asofLine').textContent = `기준일 ${m.asof} · 생성 ${m.generated} · ${fmt(m.universe)}종목 · 모드 ${S.cfg.modes[S.mode].label}` + (typeof liveHeaderText === 'function' ? liveHeaderText() : '');
   $('#sampleBanner').classList.toggle('hidden', !m.sample);
   const g = S.data.gate || { level: 'green', reasons: [] };
   const gb = $('#gateBanner');
@@ -177,6 +186,7 @@ function renderDash() {
     return `<div class="sb"><span>${esc(s.name)}</span><div class="bar"><span class="mid"></span><i style="${pos ? `left:50%;width:${w}%;background:var(--up)` : `right:50%;width:${w}%;background:var(--down)`}"></i></div><span class="num ${cls(s.rel5)}">${pct(s.rel5, 1)}</span></div>`;
   }).join('');
   bindItems();
+  if (typeof renderLiveDash === 'function') renderLiveDash();
 }
 function whitelist() {
   return S.data.stocks.filter(s => !s._ban.length && s._sc.total >= S.th.whitelist_min_score && s.sr20 === '지지' && (s._sc.stability == null || s._sc.stability >= 40))

@@ -49,7 +49,7 @@ function analysisHtml(s) {
   <div class="an-head">
     <div><h2>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span></h2>
       <div class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector)} · 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}</div></div>
-    <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div></div>
+    <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div>${s._tfD && typeof LIVE !== 'undefined' && LIVE.tfTime ? `<div class="hint"><span class="gov-live"></span> 실시간 ${esc(LIVE.tfTime.slice(11))} 기준 점수</div>` : ''}</div>
   </div>
   <div class="an-card an-wide"><h4>실시간 종합 <small class="muted">— 재료(뉴스·공공기관) × 돈(거래대금) × 추세(차트)가 이 종목에 어떻게 맞물리는지</small></h4><div id="fuMount" data-code="${esc(s.code)}"></div></div>
   <div class="an-card an-wide"><h4>차트 종합 판정 <small class="muted">— 6축 점수 엔진(추세·모멘텀·거래량·구조·패턴·주봉) · 진입·손절·목표·손익비·체크리스트</small></h4><div id="clxMount" data-code="${esc(s.code)}"></div></div>
@@ -75,7 +75,7 @@ function analysisHtml(s) {
       ${pats.map(({ k, p }) => `<div class="an-li"><span class="tag ${p && p.ok ? 'good' : ''}">${p && p.ok ? '충족' : p ? '진행 중' : '해당 없음'}</span> ${PAT[k].label}</div>`).join('')}
       ${patHit.length ? patSvg(s, patHit[0].p) + `<div class="pat-steps">${patHit[0].p.steps.map(t => `<div>${t}</div>`).join('')}</div>` : (pats.find(x => x.p && x.k === 'pullback') ? patSvg(s, pats.find(x => x.k === 'pullback').p) : '')}
     </div>
-    <div class="an-card"><h4>뉴스·공시</h4>${ns.length ? ns.map(p => `<p class="an-p">${p}</p>`).join('') : '<div class="hint">최근 수집된 뉴스·공시가 없어요.</div>'}
+    <div class="an-card"><h4>뉴스·공시</h4>${typeof liveNewsHtml === 'function' ? liveNewsHtml(s, 4) : ''}${ns.length ? ns.map(p => `<p class="an-p">${p}</p>`).join('') : '<div class="hint">최근 수집된 뉴스·공시가 없어요.</div>'}
       ${(s.news || []).slice(0, 4).map(n => `<a class="news-item" href="${esc(n.u)}" target="_blank" rel="noopener"><span class="tag ${n.tone > 0 ? 'good' : n.tone < 0 ? 'bad' : ''}">${n.tone > 0 ? '긍정' : n.tone < 0 ? '부정' : '중립'}</span><span class="nt">${esc(n.t)}</span><span class="ns">${esc(n.d || '')}</span></a>`).join('')}
     </div>
     <div class="an-card"><h4>시장 뉴스 속 이 종목 (국내·해외)</h4><div id="mnAnMount" data-code="${esc(s.code)}"></div></div>
@@ -85,9 +85,9 @@ function analysisHtml(s) {
   <div class="row gap wrap mt"><button class="btn primary" id="anDetail">차트·15개 항목 자세히 보기</button><a class="btn ghost" href="https://finance.naver.com/item/main.naver?code=${esc(s.code)}" target="_blank" rel="noopener">네이버 증권에서 보기</a></div>`;
 }
 
-function showAnalysis(code) {
+function showAnalysis(code, quiet) {
   const s = S.data.stocks.find(x => x.code === code); if (!s) return;
-  if (typeof switchTab === 'function') switchTab('analysis');
+  if (!quiet && typeof switchTab === 'function') switchTab('analysis');
   $('#anInput').value = s.name;
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
@@ -98,6 +98,7 @@ function showAnalysis(code) {
   if (typeof mnFillAnalysis === 'function') mnFillAnalysis();
   if (typeof govFillAnalysis === 'function') govFillAnalysis();
   $$('#anOut [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
+  if (quiet) return;  // 실시간 갱신으로 다시 그릴 때는 기록·스크롤 그대로
   try { const h = store.get('anHist', []).filter(c => c !== code); h.unshift(code); store.set('anHist', h.slice(0, 8)); } catch (e) {}
   drawAnHist();
   window.scrollTo({ top: 0, behavior: 'smooth' });

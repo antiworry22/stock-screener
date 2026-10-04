@@ -462,3 +462,16 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .fu-tri>div small{font-size:11.5px;color:var(--muted)}.fu-tri>div b{font-size:14px}
 .fu-tri>div.good{border-color:var(--ok)}.fu-tri>div.good b{color:var(--ok)}.fu-tri>div.bad{border-color:var(--bad)}.fu-tri>div.bad b{color:var(--bad)}
 .fu-tri>div.mid b{color:var(--warn)}.fu-tri>span{font-weight:700;color:var(--muted)}
+
+/* ── 실시간 연결(live.js) ── */
+.lv-panel .lv-status { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 10px; }
+.lv-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, #ddd); font-size: 12.5px; color: var(--muted, #888); }
+.lv-chip.on { color: inherit; }
+.lv-chip small { color: var(--muted, #888); }
+.lv-grid h4 { margin: 4px 0 6px; font-size: 14px; }
+.lv-grid .good-t { color: var(--up, #d33); }
+.lv-grid .bad-t { color: var(--down, #36c); }
+.lv-grid .item { cursor: pointer; }
+.lv-news { margin: 4px 0 8px; }
+.lv-news .news-item { font-size: 13px; }
+.lv-grid .lv-to { font-weight: 700; color: var(--text); }

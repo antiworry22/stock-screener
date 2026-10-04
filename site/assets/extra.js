@@ -117,6 +117,7 @@ function recommend() {
     if (s.chg >= 15) score -= 6;  // 급등 추격 감점
     const reasons = recReasons(s), cautions = recCautions(s);
     score -= cautions.length * 2;
+    if (typeof liveRecAdj === 'function') { const L = liveRecAdj(s); score += L.a; reasons.unshift(...L.r); cautions.unshift(...L.c); }
     const sc = Math.round(Math.max(0, Math.min(100, score)) * 10) / 10;
     s._rec = sc; s._recR = reasons;
     out.push({ s, score: sc, pass: pass.length, avail: avail.length, reasons, cautions });
@@ -215,6 +216,7 @@ function newsBlock(s) {
   const q = encodeURIComponent(s.name);
   const toneTag = t => t > 0 ? '<span class="tag good">긍정</span>' : t < 0 ? '<span class="tag bad">부정</span>' : '<span class="tag">중립</span>';
   return `<h4>관련 뉴스·호재 요약</h4>
+    ${typeof liveNewsHtml === 'function' ? liveNewsHtml(s, 6) : ''}
     <div class="news-sum">${sum.length ? sum.map(p => `<p>${p}</p>`).join('') : '<p class="muted">수집된 최근 뉴스·공시가 없습니다. (뉴스는 후보·거래 상위 종목만 수집)</p>'}</div>
     ${items.length ? `<div class="news-list">${items.map(n => `<a class="news-item" href="${esc(n.u)}" target="_blank" rel="noopener">${toneTag(n.tone)}<span class="nt">${esc(n.t)}</span><span class="ns">${esc(n.s || '')} ${esc(n.d || '')}</span></a>`).join('')}</div>` : ''}
     ${ds.length ? `<div class="news-list">${ds.map(d => `<a class="news-item" ${d.url ? `href="${esc(d.url)}" target="_blank" rel="noopener"` : ''}><span class="tag ${d.tag === '악재' ? 'bad' : d.tag === '호재' ? 'good' : ''}">공시·${esc(d.tag)}</span><span class="nt">${esc(discEasy(d.title))}</span><span class="ns">${esc(d.date)}</span></a>`).join('')}</div>` : ''}
@@ -224,17 +226,21 @@ function newsBlock(s) {
 function renderNews() {
   const box = $('#newsList'); if (!box) return;
   const mode = $('#newsMode') ? $('#newsMode').value : 'good';
-  let rows = S.data.stocks.filter(s => (s.news || []).length || (s.disclosures || []).length);
-  const goodScore = s => (s.news_sum ? s.news_sum.pos - s.news_sum.neg : 0) + (s.disc_pos || 0) * 2 - (s.disc_neg || 0) * 3 + (s.pension_5pct ? 2 : 0);
+  // 아침 수집 종목 뉴스·공시 + 실시간 시장뉴스·공공기관(종목 직접 언급) 함께 반영
+  const liveN = s => s._nw && s._nw.nDir ? s._nw : null;
+  let rows = S.data.stocks.filter(s => (s.news || []).length || (s.disclosures || []).length || liveN(s));
+  const goodScore = s => (s.news_sum ? s.news_sum.pos - s.news_sum.neg : 0) + (s.disc_pos || 0) * 2 - (s.disc_neg || 0) * 3 + (s.pension_5pct ? 2 : 0)
+    + (liveN(s) ? Math.max(-4, Math.min(4, (s._newsLive || 0) / 15)) : 0) - (s._alert ? 6 : 0);
   if (mode === 'good') rows = rows.filter(s => goodScore(s) > 0 && !(s.disc_neg > 0));
   if (mode === 'bad') rows = rows.filter(s => goodScore(s) < 0 || s.disc_neg > 0);
   rows.sort((a, b) => mode === 'bad' ? goodScore(a) - goodScore(b) : goodScore(b) - goodScore(a));
-  $('#newsMeta').textContent = `뉴스·공시가 있는 ${rows.length}종목`;
+  $('#newsMeta').textContent = `뉴스·공시가 있는 ${rows.length}종목` + (typeof MN !== 'undefined' && MN.d ? ` · 실시간 시장뉴스 ${String(MN.d.meta.generated || '').slice(11, 16)}` : '') + (typeof GOV !== 'undefined' && GOV.d ? ` · 공공기관 ${String(GOV.d.meta.generated || '').slice(11, 16)} 반영` : '');
   box.innerHTML = rows.slice(0, 60).map(s => {
     const sum = newsSummary(s);
     return `<div class="rec" data-code="${esc(s.code)}">
       <div class="rec-h"><div class="nm"><b>${esc(s.name)}${s._ban.length ? ' <span class="tag bad">매수 금지</span>' : ''}</b><small>${esc(s.sector)} · ${fmt(s.close)}원 <span class="${cls(s.chg)}">${pct(s.chg)}</span></small></div>
         <span class="score ${sCls(s._sc.total)}">${fmt(s._sc.total, 1)}</span></div>
+      ${typeof liveNewsHtml === 'function' ? liveNewsHtml(s, 2) : ''}
       <div class="news-sum">${sum.slice(0, 2).map(p => `<p>${p}</p>`).join('')}</div>
       ${(s.news || []).slice(0, 2).map(n => `<div class="hint">· ${esc(n.t)}</div>`).join('')}
     </div>`;

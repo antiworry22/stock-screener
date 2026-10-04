@@ -117,6 +117,7 @@ function fuOnUpdate(src, fresh) {
     fuNotify(FU.feed.filter(e => e.t === t));
   }
   FU.snap = cur;
+  if (typeof liveSetFusion === 'function') { try { liveSetFusion(cur); liveRefresh(src); } catch (e) { console.error(e); } }
   renderFuse();
   fuFillAnalysis();
 }
