@@ -85,15 +85,15 @@ PRESS = [  # (지역, 이름, 주소)  — 실패해도 무시
 # ───────────────────────── 긍정·부정 단어 ─────────────────────────
 POS_KO = ["급등", "상승", "강세", "신고가", "최고", "호실적", "흑자", "턴어라운드", "수주", "계약", "공급", "승인", "허가",
           "돌파", "반등", "개선", "증가", "확대", "호조", "수혜", "기대", "상향", "매수", "순매수", "성공", "선정", "특허",
-          "협력", "MOU", "인수", "증설", "독점", "출시", "어닝서프라이즈", "서프라이즈", "역대", "회복", "훈풍", "랠리", "급증", "최대", "수출", "실적 개선"]
+          "협력", "MOU", "인수", "증설", "독점", "출시", "어닝서프라이즈", "서프라이즈", "역대", "회복", "훈풍", "랠리", "급증", "최대", "수출 계약", "수출 호조", "실적 개선"]
 NEG_KO = ["급락", "하락", "약세", "신저가", "적자", "부진", "감소", "축소", "우려", "악재", "쇼크", "하향", "매도", "순매도",
           "취소", "중단", "실패", "소송", "리콜", "제재", "조사", "압수수색", "횡령", "배임", "유상증자", "전환사채", "감자",
-          "상장폐지", "거래정지", "파업", "경고", "논란", "부담", "둔화", "충격", "폭락", "어닝쇼크", "적발", "규제", "관세"]
+          "상장폐지", "거래정지", "파업", "경고", "논란", "부담", "둔화", "충격", "폭락", "어닝쇼크", "적발", "규제", "관세", "공세", "잠식", "추격", "이탈"]
 POS_EN = ["surge", "soar", "jump", "rally", "beat", "beats", "record", "gain", "gains", "upgrade", "rise", "rises", "boost",
           "strong", "wins", "approve", "approval", "deal", "growth", "rebound", "climb", "higher", "tops", "bullish", "outperform"]
 NEG_EN = ["plunge", "fall", "falls", "drop", "drops", "slump", "miss", "misses", "downgrade", "tariff", "tariffs", "lawsuit",
           "recall", "ban", "probe", "weak", "loss", "crash", "slide", "tumble", "fears", "concern", "selloff", "sell-off",
-          "lower", "warns", "warning", "delay", "halt", "bearish", "slowdown", "recession"]
+          "lower", "warns", "warning", "delay", "halt", "bearish", "slowdown", "recession", "dump", "dumps", "outflow", "outflows", "profit-taking", "worst"]
 
 
 def _en_has(words, low):
@@ -276,6 +276,17 @@ EXCLUDE = {"SK", "LG", "CJ", "DB", "DL", "LS", "GS", "KT", "LF", "SG", "NC", "E1
            "채비", "노타", "아크릴", "머큐리", "모비스", "스피어", "디오", "태성", "아이엘", "제이오", "컨텍", "큐렉소", "레메디",
            "아톤", "아이텍", "에이스테크", "한컴", "삼현", "티앤엘", "엠플러스", "더즌", "이노테크", "태웅", "와이씨",
            "브이티", "브이엠", "나무가", "제우스", "원텍", "세보엠이씨", "인바디", "에스앤디", "메쥬", "링크솔루션", "그린리소스", "센서뷰", "레이언스"}
+SPAM_W = ["슬롯", "토토", "바카라", "포커", "룰렛", "배당표", "심벌", "먹튀", "파워볼", "경마", "카지노 사이트", "카지노게임", "잭팟",
+          "꽁머니", "홀덤", "스포츠베팅", "betting", "casino bonus", "slot"]
+BLOCK_SRC = {"Calgary Roughnecks", "Vietnam.vn", "vietnam.vn", "Pluang", "Unisba Media", "eyeonannapolis.net"}
+MARKET_CATS = {"증시 시황", "특징주", "미국 증시", "금리·연준", "환율", "한국 관련", "실적", "수주·계약", "증권가 전망", "유가·원자재"}
+CAP = {"국내": 320, "해외ko": 200, "en": 100}  # 묶음별 최대 기사 수 (해외 기사가 국내 기사를 밀어내지 않게)
+
+
+def _words(t):
+    return {w for w in re.split(r"[^0-9A-Za-z가-힣]+", t.lower()) if len(w) >= 2}
+
+
 OVERSEAS_MARK = ["미국", "뉴욕", "월가", "나스닥", "S&P", "다우", "연준", "FOMC", "파월", "트럼프", "중국", "일본", "엔화", "유럽", "ECB",
                  "엔비디아", "애플", "테슬라", "마이크로소프트", "TSMC", "OPEC", "국제유가", "백악관", "베이징", "대만"]
 
@@ -434,7 +445,8 @@ def make_note(item, theme_eff, by_code, theme_stocks):
     plain = [(n, e) for n, e in theme_eff if not (item["dr"] and any(THEME_BY[n].get("drivers", {}).get(d) for d in item["dr"]))]
     if plain:
         n, e = plain[0]
-        tail = f"{names_of(theme_stocks[n], by_code, 2)} 등 {n} 종목에 {word[e]} 영향" + (" 가능" if e else "")
+        tail = (f"{names_of(theme_stocks[n], by_code, 2)} 등 {n} 종목에 {word[e]} 영향 가능" if e
+                else f"{names_of(theme_stocks[n], by_code, 2)} 등 {n} 종목 관련 소식 (좋고 나쁨은 불분명)")
         if len(plain) > 1:
             tail += f" (그 밖에 {', '.join(x for x, _ in plain[1:3])})"
         parts.append(tail)
@@ -483,6 +495,8 @@ def main():
             if x["cat"] and x["cat"] not in prev["cats"]:
                 prev["cats"].append(x["cat"])
             continue
+        if x["s"] in BLOCK_SRC or any(w in x["t"].lower() for w in SPAM_W):
+            continue  # 도박·광고성 가짜 기사, 기계번역 사이트 제외
         lang = x["lang"]
         if lang == "ko" and not re.search(r"[가-힣]", x["t"]):
             lang = "en"
@@ -502,23 +516,49 @@ def main():
             e = (1 if sum(effs) > 0 else -1 if sum(effs) < 0 else 0) if effs else tone
             theme_eff.append((n, e))
         reg = x["reg"]
-        if lang == "en" or any(k in x["t"] for k in OVERSEAS_MARK):
-            reg = "해외" if (lang == "en" or reg == "해외" or not st) else reg
+        if lang == "en":
+            reg = "해외"
+        elif x["via"] != "구글뉴스":  # 언론사 피드는 제목으로 국내/해외 판단
+            reg = "해외" if (reg == "해외" or (not st and any(k in x["t"] for k in OVERSEAS_MARK))) else "국내"
         linked = bool(st or theme_eff)
         if x["via"] != "구글뉴스" and not linked:
             continue  # 언론사 전체 피드는 종목·테마와 이어지는 기사만
+        if lang == "en" and not linked:
+            continue  # 영문 기사는 한국 종목·테마와 이어질 때만
+        if not linked and x["cat"] not in MARKET_CATS:
+            continue  # 종목 연결 없는 기사는 증시·금리·환율 시황만
+        # 같은 사건을 다룬 비슷한 기사(단어 60% 이상 겹침)는 하나로 묶음
+        ws = _words(x["t"])
+        dup = None
+        for p in items[-250:]:
+            pw = p["_w"]
+            if ws and pw and len(ws & pw) / max(1, min(len(ws), len(pw))) >= 0.6:
+                dup = p
+                break
+        if dup is not None:
+            dup["more"] = dup.get("more", 0) + 1
+            if x["cat"] and x["cat"] not in dup["cats"]:
+                dup["cats"].append(x["cat"])
+            continue
         it = {"t": x["t"], "u": x["u"], "s": x["s"], "lang": lang, "reg": reg,
               "cats": [x["cat"]] if x["cat"] else [], "tone": tone, "kw": kw, "st": st, "dr": dr,
               "ts": x["ts"].astimezone(KST).strftime("%Y-%m-%dT%H:%M") if x["ts"] else None,
-              "desc": (x["desc"] or "")[:140], "linked": linked}
+              "desc": (x["desc"] or "")[:140], "linked": linked, "_w": ws}
         it["th"] = theme_eff
         seen[key] = it
         items.append(it)
 
-    # 연결된 기사 우선, 연결 안 된 시황 기사는 최신 150건까지만
-    linked = [i for i in items if i["linked"]]
-    loose = [i for i in items if not i["linked"]][:150]
-    items = sorted(linked + loose, key=lambda z: z["ts"] or "", reverse=True)[:600]
+    # 묶음별(국내 / 해외 한글 / 영문) 최대 개수 안에서 '종목 연결된 기사' 우선, 그다음 최신순
+    grp = lambda i: "en" if i["lang"] == "en" else ("국내" if i["reg"] == "국내" else "해외ko")
+    keep = []
+    for g, cap in CAP.items():
+        gi = [i for i in items if grp(i) == g]
+        lk = [i for i in gi if i["linked"]]
+        lo = [i for i in gi if not i["linked"]]
+        keep += (lk + lo[: max(30, cap // 4)])[:cap]
+    items = sorted(keep, key=lambda z: z["ts"] or "", reverse=True)
+    for i in items:
+        i.pop("_w", None)
 
     agg = {}
     for idx, it in enumerate(items):
