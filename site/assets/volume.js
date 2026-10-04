@@ -383,9 +383,10 @@ function volCardHtml(s, a) {
   <div class="hint mt">※ 설계 3원칙: ① 거래량·거래대금은 절대값이 아니라 평소 대비 배수·비율로 본다 ② 거래량 급증은 매수 근거가 아니라 돌파·추세가 진짜인지 확인하는 도구다(한국 증시엔 '고거래량 프리미엄'이 없다는 연구) ③ 하락의 강도는 거래량보다 거래대금으로 본다. 임계값(2배·3배·5배·10배 등)은 경험칙이므로 백테스트로 보정이 필요해요. 장 마감 뒤 일봉 기준이며, 거래대금 그래프는 종가×거래량으로 계산한 근사값이에요.</div>`;
 }
 
-function volDraw(a, range) {
-  VOL.charts.forEach(c => c.destroy()); VOL.charts.length = 0;
-  if (!window.Chart || !$('#vaChart')) return;
+function volDraw(a, range, root) {
+  const cv = $('#vaChart', root || document);
+  if (!window.Chart || !cv) return;
+  if (cv._vchart) { try { cv._vchart.destroy(); } catch (e) {} VOL.charts = VOL.charts.filter(c => c !== cv._vchart); }
   const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
   const { n, C, TV, TA20, OBV } = a.z, m = Math.min(range, n), from = n - m;
   const labels = Array.from({ length: m }, (_, i) => { const d = m - 1 - i; return d === 0 ? '오늘' : d + '일 전'; });
@@ -393,7 +394,7 @@ function volDraw(a, range) {
   const tv = TV.slice(from), cc = C.slice(from);
   const mk = Array(m).fill(null), mkc = Array(m).fill(null), mkt = Array(m).fill('');
   a.ev.forEach(x => { const k = x.i - from; if (k >= 0 && k < m) { mk[k] = tv[k] * 1.08; mkc[k] = x.k === 'good' ? col('--ok') : x.k === 'bad' ? col('--bad') : x.k === 'warn' ? col('--warn') : txt; mkt[k] = (mkt[k] ? mkt[k] + ', ' : '') + x.t; } });
-  VOL.charts.push(new Chart($('#vaChart'), {
+  VOL.charts.push(cv._vchart = new Chart(cv, {
     data: { labels, datasets: [
       { type: 'line', label: '신호', data: mk, showLine: false, pointStyle: 'triangle', pointRadius: 7, pointBackgroundColor: mkc, pointBorderColor: mkc, order: 0, yAxisID: 'y' },
       { type: 'bar', label: '거래대금(억)', data: tv, backgroundColor: cc.map((x, i) => (i ? x < cc[i - 1] : (C[from - 1] || x) > x) ? dn : up), order: 3, yAxisID: 'y' },
@@ -414,8 +415,8 @@ function renderVolCard(s, mountId) {
   const a = volAnalyze(s);
   box.innerHTML = volCardHtml(s, a);
   if (a) {
-    volDraw(a, 120);
-    $$('[data-vrng]', box).forEach(b => b.onclick = () => { $$('[data-vrng]', box).forEach(x => x.classList.toggle('on', x === b)); volDraw(a, +b.dataset.vrng); });
+    volDraw(a, 120, box);
+    $$('[data-vrng]', box).forEach(b => b.onclick = () => { $$('[data-vrng]', box).forEach(x => x.classList.toggle('on', x === b)); volDraw(a, +b.dataset.vrng, box); });
   }
   return a;
 }
@@ -457,19 +458,33 @@ function renderVolTab() {
   const pool = S.data.stocks.filter(s => all.has(s.code) && (mkt === 'all' || s.market === mkt));
   const counts = VSIG.map(([k, t, c, d, fn]) => [k, pool.filter(s => fn(all.get(s.code))).length]);
   $('#vsChips').innerHTML = VSIG.map(([k, t, c], i) => `<button class="chip vs-chip ${c} ${k === key ? 'on' : ''}" data-vs="${k}">${t} <b>${counts[i][1]}</b></button>`).join('');
-  $$('#vsChips [data-vs]').forEach(b => b.onclick = () => { $('#vsType').value = b.dataset.vs; renderVolTab(); });
+  $$('#vsChips [data-vs]').forEach(b => b.onclick = () => { $('#vsType').value = b.dataset.vs; if ($('#vsQ')) $('#vsQ').value = ''; renderVolTab(); });
   const sig = VSIG.find(x => x[0] === key) || VSIG[0];
-  const rows = pool.filter(s => sig[4](all.get(s.code))).map(s => ({ s, a: all.get(s.code) }))
-    .sort((x, y) => sig[2] === 'bad' ? x.a.score - y.a.score : y.a.score - x.a.score);
-  $('#vsDesc').innerHTML = `<b>${sig[1]}</b> — ${sig[3]} · ${rows.length}종목`;
+  // 종목 검색: 검색어가 있으면 신호·시장 필터와 관계없이 이름·코드로 찾음
+  const q = $('#vsQ') ? $('#vsQ').value.trim() : '';
+  let rows;
+  ['#vsMkt', '#vsFresh', '#vsSurge', '#vsChips'].forEach(id => { const el = $(id); if (el) el.classList.toggle('hidden', !!q); });  // 검색 중에는 결과를 검색창 바로 아래에
+  if (q) {
+    const hits = (typeof findStocks === 'function' ? findStocks(q) : S.data.stocks.filter(s => s.name.includes(q) || s.code.includes(q))).filter(s => all.has(s.code));
+    rows = hits.map(s => ({ s, a: all.get(s.code) }));
+    volRenderOne(hits.length === 1 ? hits[0] : null, q, hits.length);
+    $('#vsDesc').innerHTML = `<b>"${esc(q)}" 검색 결과</b> ${rows.length}종목 — 검색 중에는 신호·시장 필터를 적용하지 않아요. 카드의 초록/빨강 표시가 그 종목에 지금 켜진 신호예요.`;
+  } else {
+    volRenderOne(null, '', 0);
+    rows = pool.filter(s => sig[4](all.get(s.code))).map(s => ({ s, a: all.get(s.code) }))
+      .sort((x, y) => sig[2] === 'bad' ? x.a.score - y.a.score : y.a.score - x.a.score);
+    $('#vsDesc').innerHTML = `<b>${sig[1]}</b> — ${sig[3]} · ${rows.length}종목`;
+  }
   box.innerHTML = rows.length ? rows.slice(0, 60).map(({ s, a }) => {
     const ck = { brk: 'brk', trueUp: 'flow', bottom: 'bottom', obvBull: 'obv', healthyPull: 'hold', scout: 'scout', whale: 'whale', flat: 'flat', holdTv: 'hold', extreme: 'extreme', burn: 'burn', obvBear: 'obv' }[sig[0]];
-    const hit = a.chk.find(c => c.k === ck) || a.chk.find(c => c.st === sig[2]);
+    const hit = q ? null : (a.chk.find(c => c.k === ck) || a.chk.find(c => c.st === sig[2]));
+    const on = q ? VSIG.filter(v => { try { return v[4](a); } catch (e) { return false; } }) : [];
     return `<div class="vs-card" data-an="${esc(s.code)}">
       <div class="vs-h"><b>${esc(s.name)}</b> <small class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector || '')}</small>
         <span class="mono ${cls(s.chg)}">${pct(s.chg, 1)}</span><span class="va-pill ${a.verdict.c}">${a.score}</span></div>
       <div class="vs-m mono">거래량 ${vX(a.rv)} · 대금 ${vEok(a.tvToday)} · 회전율 ${a.tvMcap != null ? fmt(a.tvMcap, 2) + '%' : '–'}</div>
       ${hit ? `<div class="vs-t">${hit.text}</div>` : ''}
+      ${q ? `<div class="vs-f">${on.length ? on.map(v => `<span class="tag ${v[2] === 'bad' ? 'bad' : v[2] === 'good' ? 'good' : ''}">${v[1]}</span>`).join('') : '<span class="tag">켜진 신호 없음</span>'}</div>` : ''}
       <div class="vs-act ${a.plan.cls}">👉 ${a.plan.act}</div>
       <div class="vs-f">${a.goods.slice(0, 3).map(c => `<span class="tag good">${c.title}</span>`).join('')}${a.bads.slice(0, 3).map(c => `<span class="tag bad">${c.title}</span>`).join('')}</div>
     </div>`;
@@ -478,7 +493,24 @@ function renderVolTab() {
   if (typeof renderVolLive === 'function') renderVolLive();
 }
 
+function volRenderOne(s, q, n) {
+  const box = $('#vsOne'); if (!box) return;
+  if (!q) { box.innerHTML = ''; box.dataset.k = ''; return; }
+  if (!s) { box.dataset.k = ''; box.innerHTML = n ? '<div class="hint">여러 종목이 검색됐어요 — 아래 카드에서 고르거나 이름을 더 정확히 입력하세요.</div>' : `<div class="empty">"${esc(q)}"과(와) 맞는 종목이 없어요.</div>`; return; }
+  const k = s.code + '|' + (VOL.liveTime || '');
+  if (box.dataset.k === k) return;
+  box.dataset.k = k;
+  box.innerHTML = `<div class="an-card an-wide"><h4>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span> 거래량·거래대금 정밀 해석 <button class="btn ghost small" id="vsOneAn">종목 분석 전체 보기 →</button></h4><div id="vsOneMount"></div></div>`;
+  renderVolCard(s, 'vsOneMount');
+  $('#vsOneAn').onclick = () => showAnalysis(s.code);
+}
 function initVolume() {
+  if ($('#vsQ')) {
+    const go = () => renderVolTab();
+    $('#vsQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    $('#vsQ').onchange = go; $('#vsQGo').onclick = go;
+    $('#vsQClear').onclick = () => { $('#vsQ').value = ''; go(); };
+  }
   if (typeof initVolLive === 'function') setTimeout(initVolLive, 0);
   if ($('#vsType')) {
     $('#vsType').innerHTML = VSIG.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
