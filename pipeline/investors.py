@@ -232,6 +232,15 @@ def main():
         DIAG["사이트 /api/idx"] = f"HTTP {rr.status_code}"
     except Exception as e:
         DIAG["사이트 /api/idx"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
+    try:  # 업종 실시간 경로 점검 기록 (섹터 흐름 화면) — 크기를 줄여 앞부분만
+        import requests
+        rr = requests.get("https://kmy-stock.netlify.app/api/sectors", params={"diag": "1"}, timeout=40)
+        j = rr.json()
+        j = {"ok": j.get("ok"), "at": j.get("at"), "diag": j.get("diag"), "list": (j.get("list") or [])[:8], "n_det": len(j.get("det") or {})}
+        json.dump(j, open(os.path.join(OUT, "sector_check.json"), "w", encoding="utf-8"), ensure_ascii=False)
+        DIAG["사이트 /api/sectors"] = f"HTTP {rr.status_code}"
+    except Exception as e:
+        DIAG["사이트 /api/sectors"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
     res = {"meta": {"time": NOW.strftime("%Y-%m-%d %H:%M"), "days": days, "partial": partial, "n": len(out), "new_days": got,
                     "elapsed_s": round(time.time() - t0)}, "mkt": mk, "mlive": {"at": NOW.strftime("%Y-%m-%d %H:%M"), **mlive}, "s": out}
     json.dump(res, open(os.path.join(OUT, "investors.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))

@@ -35,6 +35,7 @@
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
   <button data-tab="mood">지수 온도</button>
+  <button data-tab="secflow">섹터 흐름</button>
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="hrep">보유 리포트</button>
   <button data-tab="plan">내일 매수 계획</button>
@@ -62,6 +63,7 @@
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
   <div class="panel md-dash" id="moodDash"></div>
+  <div class="panel sf-dash" id="sfDash"></div>
   <div class="panel hidden" id="holdDash"></div>
   <div class="panel lv-panel" id="liveDash"></div>
   <div class="cards" id="macroCards"></div>
@@ -98,6 +100,16 @@
     <p class="hint">지수 등락 · 추세(이동평균·RSI·고점 대비) · 시장의 폭(오른 종목 수·20일선 위 종목 비율·신고가/신저가) · 외국인·기관 수급 · 거래대금 열기 · 해외(미국 선물·VIX·환율) 6가지를 0~100도 온도로 합쳐 지금 시장의 분위기를 읽어요. 장중에는 지수 현재가를 20초마다, 수급은 1분마다 다시 반영해요.</p>
     <div id="mdCards" class="md-cards"></div>
     <div id="mdBody" class="mt"></div>
+  </div>
+</section>
+
+<!-- ═══ 섹터 흐름 (오늘 업종별 주도·상승·하락 + 이유·평가·주도주) ═══ -->
+<section id="tab-secflow" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>오늘의 섹터 흐름</h2><span class="hint" id="sfMeta"></span></div>
+    <p class="hint">업종마다 오늘 흐름을 <b>주도 · 상승 · 반등 · 혼조 · 하락 · 하향 전환 · 약세 심화</b>로 나누고, 왜 그런지(오른 종목 수·끌어올린 종목·거래대금·외국인·뉴스·미국장·장중 강약), 해석, 내일까지 이어질지에 대한 평가(A~E), 대응, 업종별 주도주를 보여줘요. 장중에는 1분마다 다시 계산해요. 주도주를 누르면 종목 분석이 열려요.</p>
+    <div id="sfSum"></div>
+    <div id="sfBody" class="mt"></div>
   </div>
 </section>
 
@@ -560,6 +572,7 @@
 <script src="assets/market.js"></script>
 <script src="assets/sectorrank.js"></script>
 <script src="assets/mood.js"></script>
+<script src="assets/secflow.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
