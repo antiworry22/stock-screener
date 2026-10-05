@@ -71,7 +71,7 @@ async function bdLoadBook() {
         BD.q[c] = { ...(prev || {}), code: c, price: q.price, pct: q.chgPct ?? (prev && prev.pct), chg: q.chg ?? (prev && prev.chg), vol: q.vol ?? (prev && prev.vol), tv: q.value != null ? q.value / 1e8 : prev && prev.tv, high: q.high ?? (prev && prev.high), low: q.low ?? (prev && prev.low), open: q.open ?? (prev && prev.open), at: j.at };
         if (prev && prev.price !== q.price) BD.flash[c] = q.price > prev.price ? 'up' : 'down';
       }
-      if (b && (b.asks || []).length) st.book = b;
+      if (b && (b.asks || []).length) { const pb = st.book; st.book = b; try { bdBookEvents(c, st, pb, b, BD.q[c]); } catch (e) { console.error(e); } }
     }
   } catch (e) {}
   BD.hbusy = false;
@@ -146,7 +146,8 @@ function bdCandles(rows, o) {
     g += `<rect x="${(x - w / 2).toFixed(1)}" y="${VY(r[5] || 0).toFixed(1)}" width="${w.toFixed(1)}" height="${(H - 18 - VY(r[5] || 0)).toFixed(1)}" fill="${c}" opacity=".45"/>`;
   });
   (o.lines || []).forEach(l => { let d = '', pen = false; l.v.forEach((v, i) => { if (v == null) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; }); g += `<path d="${d}" fill="none" stroke="${l.c}" stroke-width="1.3"${l.dash ? ` stroke-dasharray="${l.dash}"` : ''}/>`; });
-  if (o.ref != null) g += `<line x1="0" x2="${W - 46}" y1="${Y(o.ref)}" y2="${Y(o.ref)}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${W - 44}" y="${Y(o.ref) + 3}" font-size="10" fill="var(--muted)">전일</text>`;
+  if (o.split != null) { const sx = X(o.split) - bw / 2; g += `<line x1="${sx}" x2="${sx}" y1="${top}" y2="${H - 18}" stroke="var(--muted)" stroke-dasharray="4 3"/><text x="${sx + 3}" y="${top + ph - 4}" font-size="10" fill="var(--muted)">시간외</text>`; }
+  if (o.ref != null) g += `<line x1="0" x2="${W - 46}" y1="${Y(o.ref)}" y2="${Y(o.ref)}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="6" y="${Y(o.ref) - 3}" font-size="10" fill="var(--muted)">전일 종가 ${fmt(o.ref)}</text>`;
   const last = rows[n - 1][4];
   g += `<line x1="0" x2="${W - 46}" y1="${Y(last)}" y2="${Y(last)}" stroke="var(--text)" stroke-width=".6" stroke-dasharray="1 2"/><rect x="${W - 46}" y="${Y(last) - 8}" width="46" height="16" rx="3" fill="var(--text)"/><text x="${W - 23}" y="${Y(last) + 4}" font-size="10" fill="var(--panel)" text-anchor="middle">${fmt(last)}</text>`;
   g += `<text x="${W - 44}" y="${top + 8}" font-size="10" fill="var(--muted)">${fmt(hi)}</text>${Math.abs(Y(lo) - Y(last)) > 14 ? `<text x="${W - 44}" y="${top + ph}" font-size="10" fill="var(--muted)">${fmt(lo)}</text>` : ''}`;
@@ -176,7 +177,7 @@ function bdBookHtml(st, q) {
   const row = (x, side) => `<tr class="${side}${q && x.p === q.price ? ' now' : ''}"><td class="bd-qa">${side === 'a' ? `<i style="width:${x.q / mx * 100}%"></i><span>${fmt(x.q)}</span>` : ''}</td><td class="bd-pr ${prev ? cls(x.p - prev) : ''}"><b>${fmt(x.p)}</b><small>${rp(x.p)}</small></td><td class="bd-qb">${side === 'b' ? `<i style="width:${x.q / mx * 100}%"></i><span>${fmt(x.q)}</span>` : ''}</td></tr>`;
   return `<table class="bd-book"><thead><tr><th>매도 잔량</th><th>호가</th><th>매수 잔량</th></tr></thead><tbody>${A.map(x => row(x, 'a')).join('')}${B.map(x => row(x, 'b')).join('')}</tbody>
     <tfoot><tr><td class="mono">${fmt(tA)}</td><td class="bd-ratio">${tA + tB ? `매수 ${fmt(tB / (tA + tB) * 100, 0)}%` : ''}</td><td class="mono">${fmt(tB)}</td></tr></tfoot></table>
-    <p class="tk-basis">${tB > tA * 1.5 ? '매수 잔량이 매도의 1.5배↑ — 아래 받쳐주는 힘이 커요(다만 허수 주문일 수 있어요).' : tA > tB * 1.5 ? '매도 잔량이 매수의 1.5배↑ — 위에 쌓인 매물을 소화해야 올라요.' : '매도·매수 잔량이 비슷해요.'}</p>`;
+    ${bdBookTalkHtml(st, q)}`;
 }
 function bdTicksHtml(st) {
   const L = (st && st.ticks) || [], H = (st && st.hist) || [];
@@ -200,14 +201,15 @@ function bdChartHtml(st, q) {
     const prev = q && q.chg != null ? q.price - q.chg : null;
     const labs = R.map((r, i) => [i, r[0]]).filter(([i, t]) => /:00$/.test(t) || i === 0).slice(0, 9);
     const day = st.minDay ? `${+st.minDay.slice(4, 6)}/${+st.minDay.slice(6, 8)}` : '';
-    return bdCandles(R, { lines: [{ v: vwap, c: 'var(--warn)' }], ref: prev, labels: labs, aria: '분봉', leg: [['VWAP(평균 체결가)', 'var(--warn)']], fmtT: t => `${day} ${t}` }) + (day && st.minDay !== bdToday().replace(/-/g, '') ? `<p class="hint">${day} 분봉이에요(오늘 장이 열리면 오늘 분봉으로 바뀌어요).</p>` : '');
+    const split = R.findIndex(r => r[0] > '15:30');
+    return bdCandles(R, { lines: [{ v: vwap, c: 'var(--warn)' }], ref: prev, labels: labs, aria: '분봉', split: split > 0 ? split : null, leg: [['VWAP(오늘 평균 체결가)', 'var(--warn)']], fmtT: t => `${day} ${t}` }) + bdChartTalkHtml(R, vwap, prev, q, st) + (day && st.minDay !== bdToday().replace(/-/g, '') ? `<p class="hint">${day} 분봉이에요(오늘 장이 열리면 오늘 분봉으로 바뀌어요).</p>` : '');
   }
   const D = (st.day || []).slice(-(BD.tf === 'day3' ? 66 : 130));
   if (D.length < 5) return '<p class="hint">일봉을 불러오는 중이에요.</p>';
   const all = st.day, cl = all.map(r => r[4]), off = all.length - D.length;
   const ma = n => bdSma(cl, n).slice(off);
   const labs = D.map((r, i) => [i, r[0]]).filter(([i, d], j, a) => j === 0 || d.slice(4, 6) !== a[j - 1][1].slice(4, 6)).map(([i, d]) => [i, `${+d.slice(4, 6)}월`]);
-  return bdCandles(D, { lines: [{ v: ma(5), c: '#e67e22' }, { v: ma(20), c: '#8e44ad' }, { v: ma(60), c: 'var(--muted)', dash: '3 2' }], labels: labs, aria: '일봉', leg: [['5일선', '#e67e22'], ['20일선', '#8e44ad'], ['60일선', 'var(--muted)']], fmtT: d => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` });
+  return bdCandles(D, { lines: [{ v: ma(5), c: '#e67e22' }, { v: ma(20), c: '#8e44ad' }, { v: ma(60), c: 'var(--muted)', dash: '3 2' }], labels: labs, aria: '일봉', leg: [['5일선', '#e67e22'], ['20일선', '#8e44ad'], ['60일선', 'var(--muted)']], fmtT: d => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` }) + bdDayTalkHtml(all, q);
 }
 function bdHeadHtml(c, q) {
   const s = bdStock(c), nm = (s && s.name) || (q && q.name) || c, H = bdHold(c);
@@ -309,3 +311,108 @@ function initBoard() {
   if (typeof S !== 'undefined' && S.data && S.data.stocks && S.data.stocks[0] && S.data.stocks[0]._sc) initBoard();
   else setTimeout(waitBootBd, 800);
 })();
+
+/* ═════════════ 쉬운 실시간 해설 ═════════════ */
+const bdTk = p => typeof obTick === 'function' ? obTick(p) : p < 2000 ? 1 : p < 5000 ? 5 : p < 20000 ? 10 : p < 50000 ? 50 : p < 200000 ? 100 : p < 500000 ? 500 : 1000;
+const bdW = v => fmt(v) + '원';
+/* 호가 벽: 한쪽 평균 잔량의 3배 이상이고 그쪽 최대인 자리 */
+function bdWall(L) {
+  if (!L || L.length < 4) return null;
+  const avg = L.reduce((a, x) => a + x.q, 0) / L.length, m = L.reduce((a, x) => x.q > a.q ? x : a, L[0]);
+  return m.q >= avg * 3 && m.q > 0 ? { p: m.p, q: m.q, x: m.q / avg } : null;
+}
+/* 호가가 바뀔 때마다 「변화」를 한 줄씩 기록 */
+function bdBookEvents(c, st, pb, b, q) {
+  st.bev = st.bev || []; st.bh = st.bh || [];
+  const tA = b.totA ?? b.asks.reduce((a, x) => a + x.q, 0), tB = b.totB ?? b.bids.reduce((a, x) => a + x.q, 0), r = tA + tB ? tB / (tA + tB) * 100 : 50;
+  st.bh.push({ t: Date.now(), r, p: q ? q.price : null }); while (st.bh.length > 60) st.bh.shift();
+  if (!pb) return;
+  const T = bdNowT().slice(0, 8), push = (tone, txt) => { if (st.bev[0] && st.bev[0].txt === txt) return; st.bev.unshift({ t: T, tone, txt }); if (st.bev.length > 30) st.bev.length = 30; };
+  const wa0 = bdWall(pb.asks.slice(0, 10)), wa1 = bdWall(b.asks.slice(0, 10)), wb0 = bdWall(pb.bids.slice(0, 10)), wb1 = bdWall(b.bids.slice(0, 10));
+  const P = q && q.price;
+  if (wa0 && P && P >= wa0.p) push('up', `매도벽 ${bdW(wa0.p)}(${fmt(wa0.q)}주)을 사들여 뚫었어요 — 위로 길이 열렸어요`);
+  else if (wa0 && (!wa1 || wa1.p !== wa0.p)) { const now = b.asks.find(x => x.p === wa0.p); if (now && now.q < wa0.q * 0.4) push('up', `${bdW(wa0.p)} 매도벽이 ${fmt(wa0.q)}→${fmt(now.q)}주로 줄었어요(체결 또는 취소) — 위 부담이 가벼워짐`); }
+  if (wb0 && P && P < wb0.p) push('down', `매수벽 ${bdW(wb0.p)}(${fmt(wb0.q)}주)이 무너졌어요 — 받쳐주던 가격이 깨져 하락이 빨라질 수 있어요`);
+  else if (wb0 && (!wb1 || wb1.p !== wb0.p)) { const now = b.bids.find(x => x.p === wb0.p); if (now && now.q < wb0.q * 0.4) push('down', `${bdW(wb0.p)} 매수벽이 ${fmt(wb0.q)}→${fmt(now.q)}주로 줄었어요 — 받침이 약해짐`); }
+  if (wa1 && (!wa0 || wa0.p !== wa1.p)) push('down', `${bdW(wa1.p)}에 매도 ${fmt(wa1.q)}주가 새로 쌓였어요(평균의 ${fmt(wa1.x, 1)}배) — 이 가격에서 막힐 수 있어요`);
+  if (wb1 && (!wb0 || wb0.p !== wb1.p)) push('up', `${bdW(wb1.p)}에 매수 ${fmt(wb1.q)}주가 새로 쌓였어요(평균의 ${fmt(wb1.x, 1)}배) — 이 가격을 받쳐줄 수 있어요`);
+  const old = st.bh.find(x => Date.now() - x.t <= 65e3 && Date.now() - x.t >= 25e3);
+  if (old && Math.abs(r - old.r) >= 12 && !(st.lastRatioEv && Date.now() - st.lastRatioEv < 60e3)) { st.lastRatioEv = Date.now(); push(r > old.r ? 'up' : 'down', `1분 사이 매수 잔량 비율 ${fmt(old.r, 0)}% → ${fmt(r, 0)}% — ${r > old.r ? '사려는 쪽이 늘었어요' : '팔려는 쪽이 늘었어요'}`); }
+  if (pb.asks[0] && b.asks[0] && P) {
+    if (b.bids[0] && b.bids[0].p > pb.bids[0].p && P > (st.evP || 0)) push('up', `호가가 한 칸 위로 올라섰어요(현재 ${bdW(P)})`);
+    else if (b.asks[0].p < pb.asks[0].p && P < (st.evP || Infinity)) push('down', `호가가 한 칸 아래로 밀렸어요(현재 ${bdW(P)})`);
+  }
+  st.evP = P;
+}
+/* 호가 해설 */
+function bdBookTalkHtml(st, q) {
+  const b = st && st.book; if (!b || !q) return '';
+  const A = b.asks.slice(0, 10), B = b.bids.slice(0, 10);
+  const tA = b.totA ?? A.reduce((a, x) => a + x.q, 0), tB = b.totB ?? B.reduce((a, x) => a + x.q, 0), r = tA + tB ? tB / (tA + tB) * 100 : 50;
+  const L = [], P = q.price, prev = q.chg != null ? P - q.chg : null;
+  const wa = bdWall(A), wb = bdWall(B);
+  // 1) 전체 잔량
+  L.push(r >= 60 ? `사려는 주문(매수 잔량)이 ${fmt(r, 0)}%로 많아요 — 아래에서 받쳐주는 힘이 있어요. 다만 걸어두기만 하고 취소하는 「허수」일 수 있어 체결이 따라오는지 함께 보세요.` : r <= 40 ? `팔려는 주문(매도 잔량)이 ${fmt(100 - r, 0)}%로 많아요 — 위에 쌓인 매물을 소화해야 올라갈 수 있어요.` : `사려는 주문과 팔려는 주문이 비슷해요(매수 ${fmt(r, 0)}%) — 어느 쪽도 힘이 세지 않은 균형 상태예요.`);
+  // 2) 벽
+  if (wa) L.push(`${bdW(wa.p)}에 매도 ${fmt(wa.q)}주가 몰려 있어요(평균의 ${fmt(wa.x, 1)}배) — 「매도벽」이에요. 이 가격을 사들여 넘으면 강한 신호, 못 넘으면 이 근처가 오늘의 천장이 될 수 있어요.`);
+  if (wb) L.push(`${bdW(wb.p)}에 매수 ${fmt(wb.q)}주가 몰려 있어요(평균의 ${fmt(wb.x, 1)}배) — 「매수벽(받침)」이에요. 이 가격이 지켜지면 버팀목, 깨지면 하락이 빨라질 수 있어요.`);
+  // 3) 1호가 두께
+  const a1 = A[0], b1 = B[0], avgA = A.length ? tA / A.length : 0, avgB = B.length ? tB / B.length : 0;
+  if (a1 && avgA && a1.q <= avgA * 0.3) L.push(`바로 위 매도 1호가(${bdW(a1.p)})에 ${fmt(a1.q)}주뿐이에요 — 조금만 사도 한 칸 올라갈 수 있는 얇은 상태예요.`);
+  if (b1 && avgB && b1.q <= avgB * 0.3) L.push(`바로 아래 매수 1호가(${bdW(b1.p)})가 ${fmt(b1.q)}주로 얇아요 — 매도가 조금만 나와도 한 칸 밀릴 수 있어요.`);
+  if (a1 && b1 && a1.p - b1.p > bdTk(P) * 1.5) L.push(`매도·매수 1호가 사이가 ${fmt(Math.round((a1.p - b1.p) / bdTk(P)))}칸 벌어졌어요 — 거래가 한산해 시장가 주문은 불리하게 체결될 수 있어요.`);
+  // 4) 위치
+  if (prev && q.open) L.push(`지금 ${bdW(P)}은 전일 종가(${bdW(prev)})보다 ${bdP((P / prev - 1) * 100)}, 오늘 시가(${bdW(q.open)})보다 ${bdP((P / q.open - 1) * 100)}예요.${P < q.open ? ' 아침에 산 사람들이 손실이라 반등 때 팔고 나오려는 물량이 있을 수 있어요.' : ' 아침에 산 사람들이 이익이라 버티는 힘이 있어요.'}`);
+  // 5) 체결 흐름(최근 1분)
+  const rec = (st.ticks || []).filter(t => t.live).slice(0, 20), bv = rec.filter(t => t.side === 'buy').reduce((a, t) => a + t.dv, 0), sv = rec.filter(t => t.side === 'sell').reduce((a, t) => a + t.dv, 0);
+  if (bv + sv > 0) L.push(bv > sv * 1.5 ? `최근 체결은 매수가 우세해요(사는 체결 ${bdVol(bv)} vs 파는 체결 ${bdVol(sv)}) — 매도 호가를 직접 사들이는 적극적인 매수가 들어와요.` : sv > bv * 1.5 ? `최근 체결은 매도가 우세해요(파는 체결 ${bdVol(sv)} vs 사는 체결 ${bdVol(bv)}) — 매수 호가에 던지는 매도가 많아요.` : `최근 체결은 사고파는 양이 비슷해요(매수 ${bdVol(bv)} · 매도 ${bdVol(sv)}).`);
+  // 결론
+  let sc = (r - 50) / 2 + (bv + sv ? (bv - sv) / (bv + sv) * 25 : 0) + (wb ? 6 : 0) - (wa ? 6 : 0);
+  const head = sc >= 12 ? ['up', '매수 우위 — 사려는 힘이 더 세요'] : sc <= -12 ? ['down', '매도 우위 — 팔려는 힘이 더 세요'] : ['', '균형 — 방향을 탐색하는 중이에요'];
+  const tip = sc >= 12 ? (wa ? `${bdW(wa.p)} 매도벽을 넘는지가 다음 관문이에요.` : '위쪽 매물이 가벼워 오름세가 이어지기 쉬워요. 추격보다는 눌릴 때 분할로.') : sc <= -12 ? (wb ? `${bdW(wb.p)} 받침이 버티는지 지켜보세요. 깨지면 기다렸다가 사는 편이 안전해요.` : '받쳐줄 큰 매수 주문이 안 보여요. 서둘러 사지 마세요.') : '큰 체결이나 벽의 변화가 나올 때까지 기다려도 늦지 않아요.';
+  const ev = (st.bev || []).slice(0, 6);
+  return `<div class="bd-talk"><p class="bd-th ${head[0]}"><b>지금 호가</b> ${esc(head[1])}</p><ul>${L.slice(0, 6).map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="bd-tip"><span>지금은</span> ${esc(tip)}</p>
+    ${ev.length ? `<div class="bd-ev"><b>방금 바뀐 것</b>${ev.map(e => `<p class="${e.tone}"><time>${esc(e.t)}</time>${esc(e.txt)}</p>`).join('')}</div>` : `<p class="hint">${bdOpen() ? '호가가 바뀌면 무엇이 달라졌는지 여기에 바로 적어드려요.' : '장이 열리면 호가가 바뀔 때마다 무엇이 달라졌는지 여기에 적어드려요.'}</p>`}</div>`;
+}
+/* 분봉 해설 */
+function bdChartTalkHtml(R, vwap, prev, q, st) {
+  if (!R || R.length < 10) return '';
+  const reg = R.filter(r => r[0] <= '15:30'), D = reg.length >= 10 ? reg : R;
+  const last = R[R.length - 1], P = q && q.price ? q.price : last[4], vw = vwap[vwap.length - 1];
+  let hi = D[0], lo = D[0]; D.forEach(r => { if (r[2] > hi[2]) hi = r; if (r[3] < lo[3]) lo = r; });
+  const open = D[0][1], L = [];
+  // 하루 모양
+  const hiFirst = hi[0] < lo[0];
+  L.push(`${D[0][0]} ${bdW(open)}에 시작해 ${hiFirst ? `${hi[0]} 고가 ${bdW(hi[2])}까지 오른 뒤 밀려 ${lo[0]} 저가 ${bdW(lo[3])}` : `${lo[0]} 저가 ${bdW(lo[3])}까지 빠진 뒤 올라 ${hi[0]} 고가 ${bdW(hi[2])}`}을 찍었고, 지금은 ${bdW(P)}이에요(저가보다 ${bdP((P / lo[3] - 1) * 100)}, 고가보다 ${bdP((P / hi[2] - 1) * 100)}).`);
+  // VWAP
+  if (vw) L.push(P < vw ? `주황선(VWAP ${bdW(Math.round(vw))})은 오늘 거래된 평균 가격이에요. 지금 가격이 그 아래라 오늘 산 사람 대부분이 손실이에요 — 반등해도 이 가격 근처에서 「본전 매도」가 나오기 쉬워요.` : `지금 가격이 오늘 평균 가격(VWAP ${bdW(Math.round(vw))}) 위에 있어요 — 오늘 산 사람 대부분이 이익이라 눌려도 이 선 근처에서 받쳐주기 쉬워요.`);
+  // 전일 종가
+  if (prev) L.push(P >= prev ? `점선(전일 종가 ${bdW(prev)}) 위에서 거래 중 — 어제보다 강한 하루예요.` : `점선(전일 종가 ${bdW(prev)}) 아래에서 거래 중 — 이 선을 다시 넘으면 분위기가 바뀌는 신호예요.`);
+  // 최근 30분 흐름과 거래량
+  const vAvg = D.reduce((a, r) => a + (r[5] || 0), 0) / D.length, k = Math.min(30, D.length - 1), r30 = D.slice(-k), ch30 = (D[D.length - 1][4] / D[D.length - 1 - k][4] - 1) * 100;
+  const v30 = r30.reduce((a, r) => a + (r[5] || 0), 0) / r30.length;
+  L.push(`최근 ${k}분은 ${ch30 > 0.3 ? `${bdP(ch30)} 오르는 중` : ch30 < -0.3 ? `${bdP(ch30)} 내리는 중` : '옆으로 횡보 중'}이고, 거래량은 하루 평균의 ${fmt(vAvg ? v30 / vAvg : 0, 1)}배예요 — ${v30 > vAvg * 1.3 ? (ch30 >= 0 ? '거래가 붙은 상승이라 힘이 있어요.' : '거래가 붙은 하락이라 매도세가 강해요.') : v30 < vAvg * 0.6 ? (ch30 >= 0 ? '거래 없이 오르는 반등이라 힘은 약한 편이에요.' : '거래 없이 밀리는 중이라 투매보다는 관망세예요.') : '거래량은 보통 수준이에요.'}`);
+  // 큰 거래
+  const bigV = D.map((r, i) => ({ r, i })).filter(x => vAvg && x.r[5] >= vAvg * 3).sort((a, b) => b.r[5] - a.r[5])[0];
+  if (bigV) { const r = bigV.r, up = r[4] >= r[1]; L.push(`${r[0]}에 평소의 ${fmt(r[5] / vAvg, 1)}배 큰 거래가 ${up ? '오르면서' : '내리면서'} 나왔어요 — ${up ? '그때 들어온 매수세가 지지선 역할을 할 수 있어요' : bigV.r === lo || Math.abs(r[3] - lo[3]) / lo[3] < 0.003 ? '던지는 물량(투매)이 쏟아진 뒤 저점이 만들어진 모습이에요' : '대량 매도가 나온 자리라 다시 그 가격에 오면 매물이 나올 수 있어요'}.`); }
+  // 시간외
+  const after = R.filter(r => r[0] > '15:30');
+  if (after.length) L.push(`15:30 이후(점선 오른쪽)는 정규장이 끝난 뒤 대체거래소(NXT) 시간외 거래예요. 거래량이 적어 가격 움직임의 신뢰도는 낮아요.`);
+  // 결론
+  let sc = 0; if (vw) sc += P >= vw ? 1 : -1; if (prev) sc += P >= prev ? 1 : -1; sc += ch30 > 0.3 ? 1 : ch30 < -0.3 ? -1 : 0; if (!hiFirst) sc += 1; else sc -= 1;
+  const head = sc >= 2 ? ['up', '오늘 흐름 강함 — 사는 쪽이 주도'] : sc <= -2 ? ['down', '오늘 흐름 약함 — 파는 쪽이 주도'] : ['', '오늘 흐름 엇갈림 — 방향 탐색 중'];
+  const tip = sc <= -2 ? `${vw ? `VWAP(${bdW(Math.round(vw))})을 되찾기 전까지는 반등이 약해요. ` : ''}저가 ${bdW(lo[3])}이 깨지면 추가 하락을 조심하세요.` : sc >= 2 ? `${vw ? `VWAP(${bdW(Math.round(vw))}) 위를 지키는 동안은 흐름이 좋아요. ` : ''}고가 ${bdW(hi[2])}을 거래량과 함께 넘으면 한 번 더 힘을 받아요.` : `${bdW(lo[3])}(오늘 저가)~${bdW(hi[2])}(오늘 고가) 사이에서 어느 쪽으로 벗어나는지 보세요${vw ? ` — 평균 가격 ${bdW(Math.round(vw))}이 기준선이에요` : ''}.`;
+  return `<div class="bd-talk"><p class="bd-th ${head[0]}"><b>차트 해설</b> ${esc(head[1])}</p><ul>${L.map(t => `<li>${esc(t)}</li>`).join('')}</ul><p class="bd-tip"><span>지금은</span> ${esc(tip)}</p></div>`;
+}
+/* 일봉 해설 */
+function bdDayTalkHtml(all, q) {
+  if (!all || all.length < 60) return '';
+  const c = all.map(r => r[4]); if (q && q.price) c[c.length - 1] = q.price;
+  const n = c.length, P = c[n - 1], m = k => c.slice(-k).reduce((a, x) => a + x, 0) / k;
+  const m5 = m(5), m20 = m(20), m60 = m(60), hi = Math.max(...c.slice(-60)), lo = Math.min(...c.slice(-60)), r20 = (P / c[n - 21] - 1) * 100;
+  const L = [];
+  L.push(P > m20 && m20 > m60 ? `주가가 20일선(${bdW(Math.round(m20))}) 위, 20일선이 60일선 위 — 오르는 추세(정배열)예요.` : P < m20 && m20 < m60 ? `주가가 20일선(${bdW(Math.round(m20))}) 아래, 20일선이 60일선 아래 — 내리는 추세(역배열)예요.` : P < m20 ? `오르던 흐름 속에서 20일선(${bdW(Math.round(m20))}) 아래로 내려온 조정 구간이에요.` : `내리던 흐름에서 20일선 위로 올라선 반등 구간이에요 — 추세가 바뀌는지 확인이 필요해요.`);
+  L.push(`최근 한 달 ${bdP(r20)} · 3개월 고점 ${bdW(hi)} 대비 ${bdP((P / hi - 1) * 100)} · 3개월 저점 ${bdW(lo)} 대비 ${bdP((P / lo - 1) * 100)}.`);
+  L.push(P > m5 ? `5일선(${bdW(Math.round(m5))}) 위 — 단기 흐름은 살아 있어요.` : `5일선(${bdW(Math.round(m5))}) 아래 — 단기 힘이 빠졌어요. 5일선을 다시 넘는 날이 단기 반등 신호예요.`);
+  return `<div class="bd-talk"><p class="bd-th ${P > m20 ? 'up' : 'down'}"><b>일봉 해설</b> ${P > m20 && m20 > m60 ? '상승 추세' : P < m20 && m20 < m60 ? '하락 추세' : '추세 전환 구간'}</p><ul>${L.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
+}
