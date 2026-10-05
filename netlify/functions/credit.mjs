@@ -35,16 +35,24 @@ export default async (req) => {
   const u = new URL(req.url);
   const code = (u.searchParams.get('code') || '').replace(/\D/g, '').slice(0, 6);
   if (code.length !== 6) return Response.json({ ok: false, err: '6자리 종목코드가 필요해요' }, { status: 400 });
+  const D = { ...UA_PC, Accept: 'application/json, text/plain, */*', Referer: `https://finance.daum.net/quotes/A${code}` };
   const src = {
-    naver_integration: [`https://m.stock.naver.com/api/stock/${code}/integration`, UA_M, true],
-    naver_basic: [`https://m.stock.naver.com/api/stock/${code}/basic`, UA_M, true],
-    naver_trend: [`https://m.stock.naver.com/api/stock/${code}/trend?pageSize=5`, UA_M, true],
-    naver_pc_main: [`https://finance.naver.com/item/main.naver?code=${code}`, { ...UA_PC, Referer: 'https://finance.naver.com/' }, false],
-    naver_pc_sise: [`https://finance.naver.com/item/sise.naver?code=${code}`, { ...UA_PC, Referer: `https://finance.naver.com/item/main.naver?code=${code}` }, false],
-    daum_quote: [`https://finance.daum.net/api/quotes/A${code}?summary=false&changeStatistics=true`, { ...UA_PC, Accept: 'application/json', Referer: `https://finance.daum.net/quotes/A${code}` }, true],
-    daum_credit: [`https://finance.daum.net/api/quote/A${code}/credits?page=1&perPage=10`, { ...UA_PC, Accept: 'application/json', Referer: `https://finance.daum.net/quotes/A${code}` }, true],
-    wise_main: [`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${code}`, { ...UA_PC, Referer: `https://finance.naver.com/item/coinfo.naver?code=${code}` }, false],
-    fnguide: [`https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A${code}`, UA_PC, false],
+    nv_credit: [`https://m.stock.naver.com/api/stock/${code}/credit`, UA_M, true],
+    nv_creditTrend: [`https://m.stock.naver.com/api/stock/${code}/creditTrend`, UA_M, true],
+    nv_loan: [`https://m.stock.naver.com/api/stock/${code}/loan`, UA_M, true],
+    nv_api_integration: [`https://api.stock.naver.com/stock/${code}/integration`, UA_M, true],
+    nv_api_basic: [`https://api.stock.naver.com/stock/${code}/basic`, UA_M, true],
+    nv_m_page: [`https://m.stock.naver.com/domestic/stock/${code}/total`, { ...UA_M, Accept: 'text/html' }, false],
+    daum_days: [`https://finance.daum.net/api/quote/A${code}/days?symbolCode=A${code}&page=1&perPage=5&pagination=true`, D, true],
+    daum_investor: [`https://finance.daum.net/api/investor/days?symbolCode=A${code}&page=1&perPage=5&pagination=true`, D, true],
+    daum_credit2: [`https://finance.daum.net/api/quotes/A${code}/credit?page=1&perPage=5`, D, true],
+    daum_credit3: [`https://finance.daum.net/api/credit/days?symbolCode=A${code}&page=1&perPage=5&pagination=true`, D, true],
+    daum_page: [`https://finance.daum.net/quotes/A${code}`, UA_PC, false],
+    paxnet: [`https://www.paxnet.co.kr/stock/analysis/main?abbrSymbol=${code}`, UA_PC, false],
+    paxnet_credit: [`https://www.paxnet.co.kr/stock/analysis/credit?abbrSymbol=${code}`, UA_PC, false],
+    hankyung: [`https://markets.hankyung.com/stock/${code}/total`, UA_PC, false],
+    mk: [`https://stock.mk.co.kr/price/home/KR7${code}003`, UA_PC, false],
+    alpha: [`https://alphasquare.co.kr/home/stock-summary?code=${code}`, UA_PC, false],
   };
   const out = { code, at: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' '), src: {} };
   await Promise.all(Object.entries(src).map(async ([k, [url, h, isJson]]) => {
