@@ -49,7 +49,7 @@ function analysisHtml(s) {
   <div class="an-head">
     <div><h2>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span></h2>
       <div class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector)} · 회사 크기 ${s.mcap >= 10000 ? fmt(s.mcap / 10000, 1) + '조원' : fmt(s.mcap) + '억원'}</div></div>
-    <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div>${s._tfD && typeof LIVE !== 'undefined' && LIVE.tfTime ? `<div class="hint"><span class="gov-live"></span> 실시간 ${esc(LIVE.tfTime.slice(11))} 기준 점수</div>` : ''}</div>
+    <div class="an-px"><b class="mono">${fmt(s.close)}원</b> <span class="${cls(s.chg)} mono">${pct(s.chg)}</span><div class="hint">1주 ${pct(s.ret5, 1)} · 1달 ${pct(s.ret20, 1)}</div><button class="btn small primary mt-s" id="anTm">⏱ 매매 타이밍 — 매수가·매도가 보기 →</button>${s._tfD && typeof LIVE !== 'undefined' && LIVE.tfTime ? `<div class="hint"><span class="gov-live"></span> 실시간 ${esc(LIVE.tfTime.slice(11))} 기준 점수</div>` : ''}</div>
   </div>
   <div class="an-card an-wide"><h4>회사 알아보기 <small class="muted">— 무슨 사업을 하는지 · 주요 제품 · 증권사 전망 · 종합 전망</small></h4><div id="coMount"></div></div>
   <div class="an-card an-wide"><h4>실시간 종합 <small class="muted">— 재료(뉴스·공공기관) × 돈(거래대금) × 추세(차트)가 이 종목에 어떻게 맞물리는지</small></h4><div id="fuMount" data-code="${esc(s.code)}"></div></div>
@@ -95,6 +95,7 @@ function showAnalysis(code, quiet) {
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);
   if ($('#obAnGo')) $('#obAnGo').onclick = () => obStart(s.code, 'obAnMount');
+  if ($('#anTm')) $('#anTm').onclick = () => { if (typeof openTiming === 'function') openTiming(s.code); };
   if (quiet && typeof OB !== 'undefined' && OB.mount === 'obAnMount' && OB.code === s.code && OB.timer) { const m = $('#obAnMount'); if (m) { m.dataset.code = s.code; obPoll(); } }
   if (typeof coRender === 'function') coRender(s, 'coMount');
   if (typeof fuFillAnalysis === 'function') fuFillAnalysis();

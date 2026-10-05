@@ -135,6 +135,7 @@ function hCard(o) {
       <button class="btn small" data-h="buy" data-id="${h.id}">추가 매수</button><button class="btn small" data-h="sell" data-id="${h.id}">매도 기록</button>
       <button class="btn ghost small" data-h="edit" data-id="${h.id}">손절·목표 수정</button><button class="btn ghost small" data-h="log" data-id="${h.id}">${open ? '거래 내역 닫기' : '거래 내역·수량 수정'}</button>
       <button class="btn ghost small" data-an="${esc(h.code)}">종목 분석 →</button>
+      <button class="btn ghost small" data-tmo="${esc(h.code)}">⏱ 매매 타이밍(매도가) →</button>
       <button class="btn ghost small danger" data-h="del" data-id="${h.id}">🗑 삭제</button>
     </div>
     ${HOLD.form && HOLD.form.id === h.id ? hFormHtml(o) : ''}
@@ -267,6 +268,7 @@ function hFind(id) { const d = hLoad(); return { d, h: d.items.find(x => x.id ==
 function hNum(id) { const v = $(id) && $(id).value; return v === '' || v == null ? null : Number(v); }
 function hBind(root) {
   $$('[data-an]', root).forEach(x => x.onclick = () => showAnalysis(x.dataset.an));
+  $$('[data-tmo]', root).forEach(x => x.onclick = e => { e.stopPropagation(); if (typeof openTiming === 'function') openTiming(x.dataset.tmo); });
   $$('[data-h]', root).forEach(b => b.onclick = e => {
     e.stopPropagation();
     HOLD.userAct = true;

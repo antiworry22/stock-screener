@@ -729,6 +729,7 @@ function initNav() {
   const h = decodeURIComponent((location.hash || '').slice(1));  // 주소 끝 #탭 으로 바로 열기 (예: #hold, #analysis/005930)
   try { history.replaceState({ tab: 'dash' }, '', location.pathname + location.search); } catch (e) {}
   if (h.startsWith('analysis/') && typeof showAnalysis === 'function') setTimeout(() => showAnalysis(h.split('/')[1]), 300);
+  else if (h.startsWith('timing/')) { store.set('tmSel', h.split('/')[1]); switchTab('timing'); }
   else if (h && $('#tab-' + h)) switchTab(h);
   $('#navBack').onclick = goBack; $('#navHome').onclick = goHome;
   const brand = $('.brand h1'); if (brand) { brand.style.cursor = 'pointer'; brand.title = '처음으로'; brand.onclick = goHome; }

@@ -37,6 +37,7 @@
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
+  <button data-tab="timing">매매 타이밍</button>
   <button data-tab="ob">호가 분석</button>
   <button data-tab="mnews">시장 뉴스</button>
   <button data-tab="gov">공공기관</button>
@@ -132,6 +133,22 @@
     <div id="recList" class="rec-grid mt"></div>
   </div>
   <div class="panel note">추천은 공개 데이터를 정해진 규칙으로 계산한 참고 순위이며 매수 권유가 아닙니다. 종목을 누르면 항목별 근거와 차트를 볼 수 있습니다.</div>
+</section>
+
+<!-- ═══ 매매 타이밍 (규칙 기반 매수가·매도가) ═══ -->
+<section id="tab-timing" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>매매 타이밍 — 규칙으로 정하는 매수가·매도가 <small class="muted">(실시간)</small></h2>
+      <div class="row gap wrap"><button class="btn ghost small" id="tmRefresh">지금 새로고침</button></div></div>
+    <div class="hint gov-status" id="tmStatus"></div>
+    <p class="hint"><b>예측이 아니라 「신호 → 대응」 규칙</b>이에요. ① 추세 필터(현재가 &gt; 20일선, 20일선 5일간 우상향)를 통과해야 매수 신호를 봐요. ② 매수 신호 4개(눌림목·매물대 돌파·쉼 후 재상승·과매도 되돌림)와 매도 신호 5개(20일선 이탈·데드크로스·고점 거래량 폭발·긴 위꼬리·과열 다이버전스)를 계산해요. ③ <b>손절가를 먼저 정하고</b> 손익비 1:2로 목표가를, 계좌 2% 손실·종목 30% 한도로 수량을 정해 2번에 나눠 사요. ④ 보유 종목은 「손절 &gt; 매도 신호 &gt; 관망 &gt; 매수」 순서로 판단해요. ⑤ 최근 공시·뉴스·수급·공매도·시장 상황과 앞으로의 일정(실적·FOMC·만기일·휴장)까지 넣어 <b>최종 결론</b>을 내요. 장중에는 현재가를 10초마다 받아 다시 계산해요.</p>
+    <div class="row gap wrap mt clx-search"><input id="tmQ" class="inp" list="stockNames" placeholder="종목 검색 (이름 또는 6자리 코드) — 예) 삼성전자, 005930" autocomplete="off"><button class="btn primary small" id="tmGo">분석</button><button class="btn ghost small" id="tmAddW">☆ 관심 종목에 추가</button></div>
+    <div class="row gap wrap mt-s small tm-acct"><label>계좌 금액(수량 계산 기준) <input id="tmAcct" class="inp" type="number" step="1000000" min="0" style="width:160px"> 원</label>
+      <details id="tmCfgBox"><summary>규칙 숫자 바꾸기</summary><div id="tmCfgF"></div></details></div>
+    <h4 class="mt">내 보유 종목 · 관심 종목 <small class="muted">— 눌러서 자세히 보기</small></h4>
+    <div id="tmList" class="mt-s" style="overflow-x:auto"></div>
+    <div id="tmOne" class="mt"></div>
+  </div>
 </section>
 
 <!-- ═══ 차트 종합판정 (6축 엔진) ═══ -->
@@ -491,6 +508,7 @@
 <script src="assets/sectorrank.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
+<script src="assets/timing.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
