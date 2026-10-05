@@ -135,7 +135,7 @@ function riskCalc(s, entry) {
 function refresh() {
   S.data.stocks.forEach(s => { s._sc = scoreStock(s); s._ban = banReasons(s); });
   const wl = new Set(whitelist()); S.data.stocks.forEach(s => { s._white = wl.has(s); });
-  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns(); if (typeof renderVolume === 'function') renderVolume(); if (typeof renderClxAll === 'function') renderClxAll(); if (typeof renderHold === 'function') renderHold();
+  renderHeader(); renderDash(); renderAll(); renderSector(); renderBT(); renderGuide(); renderRecs(); renderNews(); if (typeof renderPatterns === 'function') renderPatterns(); if (typeof renderVolume === 'function') renderVolume(); if (typeof renderClxAll === 'function') renderClxAll(); if (typeof renderHold === 'function') renderHold(); if (typeof ldDash === 'function') ldDash();
   if (S.lastResult.length || S.conds.length) runSearch(true);
 }
 

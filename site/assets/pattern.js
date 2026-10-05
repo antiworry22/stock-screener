@@ -138,6 +138,7 @@ function renderPatterns() {
     </div>`;
   }).join('') || '<div class="empty">지금 조건에 맞는 종목이 없습니다. "거의 다 온 종목도 보기"를 켜거나 실적 조건을 꺼 보세요.</div>';
   bindItems(box);
+  if (typeof ldPatterns === 'function') ldPatterns(key, rows);
 }
 
 function initPattern() {
