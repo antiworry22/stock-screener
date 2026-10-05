@@ -241,6 +241,16 @@ def main():
         DIAG["사이트 /api/sectors"] = f"HTTP {rr.status_code}"
     except Exception as e:
         DIAG["사이트 /api/sectors"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
+    try:  # 실시간 현황판 경로 점검 기록 (여러 종목 시세 · 분봉/일봉/체결)
+        import requests
+        a = requests.get("https://kmy-stock.netlify.app/api/board", params={"q": "005930,000660,035420", "diag": "1"}, timeout=20).json()
+        b = requests.get("https://kmy-stock.netlify.app/api/board", params={"c": "005930", "diag": "1"}, timeout=25).json()
+        j = {"quotes": a, "chart": {"ok": b.get("ok"), "diag": b.get("diag"), "min": (b.get("min") or [])[-5:], "n_min": len(b.get("min") or []), "minDay": b.get("minDay"),
+                                     "day": (b.get("day") or [])[-3:], "n_day": len(b.get("day") or []), "ticks": (b.get("ticks") or [])[:5]}}
+        json.dump(j, open(os.path.join(OUT, "board_check.json"), "w", encoding="utf-8"), ensure_ascii=False)
+        DIAG["사이트 /api/board"] = f"시세 {len(a.get('q') or {})}종목 · 분봉 {j['chart']['n_min']} · 일봉 {j['chart']['n_day']}"
+    except Exception as e:
+        DIAG["사이트 /api/board"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
     res = {"meta": {"time": NOW.strftime("%Y-%m-%d %H:%M"), "days": days, "partial": partial, "n": len(out), "new_days": got,
                     "elapsed_s": round(time.time() - t0)}, "mkt": mk, "mlive": {"at": NOW.strftime("%Y-%m-%d %H:%M"), **mlive}, "s": out}
     json.dump(res, open(os.path.join(OUT, "investors.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))

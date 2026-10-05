@@ -81,7 +81,7 @@ function mdBreadth(m, q) {
     n++; if (chg > 0) up++; else if (chg < 0) dn++;
     if (s.ma20) { n20++; if (px > s.ma20) a20++; }
     if (s.pos52 != null) { if (s.pos52 >= 0.97) nh++; else if (s.pos52 <= 0.03) nl++; }
-    if (s.mcap && s.mcap >= 5e12) { big++; if (chg > 0) bigUp++; }
+    if (s.mcap && s.mcap >= 50000) { big++; if (chg > 0) bigUp++; }
   });
   const r = { n, up, dn, upPct: n ? up / n * 100 : null, a20Pct: n20 ? a20 / n20 * 100 : null, nh, nl, big, bigUp, src: '분석 대상 ' + n + '종목' };
   if (q && q.br && q.br.up != null) { const b = q.br, tot = b.up + b.down + (b.flat || 0); r.upPct = b.up / (b.up + b.down) * 100; r.up = b.up; r.dn = b.down; r.n = tot; r.src = `${MD_NM[m]} 전체 ${tot}종목(실시간)`; r.upl = b.upl; r.dnl = b.dnl; }

@@ -34,6 +34,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="board">실시간 현황판</button>
   <button data-tab="mood">지수 온도</button>
   <button data-tab="secflow">섹터 흐름</button>
   <button data-tab="hold">내 보유 종목</button>
@@ -90,6 +91,15 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 실시간 현황판 (시세표 · 호가 · 체결 · 분봉/일봉 · 보유 손익 · 알림) ═══ -->
+<section id="tab-board" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>실시간 현황판</h2><span class="hint">관심·보유 종목 시세(5초) · 호가(3초) · 체결 · 분봉/일봉 · 내 보유 손익 · 실시간 알림을 한 화면에</span></div>
+    <div id="bdRoot"></div>
+    <p class="hint mt">증권사 프로그램처럼 체결이 날 때마다 바로 오는 방식이 아니라 몇 초마다 다시 받아오는 방식이에요. 실제 주문·계좌 잔고는 연결돼 있지 않고, 보유 손익은 「내 보유 종목」에 기록한 평단·수량으로 계산해요.</p>
   </div>
 </section>
 
@@ -573,6 +583,7 @@
 <script src="assets/sectorrank.js"></script>
 <script src="assets/mood.js"></script>
 <script src="assets/secflow.js"></script>
+<script src="assets/board.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
