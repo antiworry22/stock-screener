@@ -115,9 +115,9 @@ function ivVerdict(s, a) {
 function ivVerdictHtml(s, a) {
   const V = ivVerdict(s, a); if (!V) return '';
   const ev = ivStockEvents(s.code).slice(-8).reverse();
-  return `<div class="ivv g${V.g[0]}"><div class="ivv-h"><b class="ivv-g">${V.g[0]}</b><div><small>수급 종합평가 ${V.sc}점 · ${V.g[1]}</small><p>${esc(V.head)}</p></div></div>
+  return `<div class="ivv ivg-${V.g[0]}"><div class="ivv-h"><b class="ivv-g">${V.g[0]}</b><div><small>수급 종합평가 ${V.sc}점 · ${V.g[1]}</small><p>${esc(V.head)}</p></div></div>
     <div class="ivv-cols">${V.P.length ? `<ul class="ivv-p">${V.P.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}${V.M.length ? `<ul class="ivv-m">${V.M.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>
-    <p class="ivv-c"><b>판단이 바뀌는 조건</b> ${V.cond.map(esc).join(' · ')}</p>
+    <div class="ivv-c"><b>판단이 바뀌는 조건</b><ul>${V.cond.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>
     ${ev.length ? `<div class="ivv-ev"><b>오늘 장중 해설</b>${ev.map(e => `<p class="${e.tone}">${esc(e.txt)}</p>`).join('')}</div>` : (a && a.Z.partial ? '<p class="hint">오늘 장중 잠정 수급이 두 번 이상 들어오면 그 사이 변화를 해설해요(이 화면을 열어 둔 기기에 기록).</p>' : '')}
   </div>`;
 }

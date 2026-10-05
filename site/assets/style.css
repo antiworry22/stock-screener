@@ -1058,14 +1058,14 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ivl-feed li.up span{color:var(--up)}.ivl-feed li.down span{color:var(--down)}.ivl-feed li.lv2 span{font-weight:700}
 .ivl-mvs{display:flex;flex-wrap:wrap;gap:6px}
 .ivv{border:2px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
-.ivv.gA,.ivv.gB{border-color:var(--up)}.ivv.gD,.ivv.gE{border-color:var(--down)}
+.ivv{background:var(--panel);color:var(--text)}.ivv.ivg-A,.ivv.ivg-B{border-color:var(--up)}.ivv.ivg-D,.ivv.ivg-E{border-color:var(--down)}
 .ivv-h{display:flex;gap:12px;align-items:center}
 .ivv-g{width:46px;height:46px;border-radius:10px;display:grid;place-items:center;font-size:24px;font-weight:800;background:var(--panel2);flex:none}
-.gA .ivv-g{background:var(--up);color:#fff}.gB .ivv-g{background:color-mix(in srgb,var(--up) 18%,var(--panel));color:var(--up)}.gD .ivv-g{background:color-mix(in srgb,var(--down) 18%,var(--panel));color:var(--down)}.gE .ivv-g{background:var(--down);color:#fff}
+.ivg-A .ivv-g{background:var(--up);color:#fff}.ivg-B .ivv-g{background:color-mix(in srgb,var(--up) 18%,var(--panel));color:var(--up)}.ivg-D .ivv-g{background:color-mix(in srgb,var(--down) 18%,var(--panel));color:var(--down)}.ivg-E .ivv-g{background:var(--down);color:#fff}
 .ivv-h small{font-size:12px;color:var(--muted)}.ivv-h p{margin:2px 0 0;font-size:15px;font-weight:700}
 .ivv-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
 .ivv-cols ul{margin:0;padding-left:18px;font-size:13px;line-height:1.65}.ivv-p li::marker{content:"+ ";color:var(--up)}.ivv-m li::marker{content:"− ";color:var(--down)}
-.ivv-c{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.6}.ivv-c b{color:var(--text);margin-right:6px}
+.ivv-c{font-size:13.5px;color:var(--text);margin:12px 0 0;line-height:1.6;padding:9px 12px;border-radius:8px;background:var(--warn-soft);border-left:4px solid var(--warn)}.ivv-c b{display:block;color:var(--warn);font-size:13px;margin-bottom:2px}.ivv-c ul{margin:0;padding-left:18px}.ivv-c li{margin:2px 0;word-break:keep-all}
 .ivv-ev{margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:8px}.ivv-ev b{font-size:12.5px}.ivv-ev p{margin:3px 0 0;font-size:13px}.ivv-ev p.up{color:var(--up)}.ivv-ev p.down{color:var(--down)}
 @media(max-width:760px){.ivl-grid,.ivv-cols{grid-template-columns:1fr}}
 
