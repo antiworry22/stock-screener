@@ -830,3 +830,63 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .bk-st{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;margin:0;padding:8px 12px;font-size:12px}.bk-st dt{color:var(--muted)}.bk-st dd{margin:0;text-align:right;font-family:var(--mono)}
 .bk-at{margin:0;padding:0 12px 8px;font-size:11px;color:var(--muted)}
 .bk.ask+.bk.bid{border-top:2px solid var(--text)}
+
+/* 보유 종목 일일 리포트 */
+.rp{max-width:980px;margin:0 auto}
+.rp-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.rp-top h3{margin:0;font-size:22px;letter-spacing:-.5px}.rp-top p{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+.rp-btns{display:flex;gap:6px;flex-wrap:wrap}
+.rp-hero{margin-top:16px;padding:20px 22px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
+.rp-hero.t-up{background:color-mix(in srgb,var(--up) 7%,var(--panel))}.rp-hero.t-down{background:color-mix(in srgb,var(--down) 7%,var(--panel))}
+.rp-l{margin:0;font-size:13px;color:var(--muted)}
+.rp-big{margin:2px 0 0;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:40px;font-weight:700;letter-spacing:-1.5px;line-height:1.15}
+.rp-hero.t-up .rp-big{color:var(--up)}.rp-hero.t-down .rp-big{color:var(--down)}
+.rp-sub{margin:4px 0 0;font-size:14px}
+.rp-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+.rp-kpi div{min-width:0}.rp-kpi dt{font-size:12px;color:var(--muted)}.rp-kpi dd{margin:2px 0 0;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:600}.rp-kpi small{display:block;font-size:11.5px;font-weight:400;color:var(--muted)}
+.rp-sec{margin-top:26px}
+.rp-sec h4{font-size:15px;margin:0 0 8px;padding-bottom:6px;border-bottom:2px solid var(--text);display:flex;gap:8px;align-items:baseline}.rp-sec h4 small{font-size:12px;color:var(--muted);font-weight:400}
+.rp-none{font-size:13px;color:var(--muted);margin:6px 0}
+.rp-trades{list-style:none;margin:0;padding:0}
+.rp-trades li{padding:10px 0 10px 14px;border-bottom:1px solid var(--line);position:relative}
+.rp-trades li::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:2px;background:var(--line)}
+.rp-trades li.g-good::before{background:var(--ok)}.rp-trades li.g-bad::before{background:var(--bad)}.rp-trades li.g-mid::before{background:var(--warn)}
+.rp-tr-h{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}
+.rp-side{font-size:11.5px;font-weight:800;padding:0 7px;border-radius:4px;color:#fff}.rp-side.buy{background:var(--up)}.rp-side.sell{background:var(--down)}
+.rp-grade{font-size:11.5px;font-weight:700;padding:0 7px;border-radius:4px}.rp-grade.good{background:var(--ok-soft);color:var(--ok)}.rp-grade.bad{background:var(--bad-soft);color:var(--bad)}.rp-grade.mid{background:var(--warn-soft);color:var(--warn)}
+.rp-now{font-size:12.5px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+.rp-tr-b{margin:5px 0 0;font-size:14px}
+.rp-tip{margin:4px 0 0;font-size:13px;color:var(--muted);line-height:1.6}
+.rp-rows{display:flex;flex-direction:column}
+.rp-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.2fr) 110px 90px 92px;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.rp-nm b{font-size:14px;display:block}.rp-nm small{font-size:11.5px;color:var(--muted)}
+.rp-bar{position:relative;height:10px;background:var(--panel2);border-radius:5px}.rp-bar::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--muted)}
+.rp-bar i{position:absolute;top:0;bottom:0;border-radius:5px}.rp-bar i.p{background:var(--up)}.rp-bar i.m{background:var(--down)}
+.rp-day,.rp-tot{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}.rp-day b,.rp-tot b{display:block;font-size:14px}.rp-day small,.rp-tot small{font-size:11.5px;color:var(--muted)}
+.rp-act{text-align:right}
+.rp-adv{margin:0;padding:0;list-style:none;counter-reset:adv}
+.rp-adv li{counter-increment:adv;padding:12px 0 12px 34px;border-bottom:1px solid var(--line);position:relative}
+.rp-adv li::before{content:counter(adv);position:absolute;left:0;top:12px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;background:var(--panel2);color:var(--muted)}
+.rp-adv li.lv3::before{background:var(--bad);color:#fff}.rp-adv li.lv2::before{background:var(--warn);color:#fff}.rp-adv li.lv1::before{background:var(--text);color:var(--panel)}
+.rp-adv b{font-size:15px}.rp-adv p{margin:4px 0 0;font-size:13.5px;line-height:1.65;max-width:72ch}
+.rp-todo{font-weight:600;color:var(--text)}
+.rp-ck{list-style:none;margin:0;padding:0}.rp-ck li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.rp-ck label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.rp-ck input{margin-top:4px;width:16px;height:16px}
+.rp-ck input:checked+span{opacity:.45;text-decoration:line-through}
+.rp-hist{display:flex;gap:4px;padding:4px 0 2px}
+.rp-h{flex:1;display:flex;flex-direction:column;align-items:center;min-width:0}
+.rp-h .hp,.rp-h .hm{height:46px;width:100%;display:flex;justify-content:center}.rp-h .hp{align-items:flex-end;border-bottom:1px solid var(--line)}.rp-h .hm{align-items:flex-start}
+.rp-h i{width:70%;max-width:18px;border-radius:2px}.rp-h .hp i{background:var(--up)}.rp-h .hm i{background:var(--down)}
+.rp-h span{font-size:10px;color:var(--muted)}
+.rp-foot{font-size:12px;color:var(--muted);margin:24px 0 4px;padding-top:10px;border-top:1px solid var(--line)}
+@media(max-width:760px){
+  .rp-big{font-size:32px}.rp-kpi{grid-template-columns:1fr 1fr}
+  .rp-row{grid-template-columns:minmax(0,1fr) 96px 72px;gap:8px}.rp-bar,.rp-act{display:none}
+  .rp-now{margin-left:0;flex-basis:100%}
+}
+@media print{
+  body.rp-printing .top,body.rp-printing .banner,body.rp-printing #tabs,body.rp-printing .tab:not(#tab-hrep),body.rp-printing .nav-fab,body.rp-printing #govToast,body.rp-printing .rp-btns,body.rp-printing #navBack,body.rp-printing #navHome{display:none!important}
+  body.rp-printing{background:#fff}body.rp-printing .panel{box-shadow:none;border:0}
+}
+
+:root{--buy:var(--up);--sell:var(--down);--no:var(--warn)}

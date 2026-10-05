@@ -35,6 +35,7 @@
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
   <button data-tab="hold">내 보유 종목</button>
+  <button data-tab="hrep">보유 리포트</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
   <button data-tab="timing">매매 타이밍</button>
@@ -193,10 +194,14 @@
 </section>
 
 <!-- ═══ 내 보유 종목 ═══ -->
+<section id="tab-hrep" class="tab">
+  <div class="panel"><div id="rpMount"></div></div>
+</section>
+
 <section id="tab-hold" class="tab">
   <div class="panel">
     <div class="ph"><h2>내 보유 종목 관리</h2>
-      <div class="row gap wrap"><button class="btn ghost small" id="hNoti">🔕 보유 종목 알림 켜기</button><button class="btn ghost small" id="hExport">백업 파일 저장</button><button class="btn ghost small" id="hImport">백업 불러오기</button><button class="btn ghost small danger" id="hClear">전체 삭제</button><input type="file" id="hImportFile" accept=".json,application/json" class="hidden"></div></div>
+      <div class="row gap wrap"><button class="btn small primary" id="hReport">📋 오늘의 리포트</button><button class="btn ghost small" id="hNoti">🔕 보유 종목 알림 켜기</button><button class="btn ghost small" id="hExport">백업 파일 저장</button><button class="btn ghost small" id="hImport">백업 불러오기</button><button class="btn ghost small danger" id="hClear">전체 삭제</button><input type="file" id="hImportFile" accept=".json,application/json" class="hidden"></div></div>
     <p class="hint">산 종목을 넣어 두면 <b>실시간 손익</b>과 함께 <b>손절선·수익보호선·1차/2차 목표</b>를 자동으로 계산하고, 차트 종합판정·거래대금 신호·뉴스·공공기관(시장경보)까지 묶어 <b>"지금 할 일"</b>을 알려 드려요. 상태가 바뀌면(손절선 근접·이탈, 목표 도달, 시장경보, 약세 전환) 화면 알림이 떠요.</p>
     <div class="h-add">
       <label class="small grow">종목 <input id="hAddName" class="inp" list="stockNames" placeholder="이름 또는 6자리 코드" autocomplete="off"></label>
@@ -511,6 +516,7 @@
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
+<script src="assets/report.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
