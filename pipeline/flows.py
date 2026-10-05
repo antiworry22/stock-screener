@@ -185,6 +185,9 @@ def summarize(rows, close_now):
         "i1": round((last["i"] or 0) * (last.get("c") or close_now or 0) / 1e8, 1) if last.get("i") is not None else None,
         # 최근 10일 순매매 수량(주) — 그래프·연속일 검산용
         "ff": [r["f"] for r in rows[-10:]], "ii": [r["i"] for r in rows[-10:]], "dd": [r["d"] for r in rows[-10:]],
+        # 개인 순매매(주)·연속일 · 그날 종가 — 투자자 흐름 화면용
+        "pp": [r.get("p") for r in rows[-10:]], "cc": [r.get("c") for r in rows[-10:]], "ps": streak([r.get("p") for r in rows]),
+        "p1": round((last["p"] or 0) * (last.get("c") or close_now or 0) / 1e8, 1) if last.get("p") is not None else None,
     }
 
 

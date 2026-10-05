@@ -1022,3 +1022,49 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .sh-tb tr{cursor:pointer}
 @media(max-width:760px){.sh-top{grid-template-columns:1fr}.sh-kpi{grid-template-columns:1fr 1fr}.sh-charts{grid-template-columns:1fr}}
 #shOne h4{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* 투자자 흐름 */
+.iv-mkts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0}
+.iv-mkt{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.iv-mkt h4{margin:0 0 8px;font-size:15px;display:flex;justify-content:space-between;align-items:center}.iv-mkt h4 small{font-size:11.5px;color:var(--muted);font-weight:400;display:flex;align-items:center;gap:4px}
+.iv-mkt dl{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0}
+.iv-mkt dt{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px}.iv-mkt dt i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.iv-mkt dd{margin:2px 0 0;font-family:var(--mono);font-size:17px;font-weight:700}
+.iv-mkt p{margin:8px 0 0;font-size:13px;line-height:1.6}
+.iv-msvg{width:100%;height:90px;display:block;margin-top:8px}
+.iv-days{display:flex;gap:3px;align-items:flex-end;height:64px;border-bottom:1px solid var(--line);padding-bottom:2px}
+.iv-dcol{flex:1;display:flex;gap:1px;align-items:flex-end;position:relative;height:100%;justify-content:center}.iv-dcol i{width:30%;max-width:6px;border-radius:1px}.iv-dcol span{position:absolute;bottom:-15px;font-size:9.5px;color:var(--muted)}
+#ivMktHist .hint{margin-top:18px}
+.iv-svg{width:100%;height:160px;display:block}
+.iv-leg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;margin-top:4px}.iv-leg i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.iv-drv{font-size:13.5px;line-height:1.65;margin:4px 0;padding:8px 12px;background:var(--panel2);border-radius:8px}
+.iv-kpi{grid-template-columns:repeat(5,1fr)}
+.iv-tb td,.iv-tb th{white-space:nowrap}
+.iv-r-accum,.iv-r-turn,.iv-r-fdrive{border-left-color:var(--up)!important}.iv-r-dip{border-left-color:var(--ok)!important}.iv-r-retail,.iv-r-exit{border-left-color:var(--down)!important}
+#ivOne h4{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media(max-width:760px){.iv-mkts{grid-template-columns:1fr}.iv-mkt dl{grid-template-columns:1fr 1fr}.iv-kpi{grid-template-columns:1fr 1fr}}
+
+/* 투자자 흐름 — 실시간 해설 · 종합평가 */
+.ivl-grid{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,6fr);gap:14px}
+.ivl-grid h4{margin:0 0 8px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.ivl-mvc{padding:10px 12px;border-radius:10px;border:1px solid var(--line);border-left:4px solid var(--muted);margin-bottom:8px}
+.ivl-mvc.up{border-left-color:var(--up)}.ivl-mvc.down{border-left-color:var(--down)}
+.ivl-mvc b{font-size:13px}.ivl-mvc .ivl-h{font-weight:700;font-size:14.5px;margin:2px 0}.ivl-mvc p{margin:3px 0 0;font-size:13px;line-height:1.6}
+.ivl-feed{border:1px solid var(--line);border-radius:12px;padding:12px 14px;max-height:430px;overflow:auto}
+.ivl-feed ul{list-style:none;margin:0;padding:0}
+.ivl-feed li{display:grid;grid-template-columns:44px 1fr;gap:8px;padding:6px 0;border-bottom:1px dashed var(--line);font-size:13px;line-height:1.5}
+.ivl-feed li[data-ivs]{cursor:pointer}
+.ivl-feed time{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding-top:1px}
+.ivl-feed li.up span{color:var(--up)}.ivl-feed li.down span{color:var(--down)}.ivl-feed li.lv2 span{font-weight:700}
+.ivl-mvs{display:flex;flex-wrap:wrap;gap:6px}
+.ivv{border:2px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.ivv.gA,.ivv.gB{border-color:var(--up)}.ivv.gD,.ivv.gE{border-color:var(--down)}
+.ivv-h{display:flex;gap:12px;align-items:center}
+.ivv-g{width:46px;height:46px;border-radius:10px;display:grid;place-items:center;font-size:24px;font-weight:800;background:var(--panel2);flex:none}
+.gA .ivv-g{background:var(--up);color:#fff}.gB .ivv-g{background:color-mix(in srgb,var(--up) 18%,var(--panel));color:var(--up)}.gD .ivv-g{background:color-mix(in srgb,var(--down) 18%,var(--panel));color:var(--down)}.gE .ivv-g{background:var(--down);color:#fff}
+.ivv-h small{font-size:12px;color:var(--muted)}.ivv-h p{margin:2px 0 0;font-size:15px;font-weight:700}
+.ivv-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+.ivv-cols ul{margin:0;padding-left:18px;font-size:13px;line-height:1.65}.ivv-p li::marker{content:"+ ";color:var(--up)}.ivv-m li::marker{content:"− ";color:var(--down)}
+.ivv-c{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.6}.ivv-c b{color:var(--text);margin-right:6px}
+.ivv-ev{margin-top:10px;padding:8px 10px;background:var(--panel2);border-radius:8px}.ivv-ev b{font-size:12.5px}.ivv-ev p{margin:3px 0 0;font-size:13px}.ivv-ev p.up{color:var(--up)}.ivv-ev p.down{color:var(--down)}
+@media(max-width:760px){.ivl-grid,.ivv-cols{grid-template-columns:1fr}}

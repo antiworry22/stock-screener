@@ -81,6 +81,7 @@ function analysisHtml(s) {
       ${(s.news || []).slice(0, 4).map(n => `<a class="news-item" href="${esc(n.u)}" target="_blank" rel="noopener"><span class="tag ${n.tone > 0 ? 'good' : n.tone < 0 ? 'bad' : ''}">${n.tone > 0 ? '긍정' : n.tone < 0 ? '부정' : '중립'}</span><span class="nt">${esc(n.t)}</span><span class="ns">${esc(n.d || '')}</span></a>`).join('')}
     </div>
     <div class="an-card"><h4>시장 뉴스 속 이 종목 (국내·해외)</h4><div id="mnAnMount" data-code="${esc(s.code)}"></div></div>
+    <div class="an-card an-wide"><h4>투자자별 흐름 <small class="muted">— 외국인·연기금·기관·개인 누가 사고파나 · 주가를 움직이는 주체 · 외국인 평균 매수가</small></h4>${typeof invHtml === 'function' ? invHtml(s) : ''}</div>
     <div class="an-card an-wide"><h4>공매도 <small class="muted">— 하락에 거는 돈 · 점수·국면·숫자 풀이 · 지금 가격으로 손익 다시 계산</small></h4>${typeof shortHtml === 'function' ? shortHtml(s) : ''}</div>
     <div class="an-card"><h4>공공기관 자료·시장경보</h4><div id="govAnMount" data-code="${esc(s.code)}"></div></div>
     <div class="an-card"><h4>같은 업종 비교</h4>${top.length ? top.map(x => `<div class="an-peer" data-an="${esc(x.code)}"><span>${esc(x.name)}</span><span class="mono ${cls(x.chg)}">${pct(x.chg)}</span><span class="score ${sCls(x._sc.total)}">${fmt(x._sc.total, 1)}</span></div>`).join('') + '<div class="hint">누르면 그 종목을 분석합니다</div>' : '<div class="hint">같은 업종 정보가 없어요.</div>'}</div>
