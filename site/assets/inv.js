@@ -146,6 +146,8 @@ function ivMktRows(m) {
   const L = INV.m && INV.m.mkt && INV.m.mkt[m];
   if (L && L.time && L.time.length) return { live: true, rows: L.time.slice().reverse(), at: INV.m.at };
   if (L && L.day && L.day.length) return { live: false, rows: [L.day[0]], at: INV.m.at, day: true };
+  const ML = INV.d && INV.d.mlive && INV.d.mlive[m];
+  if (ML && ML.length && String(INV.d.mlive.at || '').slice(0, 10) === new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)) return { live: true, rows: ML.slice().reverse(), at: INV.d.mlive.at };
   const K = INV.d && INV.d.mkt && INV.d.mkt[m];
   if (K && K.d) { const i = K.d.length - 1; const o = { t: ivDay(K.d[i]) }; ['개인', '외국인', '연기금', '기관합계'].forEach(c => { if (K[c]) o[c === '기관합계' ? '기관' : c] = K[c][i]; });
     if (o['기관'] == null) { const sub = ['금융투자', '보험', '투신', '사모', '은행', '기타금융', '연기금'].filter(c => K[c]); if (sub.length) o['기관'] = sub.reduce((a, c) => a + (K[c][i] || 0), 0); }

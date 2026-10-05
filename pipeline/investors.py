@@ -100,6 +100,54 @@ def market_flows(stock, start, end):
     return res
 
 
+NAME = [("기타금융", "기타금융"), ("금융투자", "금융투자"), ("기타법인", "기타법인"), ("연기금", "연기금"), ("보험", "보험"), ("투신", "투신"),
+        ("은행", "은행"), ("개인", "개인"), ("외국인", "외국인"), ("기관", "기관")]
+
+
+def _strip(h):
+    import re
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", h or "").replace("&nbsp;", " ")).strip()
+
+
+def naver_time_table(sosok):
+    """네이버 「투자자별 매매동향(시간별)」 — 장중 시간대별 누적 순매수(억원). 사이트 실시간 경로가 막혀도 쓸 수 있게 여기서도 받음"""
+    import re
+    import requests
+    day = NOW.strftime("%Y%m%d")
+    r = requests.get("https://finance.naver.com/sise/investorDealTrendTime.naver", params={"bizdate": day, "sosok": sosok},
+                     headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/124.0", "Referer": "https://finance.naver.com/sise/sise_trans_style.naver"}, timeout=10)
+    raw = r.content
+    try:
+        html = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        html = raw.decode("euc-kr", "ignore")
+    trs = re.findall(r"<tr[^>]*>([\s\S]*?)</tr>", html, re.I)
+    hrows = [[(int((re.search(r'colspan\s*=\s*"?(\d+)', a or "") or [0, 1])[1]), _strip(b)) for a, b in re.findall(r"<th([^>]*)>([\s\S]*?)</th>", tr, re.I)] for tr in trs]
+    hrows = [h for h in hrows if h]
+    heads = []
+    if hrows:
+        sub = [n for _, n in (hrows[1] if len(hrows) > 1 else [])]
+        for sp, n in hrows[0]:
+            heads += [sub.pop(0) for _ in range(sp) if sub] if sp > 1 else [n]
+    cols = [next((v for k, v in NAME if k in h), None) for h in heads[1:]]
+    rows = []
+    for tr in trs:
+        tds = [_strip(x) for x in re.findall(r"<td[^>]*>([\s\S]*?)</td>", tr, re.I)]
+        if len(tds) < 4 or not re.match(r"^\d{1,2}:\d{2}$", tds[0]):
+            continue
+        o = {"t": tds[0]}
+        for i, v in enumerate(tds[1:]):
+            n = cols[i] if i < len(cols) else None
+            if n and n not in o:
+                try:
+                    o[n] = float(v.replace(",", "").replace("+", ""))
+                except Exception:
+                    pass
+        rows.append(o)
+    DIAG[f"네이버 시간별 {sosok}"] = f"HTTP {r.status_code} · 열 {[c for c in cols if c]} · {len(rows)}행"
+    return rows
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     t0 = time.time()
@@ -160,8 +208,25 @@ def main():
         if o:
             out[c] = o
     partial = days[-1] == TODAY and NOW.hour < 18
+    # 시장 전체 장중 시간대별(네이버) — 사이트의 실시간 경로(/api/mflow)가 막혀도 화면이 쓸 수 있게
+    mlive = {}
+    for m, so in (("KOSPI", "01"), ("KOSDAQ", "02")):
+        try:
+            rows = naver_time_table(so)
+            if rows:
+                mlive[m] = rows
+        except Exception as e:
+            DIAG[f"네이버 시간별 {m}"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
+    # 사이트 실시간 경로 점검 기록
+    try:
+        import requests
+        rr = requests.get("https://kmy-stock.netlify.app/api/mflow", params={"diag": "1"}, timeout=15)
+        json.dump(rr.json(), open(os.path.join(OUT, "mflow_check.json"), "w", encoding="utf-8"), ensure_ascii=False)
+        DIAG["사이트 /api/mflow"] = f"HTTP {rr.status_code}"
+    except Exception as e:
+        DIAG["사이트 /api/mflow"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
     res = {"meta": {"time": NOW.strftime("%Y-%m-%d %H:%M"), "days": days, "partial": partial, "n": len(out), "new_days": got,
-                    "elapsed_s": round(time.time() - t0)}, "mkt": mk, "s": out}
+                    "elapsed_s": round(time.time() - t0)}, "mkt": mk, "mlive": {"at": NOW.strftime("%Y-%m-%d %H:%M"), **mlive}, "s": out}
     json.dump(res, open(os.path.join(OUT, "investors.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"days": H}, open(os.path.join(OUT, "hist.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump({"time": NOW.strftime("%Y-%m-%d %H:%M"), "msg": "정상", "n": len(out), "diag": DIAG, "log": LOG[-40:]},

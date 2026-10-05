@@ -12,7 +12,9 @@ const ivGa = w => { const c = w.charCodeAt(w.length - 1); return w + (c >= 0xac0
 function ivMarketEvents() {
   const out = [];
   ['KOSPI', 'KOSDAQ'].forEach(m => {
-    const L = INV.m && INV.m.mkt && INV.m.mkt[m]; if (!L || !L.time || L.time.length < 2) return;
+    let L = INV.m && INV.m.mkt && INV.m.mkt[m];
+    if ((!L || !L.time || L.time.length < 2) && INV.d && INV.d.mlive && INV.d.mlive[m] && String(INV.d.mlive.at || '').slice(0, 10) === new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)) L = { time: INV.d.mlive[m] };
+    if (!L || !L.time || L.time.length < 2) return;
     const rows = L.time.slice().reverse(), nm = m === 'KOSPI' ? '코스피' : '코스닥', th = ivlTH[m];
     ['외국인', '기관', '개인', '연기금'].forEach(k => {
       let hi = -Infinity, lo = Infinity;
