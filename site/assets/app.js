@@ -102,6 +102,10 @@ function scoreStock(s) {
   const W = S.weights, wsum = Object.values(W).reduce((a, b) => a + b, 0) || 1;
   const gm = gateMult();
   sub.total = Math.round(Object.keys(W).reduce((a, k) => a + W[k] * (sub[k] ?? 50), 0) / wsum * gm * 10) / 10;
+  // 거래대금 흐름 가산(−100~+100 → 종합 점수에 최대 ±12점): 다른 항목보다 크게 반영
+  const va = typeof volAll === 'function' ? volAll().get(s.code) : null;
+  s._tvf = va && va.tvf ? va.tvf : null;
+  if (s._tvf && s._tvf.k !== 'quiet') { sub.tvf = s._tvf.s; sub.tvfAdd = Math.round(s._tvf.s * 0.12 * 10) / 10; sub.total = Math.round(Math.max(0, Math.min(100, sub.total + sub.tvfAdd)) * 10) / 10; }
   return sub;
 }
 function gateMult() {

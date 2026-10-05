@@ -59,7 +59,7 @@ function analysisHtml(s) {
   <div class="an-card an-wide"><h4>거래량·거래대금 정밀 해석 <small class="muted">— 지금 이 종목에 돈이 어떻게 들어오고 나가나</small></h4><div id="vaMount"></div></div>
   <div class="an-grid">
     <div class="an-card"><h4>점수 한눈에 보기</h4>
-      <div class="an-total">종합 점수 <b>${fmt(s._sc.total, 1)}</b>${s._rec != null ? ` · 추천점수 <b>${fmt(s._rec, 1)}</b>` : ''}</div>
+      <div class="an-total">종합 점수 <b>${fmt(s._sc.total, 1)}</b>${s._sc.tvfAdd ? ` <small class="${s._sc.tvfAdd > 0 ? 'up' : 'down'}">(거래대금 흐름 ${s._sc.tvfAdd > 0 ? '+' : ''}${fmt(s._sc.tvfAdd, 1)} 포함${s._tvf ? ' · ' + esc(s._tvf.name) : ''})</small>` : ''}${s._rec != null ? ` · 추천점수 <b>${fmt(s._rec, 1)}</b>` : ''}</div>
       <div class="hint">${rAll ? `전체 ${rAll.n}종목 중 <b>${rAll.rank}위</b>(상위 ${rAll.pct}%)` : ''}${rSec ? ` · ${esc(s.sector)} ${rSec.n}종목 중 <b>${rSec.rank}위</b>` : ''}</div>
       ${bars}
       <div class="hint">막대 = 이 종목 점수, 세로선 = 같은 업종 평균</div>

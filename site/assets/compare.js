@@ -8,13 +8,14 @@ const cmpSave = a => store.set('cmpList', [...new Set(a)].slice(0, 6));
 const josa = (w, a, b) => { const c = String(w).charCodeAt(String(w).length - 1); return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 ? a : b; };
 const cl100 = v => Math.max(0, Math.min(100, Math.round(v)));
 const CMP_CAT = [
-  ['tm', '매수 타이밍', 25, '규칙 엔진이 지금 사라고 하는지'],
-  ['ch', '차트 힘', 15, '6축 차트 종합 점수'],
-  ['rr', '위험 대비 보상', 15, '손절까지 거리가 짧고 위로 갈 여유가 큰지'],
-  ['fl', '수급', 15, '외국인·기관이 사는지, 공매도가 줄어드는지'],
-  ['mo', '흐름', 10, '최근 1주·1달 상승과 업종 강도'],
-  ['fu', '실적·재무', 10, '영업이익·매출 증가, ROE, 부채'],
-  ['ev', '재료·일정', 10, '뉴스·공시, 다가오는 실적 발표'],
+  ['tv', '거래대금 흐름', 25, '거래가 많은 날 돈이 시가 위로 밀었나(유입)·시가를 지켰나(지지)·시가 아래로 빠졌나(이탈)'],
+  ['tm', '매수 타이밍', 20, '규칙 엔진이 지금 사라고 하는지'],
+  ['ch', '차트 힘', 12, '6축 차트 종합 점수'],
+  ['rr', '위험 대비 보상', 12, '손절까지 거리가 짧고 위로 갈 여유가 큰지'],
+  ['fl', '수급', 12, '외국인·기관이 사는지, 공매도가 줄어드는지'],
+  ['mo', '흐름', 7, '최근 1주·1달 상승과 업종 강도'],
+  ['fu', '실적·재무', 6, '영업이익·매출 증가, ROE, 부채'],
+  ['ev', '재료·일정', 6, '뉴스·공시, 다가오는 실적 발표'],
 ];
 
 function cmpEval(code) {
@@ -56,6 +57,8 @@ function cmpEval(code) {
   if (earn) { ev -= 8; ew.push(`실적 발표 ${earn.d.slice(5).replace('-', '/')}`); }
   if (s._alert) { ev -= 30; ew.push('시장경보'); }
   c.ev = cl100(ev); why.ev = ew.join(' · ') || '특이 사항 없음';
+  const tvf = s._tvf || (typeof volAll === 'function' && volAll().get(code) ? volAll().get(code).tvf : null);
+  c.tv = tvf ? cl100(50 + tvf.s / 2) : 50; why.tv = tvf ? `${tvf.name} ${tvf.s > 0 ? '+' : ''}${tvf.s} · 거래량 ${fmt(tvf.vr, 1)}배 · 대금 전날의 ${fmt(tvf.d1, 2)}배 · 시가 대비 ${tvf.oc > 0 ? '+' : ''}${fmt(tvf.oc, 1)}%` : '자료 없음';
   const total = Math.round(CMP_CAT.reduce((a, [k, , w]) => a + c[k] * w, 0) / CMP_CAT.reduce((a, x) => a + x[2], 0));
   return { code, name: s.name || code, D, c, why, total, risk, up, held: D.mode === 'hold' };
 }

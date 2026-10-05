@@ -305,6 +305,10 @@ function tmContext(s, R, ev, C) {
   const plus = [], minus = [], bans = [], timing = [];
   let mult = 1;
   const today = tmNow().date;
+  const tvf = s && (s._tvf || (typeof volAll === 'function' && volAll().get(s.code) ? volAll().get(s.code).tvf : null));
+  if (tvf && tvf.k === 'up') plus.push(`거래대금 상승 유입형(${tvf.s > 0 ? '+' : ''}${tvf.s}) — 대금이 늘며 시가 위 마감`);
+  else if (tvf && tvf.k === 'hold') plus.push(`거래대금 시가 지지형(+${tvf.s}) — 거래 많은 날 시가를 지켜냄`);
+  else if (tvf && (tvf.k === 'down' || tvf.k === 'dump')) { minus.push(`거래대금 ${tvf.name}(${tvf.s}) — 거래가 많은데 시가 아래로 빠짐`); bans.push(`오늘 거래대금이 시가 아래로 빠져나간 날(${tvf.name}) — 하루 이틀 물량 소화를 보고 매수`); }
   if (s && s.cl) { const t = `차트 종합판정 ${s.cl.v}(${s.cl.s > 0 ? '+' : ''}${fmt(s.cl.s, 1)})`; if (s.cl.s >= 28) plus.push(t); else if (s.cl.s <= -28) minus.push(t); }
   if (s) {
     if (s.foreign_streak >= 3) plus.push(`외국인 ${s.foreign_streak}일 연속 순매수`); else if (s.foreign_streak <= -3) minus.push(`외국인 ${-s.foreign_streak}일 연속 순매도`);

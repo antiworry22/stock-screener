@@ -24,6 +24,8 @@ function plScore(D) {
     const rk = typeof SR !== 'undefined' && SR.cur && SR.cur.ALL ? SR.cur.ALL[s.sector] : null, nSec = rk != null ? Object.keys(SR.cur.ALL).length : 0;
     if (rk != null && rk <= 10) add('업종', 5, `${s.sector} 업종 강도 ${rk}위`); else if (rk != null && nSec && rk > nSec - 10) add('업종', -5, `${s.sector} 업종 강도 하위(${rk}위)`);
   }
+  const tvf = s && (s._tvf || (typeof volAll === 'function' && volAll().get(s.code) ? volAll().get(s.code).tvf : null));
+  if (tvf && tvf.k !== 'quiet' && tvf.k !== 'mixed') add('거래대금', Math.round(tvf.s * 0.25), `거래대금 ${tvf.name}${tvf.streak > 1 ? ` ${tvf.streak}일 연속` : ''}`);
   if (D.ctx.risk.length) add('공시', -10, '최근 악재·물량 공시');
   if (D.ctx.good.length) add('공시', 5, '최근 호재 공시');
   if (D.ctx.cal.some(x => !x.past && x.kind === 'earn' && x.url && tmBizBetween(tmNow().date, x.d) <= 3)) add('일정', -5, '3거래일 안 실적 발표');
@@ -45,6 +47,10 @@ function plOpinion(D, sc) {
   if (D.act === 'WAIT' && p) O.push(`지금 가격(${tmW(D.P)})에서 사면 손절까지 ${fmt((D.P / p.stop - 1) * 100, 1)}%예요. 기다려서 ${tmW(p.E)}에 사면 같은 손절에 위험이 ${fmt((p.E / p.stop - 1) * 100, 1)}%로 줄어요 — 기다리는 값이에요.`);
   if (D.act === 'WATCH' && !R.trend.ok) O.push(`추세가 꺾인 종목은 「싸 보여서」 사는 게 가장 위험해요. 20일선(${tmW(R.ma20)}) 위로 돌아오는 걸 먼저 확인하세요.`);
   if (D.act === 'NO') O.push(`${D.bans && D.bans[0] ? D.bans[0].split(' — ')[0] : '금지 사유'} — 이 사유가 사라질 때까지 목록에만 두세요.`);
+  const tf = s && s._tvf;
+  if (tf && tf.k === 'up') O.push(`오늘 거래대금이 전날의 ${fmt(tf.d1, 1)}배로 늘며 시가 위에서 끝났어요. 내일 시가가 오늘 시가(돈이 들어온 출발점) 아래로 밀리면 유입이 끝난 신호예요.`);
+  if (tf && tf.k === 'hold') O.push('거래가 많은데 시가를 지켜냈어요. 내일도 오늘 시가 근처에서 버티면 매집 흔적이 굳어지는 거라, 그 가격 근처가 좋은 매수 자리예요.');
+  if (tf && (tf.k === 'down' || tf.k === 'dump')) O.push(`거래는 많은데 돈이 시가 아래로 빠져나갔어요(${tf.name}). 차트 신호가 좋아도 하루 이틀은 물량 소화를 지켜보세요.`);
   if (R.rsi >= 70) O.push(`RSI ${fmt(R.rsi, 0)} — 단기 과열이에요. 좋은 종목이어도 과열 구간에서 산 물량은 흔들리기 쉬워요. 1차를 평소의 절반으로.`);
   if (s && s.foreign_streak >= 3 && s.inst_streak >= 3) O.push('외국인·기관이 같이 사고 있어요. 큰손이 받치는 종목은 눌림이 얕은 편이라 지정가를 너무 낮게 걸면 못 살 수 있어요.');
   if (s && s.foreign_streak <= -3 && s.inst_streak <= -3) O.push('외국인·기관이 같이 팔고 있어요. 차트 신호가 좋아도 위로 갈 때마다 물량이 나와요. 목표가를 짧게 잡으세요.');

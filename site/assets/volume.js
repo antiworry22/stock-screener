@@ -29,6 +29,70 @@ function volSeries(s) {
   return { n, C, V, O, H, L, TV, A20, RV, TA20, D, OBV, has };
 }
 
+
+/* ═══ 거래대금 흐름 지표(TVF) — 거래량이 많은 날, 「돈(거래대금)이 어디로 움직였나」를 시가 기준으로 판정 ═══
+   하루 i 에 대해
+     VR  = 거래량 ÷ 직전 20일 평균 거래량            (거래가 많은가)
+     TR  = 거래대금 ÷ 직전 20일 평균 거래대금        (돈이 많이 들어왔나)
+     D1  = 거래대금 ÷ 전날 거래대금                  (대금이 늘었나·줄었나·유지됐나)
+     OC  = (종가 ÷ 시가 − 1) × 100                   (시가보다 올랐나·내렸나)
+     CLV = ((종가−저가) − (고가−종가)) ÷ (고가−저가) (종가가 하루 범위의 위쪽인가, −1~+1)
+     DIP = (시가 − 저가) ÷ 시가 × 100                (장중에 시가 아래로 얼마나 밀렸나)
+   거래가 많은 날(VR ≥ 1.5 또는 TR ≥ 1.5)만 판정:
+     ① 상승 유입형  OC ≥ +1%, CLV ≥ 0.2, D1 ≥ 1.15, TR ≥ 1.5
+        점수 = +(35 + 25·min(1, log2(TR)/2) + 20·min(1, OC/6) + 15·CLV) − 위꼬리 감점
+     ② 하락 이탈형  OC ≤ −1%, CLV ≤ −0.2, 그리고 대금이 줄어듦(D1 < 1 또는 TR < VR×0.92 = 싼 값에 물량)
+        점수 = −(35 + 25·min(1, log2(VR)/2) + 20·min(1, −OC/6) + 15·(−CLV))   (대금까지 늘면 「대량 매도형」 ×0.85)
+     ③ 시가 지지형  종가 ≥ 시가×0.995, 0.8 ≤ D1 ≤ 1.3(대금 유지), CLV ≥ 0
+        점수 = +(25 + 15·min(1, DIP/3) + 10·CLV + 10·min(1, TR−1))
+   최근 3일 같은 유형이 이어지면 하루당 ±8점(최대 2일), 최종 −100~+100 */
+const TVF_NAME = { up: '상승 유입형', down: '하락 이탈형', dump: '대량 매도형', hold: '시가 지지형', mixed: '거래 많음·방향 없음', quiet: '평소 거래' };
+function tvfDay(z, i) {
+  const { O, H, L, C, V, TV } = z;
+  if (!O || O[i] == null || H[i] == null || L[i] == null || C[i] == null || i < 21) return null;
+  const mean = a => { const b = a.filter(x => x != null && x > 0); return b.length ? b.reduce((p, x) => p + x, 0) / b.length : null; };
+  const av = mean(V.slice(i - 20, i)), at = mean(TV.slice(i - 20, i));
+  if (!av || !at || !TV[i - 1]) return null;
+  const vr = V[i] / av, tr = TV[i] / at, d1 = TV[i] / TV[i - 1];
+  const oc = (C[i] / O[i] - 1) * 100, rng = H[i] - L[i], clv = rng > 0 ? ((C[i] - L[i]) - (H[i] - C[i])) / rng : 0;
+  const dip = Math.max(0, (O[i] - L[i]) / O[i] * 100), upw = rng > 0 ? (H[i] - Math.max(O[i], C[i])) / rng : 0;
+  const m = { vr, tr, d1, oc, clv, dip, upw };
+  if (!(vr >= 1.5 || tr >= 1.5)) return { k: 'quiet', s: 0, ...m };
+  const l2 = x => Math.log(Math.max(1, x)) / Math.LN2;
+  if (oc >= 1 && clv >= 0.2 && d1 >= 1.15 && tr >= 1.5) {
+    let s = 35 + 25 * Math.min(1, l2(tr) / 2) + 20 * Math.min(1, oc / 6) + 15 * clv;
+    if (upw > 0.5) s -= 20;
+    return { k: 'up', s, ...m };
+  }
+  if (oc <= -1 && clv <= -0.2) {
+    const weak = d1 < 1 || tr < vr * 0.92;
+    let s = -(35 + 25 * Math.min(1, l2(vr) / 2) + 20 * Math.min(1, -oc / 6) + 15 * -clv);
+    return weak ? { k: 'down', s, ...m } : { k: 'dump', s: s * 0.85, ...m };
+  }
+  if (C[i] >= O[i] * 0.995 && d1 >= 0.8 && d1 <= 1.3 && clv >= 0) return { k: 'hold', s: 25 + 15 * Math.min(1, dip / 3) + 10 * clv + 10 * Math.min(1, Math.max(0, tr - 1)), ...m };
+  return { k: 'mixed', s: clv * 10, ...m };
+}
+function tvfCalc(z) {
+  if (!z || !z.has) return null;
+  const e = z.n - 1, t = tvfDay(z, e); if (!t) return null;
+  const hist = [e - 2, e - 1, e].map(i => tvfDay(z, i)).map(x => x ? x.k : null);
+  let streak = 1; for (let i = e - 1; i >= e - 2; i--) { const x = tvfDay(z, i); if (x && x.k === t.k) streak++; else break; }
+  let s = t.s;
+  if (['up', 'hold'].includes(t.k) && streak > 1) s += 8 * Math.min(2, streak - 1);
+  if (['down', 'dump'].includes(t.k) && streak > 1) s -= 8 * Math.min(2, streak - 1);
+  s = Math.round(Math.max(-100, Math.min(100, s)));
+  const x = (v, d = 1) => `${fmt(v, d)}배`, p = v => `${v > 0 ? '+' : ''}${fmt(v, 1)}%`;
+  const txt = {
+    up: `거래량 ${x(t.vr)}·거래대금 ${x(t.tr)}(전날의 ${x(t.d1, 2)})로 돈이 늘며 시가보다 ${p(t.oc)} — 돈이 가격을 밀어올렸어요${t.upw > 0.5 ? '. 다만 위꼬리가 길어 위에서 판 물량도 많아요' : ''}`,
+    down: (t.d1 < 1 ? `거래량은 평소의 ${x(t.vr)}인데 거래대금은 전날보다 줄었어요(${x(t.d1, 2)})` : `거래량은 평소의 ${x(t.vr)}로 늘었는데 거래대금은 ${x(t.tr)}로 덜 늘었어요 — 낮은 가격에서 체결이 몰렸다는 뜻`) + ` · 시가보다 ${p(t.oc)} 마감. 사는 쪽이 값을 낮춰야만 받아주는 모습이에요`,
+    dump: `거래량 ${x(t.vr)}·거래대금 ${x(t.tr)}까지 늘며 시가보다 ${p(t.oc)} — 큰돈이 시가 아래로 던진 날이에요`,
+    hold: `거래량 ${x(t.vr)}에 거래대금은 전날의 ${x(t.d1, 2)}로 유지, ${t.dip >= 0.8 ? `장중 시가 아래 −${fmt(t.dip, 1)}%까지 밀렸다가` : '시가 아래로 거의 밀리지 않고(시가가 바닥 역할)'} 시가 대비 ${p(t.oc)}로 마감 — 시가 가격을 누군가 지켜냈어요`,
+    mixed: `거래량 ${x(t.vr)}로 많지만 시가 대비 ${p(t.oc)}, 방향이 뚜렷하지 않아요`,
+    quiet: `거래량 ${x(t.vr)} — 평소 수준이라 판정하지 않아요`,
+  }[t.k];
+  return { ...t, s, streak, hist, name: TVF_NAME[t.k], txt: txt + (streak > 1 && t.k !== 'quiet' && t.k !== 'mixed' ? ` (${streak}일 연속)` : '') };
+}
+
 /* ───── 시장 전체 온도계 (관점 5) ───── */
 function volMarket() {
   if (VOL.mkt && VOL.gen === S.data) return VOL.mkt;
@@ -314,7 +378,9 @@ function volAnalyze(s) {
     long: flags.burn ? '돈 못 버는 회사에 거래만 몰려요 — 장기 보유 근거로 약해요.' : (turnRel != null && turnRel < 0.3) ? '거래가 너무 적어 사고팔기 어려울 수 있어요(유동성 부족).' : (s.ocf != null && s.ocf > 0) ? '현금을 버는 회사 + 정상 범위의 거래 — 거래 측면 문제 없음.' : '거래 측면 큰 문제 없음 — 실적·재무로 판단하세요.',
   };
   const plan = volPlan(s, z, { flags, score, prevHi60, tv90, brkIdx, lows, rv });
-  return { z, M, chk, ev, flags, score, verdict, bads, goods, rv, tvToday, tvMcap, turnRel, share, horizon, plan };
+  const tvf = tvfCalc(z);
+  if (tvf) { flags.tvfUp = tvf.k === 'up'; flags.tvfHold = tvf.k === 'hold'; flags.tvfDown = tvf.k === 'down' || tvf.k === 'dump'; }
+  return { z, M, chk, ev, flags, score, verdict, bads, goods, rv, tvToday, tvMcap, turnRel, share, horizon, plan, tvf };
 }
 
 /* ───── 실전 행동 가이드: 다음 거래일에 무엇을 보고, 어디서 사고, 어디서 끊을지 숫자로 ───── */
@@ -367,6 +433,8 @@ function volCardHtml(s, a) {
       <em>좋은 신호 ${a.goods.length} · 경고 ${a.bads.length}</em></div>
     <div class="va-tiles">${tiles.map(t => `<div><small>${t[0]}</small><b>${t[1]}</b><span class="hint">${t[2]}</span></div>`).join('')}</div>
   </div>
+  ${a.tvf ? `<div class="tvf-box k-${a.tvf.k}"><div class="tvf-h"><small>거래대금 흐름(시가 기준)</small><b>${a.tvf.name}</b><span class="tvf-s">${a.tvf.s > 0 ? '+' : ''}${a.tvf.s}</span></div><p>${esc(a.tvf.txt)}</p>
+    <dl class="tvf-m"><div><dt>거래량 배수</dt><dd>${fmt(a.tvf.vr, 2)}</dd></div><div><dt>거래대금 배수</dt><dd>${fmt(a.tvf.tr, 2)}</dd></div><div><dt>전날 대비 대금</dt><dd>${fmt(a.tvf.d1, 2)}배</dd></div><div><dt>시가 대비</dt><dd>${a.tvf.oc > 0 ? '+' : ''}${fmt(a.tvf.oc, 2)}%</dd></div><div><dt>종가 위치</dt><dd>${fmt(a.tvf.clv, 2)}</dd></div><div><dt>최근 3일</dt><dd>${a.tvf.hist.map(k => k ? TVF_NAME[k].replace('형', '').replace('거래 많음·방향 없음', '혼조').replace('평소 거래', '평소') : '–').join(' → ')}</dd></div></dl></div>` : ''}
   <div class="va-plan ${a.plan.cls}"><small>실전 행동 가이드</small><b>${a.plan.act}</b>
     <div class="va-todo">${a.plan.todo.map(t => `<div><span>${t.k}</span><p>${t.t}</p></div>`).join('')}</div>
     <div class="hint">평소 하루 거래량 ${fmt(Math.round(a.plan.avgV))}주(20일 평균) 기준 · 장중에는 같은 시각 누적 거래량으로 비교하세요(예: 오전 10시 거래량 vs 평소 오전 10시까지)</div></div>
@@ -423,6 +491,9 @@ function renderVolCard(s, mountId) {
 
 /* ───── 화면: 거래대금 신호 탭 ───── */
 const VSIG = [
+  ['tvfUp', '상승 유입형(대금↑·시가 위)', 'good', '거래량이 많고 거래대금이 늘며 시가보다 올라 마감 — 돈이 가격을 밀어올림', a => a.flags.tvfUp],
+  ['tvfHold', '시가 지지형(대금 유지)', 'good', '거래량이 많고 거래대금이 유지되며 장중 밀려도 시가를 지켜냄', a => a.flags.tvfHold],
+  ['tvfDown', '하락 이탈형(대금↓·시가 아래)', 'bad', '거래량은 많은데 거래대금이 줄며(싼 값에 물량) 시가보다 내려 마감', a => a.flags.tvfDown],
   ['brk', '유효 돌파', 'good', '대량 거래(평소 2배↑) + 장대양봉으로 3개월 고점을 넘은 종목', a => a.flags.brk],
   ['trueUp', '진성 상승', 'good', '거래 급증 + 외국인·기관이 산 상승', a => a.flags.trueUp],
   ['bottom', '바닥권 매수세 재등장', 'good', '거래가 말랐던 바닥에서 60일 최대 거래량(평소 3배↑) + 양봉', a => a.flags.bottom],
@@ -472,12 +543,12 @@ function renderVolTab() {
   } else {
     volRenderOne(null, '', 0);
     rows = pool.filter(s => sig[4](all.get(s.code))).map(s => ({ s, a: all.get(s.code) }))
-      .sort((x, y) => sig[2] === 'bad' ? x.a.score - y.a.score : y.a.score - x.a.score);
-    $('#vsDesc').innerHTML = `<b>${sig[1]}</b> — ${sig[3]} · ${rows.length}종목`;
+      .sort((x, y) => sig[0].startsWith('tvf') ? (sig[2] === 'bad' ? x.a.tvf.s - y.a.tvf.s : y.a.tvf.s - x.a.tvf.s) : sig[2] === 'bad' ? x.a.score - y.a.score : y.a.score - x.a.score);
+    $('#vsDesc').innerHTML = `<b>${sig[1]}</b> — ${sig[3]} · ${rows.length}종목` + (sig[0].startsWith('tvf') ? `<details class="tvf-how"><summary>계산 방법</summary><p>거래가 많은 날(거래량 또는 거래대금이 20일 평균의 1.5배 이상)만 판정해요. <b>상승 유입형</b>: 시가 대비 +1% 이상, 종가가 하루 범위 위쪽, 거래대금이 전날의 1.15배 이상·20일 평균의 1.5배 이상. <b>시가 지지형</b>: 종가가 시가 이상(−0.5% 이내), 거래대금이 전날의 0.8~1.3배로 유지, 종가가 하루 범위 가운데 위. <b>하락 이탈형</b>: 시가 대비 −1% 이하, 종가가 하루 범위 아래쪽, 거래대금이 전날보다 줄었거나 거래량만큼 늘지 않음(낮은 가격에 체결). 점수(−100~+100)는 거래대금 배수·시가 대비 등락·종가 위치로 세기를 매기고, 같은 유형이 며칠 이어지면 하루당 8점씩 더해요. 이 점수는 종합 점수에 최대 ±12점으로 가산되고, 종목 비교에서는 가장 큰 비중(25%)을 차지해요.</p></details>` : '');
   }
   box.innerHTML = rows.length ? rows.slice(0, 60).map(({ s, a }) => {
     const ck = { brk: 'brk', trueUp: 'flow', bottom: 'bottom', obvBull: 'obv', healthyPull: 'hold', scout: 'scout', whale: 'whale', flat: 'flat', holdTv: 'hold', extreme: 'extreme', burn: 'burn', obvBear: 'obv' }[sig[0]];
-    const hit = q ? null : (a.chk.find(c => c.k === ck) || a.chk.find(c => c.st === sig[2]));
+    const hit = q ? null : sig[0].startsWith('tvf') && a.tvf ? { text: `<b>${a.tvf.name} ${a.tvf.s > 0 ? '+' : ''}${a.tvf.s}점</b> — ${esc(a.tvf.txt)}` } : (a.chk.find(c => c.k === ck) || a.chk.find(c => c.st === sig[2]));
     const on = q ? VSIG.filter(v => { try { return v[4](a); } catch (e) { return false; } }) : [];
     return `<div class="vs-card" data-an="${esc(s.code)}">
       <div class="vs-h"><b>${esc(s.name)}</b> <small class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'} · ${esc(s.sector || '')}</small>
@@ -525,6 +596,8 @@ function initVolume() {
   FM.vs_bottom = { key: 'vs_bottom', label: '바닥권 거래량 폭증', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.flags.bottom) };
   FM.vs_obv = { key: 'vs_obv', label: 'OBV 상승 다이버전스·선행', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.flags.obvBull || a.flags.obvLead) };
   FM.vs_pull = { key: 'vs_pull', label: '거래대금 마르는 건강한 눌림', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.flags.healthyPull) };
+  FM.tvf_s = { key: 'tvf_s', label: '거래대금 흐름 점수(−100~+100)', group: g, type: 'num', unit: '점', get: s => get(s, a => a.tvf ? a.tvf.s : null) };
+  FM.tvf_k = { key: 'tvf_k', label: '거래대금 흐름 유형', group: g, type: 'enum', unit: '', opts: Object.values(TVF_NAME), get: s => get(s, a => a.tvf ? a.tvf.name : null) };
   FM.vs_warn = { key: 'vs_warn', label: '거래량 경보(큰손 이탈·제자리 폭증·과열 등)', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.bads.length) };
 }
 
