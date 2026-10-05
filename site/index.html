@@ -37,6 +37,7 @@
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="hrep">보유 리포트</button>
   <button data-tab="plan">내일 매수 계획</button>
+  <button data-tab="cmp">종목 비교</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
   <button data-tab="timing">매매 타이밍</button>
@@ -195,6 +196,17 @@
 </section>
 
 <!-- ═══ 내 보유 종목 ═══ -->
+<section id="tab-cmp" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>종목 비교</h2></div>
+    <p class="hint">관심 종목을 2~6개 넣으면 같은 잣대(매수 타이밍·차트 힘·위험 대비 보상·수급·흐름·실적·재료)로 점수를 매겨 나란히 놓고, 가장 나은 종목을 골라 그 이유를 알려줘요.</p>
+    <div class="tm-bar"><div class="row gap clx-search"><input id="cmpQ" class="inp" list="stockNames" placeholder="비교할 종목 이름 또는 6자리 코드" autocomplete="off" aria-label="비교할 종목 넣기"><button class="btn primary small" id="cmpGo">넣기</button></div>
+      <button class="btn ghost small" id="cmpW">관심 종목</button><button class="btn ghost small" id="cmpH">보유 종목</button><button class="btn ghost small" id="cmpP">매수 계획 후보</button><button class="btn ghost small" id="cmpClr">모두 빼기</button></div>
+    <div id="cmpChips" class="cmp-chips mt-s"></div>
+    <div id="cmpMount" class="mt"></div>
+  </div>
+</section>
+
 <section id="tab-plan" class="tab">
   <div class="panel">
     <div class="ph"><h2>내일 매수 계획</h2></div>
@@ -529,6 +541,7 @@
 <script src="assets/timing.js"></script>
 <script src="assets/report.js"></script>
 <script src="assets/plan.js"></script>
+<script src="assets/compare.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
