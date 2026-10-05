@@ -4,7 +4,7 @@
    시세: 일봉(보관 칸 live-cl/{code}.json, 장중 15분마다 오늘 봉 포함) + 실시간 현재가(/api/hoga, 장중 10초마다)로 오늘 봉을 바로 고쳐 다시 계산 */
 'use strict';
 
-const TM = { sel: null, st: new Map(), ev: new Map(), co: new Map(), chart: null, busy: false, lastQ: 0, rot: 0 };
+const TM = { pane: null, sel: null, st: new Map(), ev: new Map(), co: new Map(), chart: null, busy: false, lastQ: 0, rot: 0 };
 const TM_DEF = {
   trendMa: 20, slopeDays: 5,
   pbLo: 0.38, pbHi: 0.50, pbSurge: 12, supTol: 2.5,
@@ -324,14 +324,15 @@ function tmContext(s, R, ev, C) {
   risk.slice(0, 3).forEach(x => minus.push(`최근 공시(악재·물량): ${x.t} (${x.d.slice(5, 10)})`));
   good.slice(0, 3).forEach(x => plus.push(`최근 공시(호재): ${x.t} (${x.d.slice(5, 10)})`));
   if (risk.some(x => /유상증자|전환|신주인수권|추가상장|교환사채|자기주식\s*처분|블록딜|시간외/.test(x.t) && x.d >= tmAdd(today, -7))) { mult *= 0.5; timing.push('최근 물량 공시(증자·CB·추가상장 등) — 물량이 풀리는 날 전후는 피하고 비중 절반'); }
-  const n24 = news.filter(x => x.d >= tmAdd(today, -1)), pos24 = n24.filter(x => TM_NPOS.test(x.t)).length, neg24 = n24.filter(x => TM_NNEG.test(x.t)).length;
+  const nm = s ? s.name.replace(/\(.*\)|우$/g, '') : '', own = news.filter(x => nm && x.t.includes(nm));
+  const n24 = (own.length ? own : news.filter(() => !s)).filter(x => x.d >= tmAdd(today, -1)), pos24 = n24.filter(x => TM_NPOS.test(x.t)).length, neg24 = n24.filter(x => TM_NNEG.test(x.t)).length;
   const chg = R ? (R.P / R.B.c[R.n - 1] - 1) * 100 : 0;
   if ((n24.length >= 6 && pos24 > neg24) || (s && s._nw && s._nw.nPos >= 3)) {
     if (chg >= 5) bans.push(`호재 뉴스가 쏟아지는 날(24시간 ${n24.length}건) +${fmt(chg, 1)}% 급등 — 추격 매수 금지(금지 규칙 4). 뉴스는 분배(매도) 신호인 경우가 많아요`);
     else timing.push(`호재 뉴스가 몰리는 중${n24.length >= 6 ? `(24시간 ${n24.length}건)` : ''} — 뉴스 따라 추격하지 말고 계획한 가격에서만`);
   }
   // 일정
-  const cal = tmCalendar(today, dis, news);
+  const cal = tmCalendar(today, dis, own);
   const soon = cal.filter(x => !x.past && x.w >= 2 && tmBizBetween(today, x.d) <= 3);
   if (soon.length) { mult *= 0.5; soon.forEach(x => timing.push(`${x.d.slice(5)} ${x.t.split(' — ')[0]} 앞둠 → 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입`)); }
   const hol = cal.find(x => x.kind === 'hol' && tmBizBetween(today, x.d) <= 1 && x.d > today);
@@ -399,7 +400,7 @@ function tmDecide(code) {
     const cand = near.map(b => ({ b, p: tmPlan(b, R, C, { mult: ctx.mult }) })).filter(x => x.p).sort((a, b) => Math.abs(a.p.E / R.P - 1) - Math.abs(b.p.E / R.P - 1));
     if (cand.length) { act = 'WAIT'; tone = 'mid'; plan = cand[0].p; plan.sig = cand[0].b; head = `대기 — ${cand[0].b.trigger || tmW(plan.E) + ' 부근'} 1차 매수`; why.push(cand[0].b.why); if (cand.length > 1) wait.push(...cand.slice(1).map(x => `${x.b.id} ${x.b.name}: ${x.b.trigger || tmW(x.p.E)} → ${tmW(x.p.E)} 매수`)); }
     else { act = 'WATCH'; tone = 'low'; head = '관찰 — 가까운 매수 신호 없음'; }
-  } else { act = 'WATCH'; tone = 'low'; head = '관찰 — 추세는 살아 있지만 매수 신호(눌림·돌파·쉼 후 재상승·과매도) 없음'; wait.push(`눌림목 대기: 20일선 ${tmW(R.ma20)} 부근까지 내려와 지지하면 BUY-01 검토`); }
+  } else { act = 'WATCH'; tone = 'low'; head = '관찰 — 추세는 살아 있지만 매수 신호(눌림·돌파·쉼 후 재상승·과매도) 없음'; wait.push(`눌림목 대기: 20일선 ${tmW(R.ma20)} 부근까지 내려와 지지하면 눌림목 매수 검토`); }
   let timing = '';
   if (act === 'BUY') timing = confirmTxt;
   else if (act === 'WAIT') timing = `지정가 대기 — ${plan.sig.trigger || '조건 충족 시'} ${tmW(plan.E)}에 1차(${plan.q1}주). 체결 후 바로 손절 ${tmW(plan.stop)} 주문 함께`;
@@ -409,133 +410,177 @@ function tmDecide(code) {
   return D;
 }
 
-/* ═════════════ 화면 ═════════════ */
-const TM_ACT = { BUY: ['지금 1차 매수', 'good'], WAIT: ['지정가 대기', 'mid'], WATCH: ['관찰', 'low'], NO: ['매수 금지', 'bad'], HOLD: ['보유 유지', 'ok'], TAKE: ['이익 실현', 'good'], HALF: ['절반 매도', 'bad'], PART: ['분할 매도', 'warn'], EXIT: ['전량 매도', 'bad'] };
-const tmTag = a => { const x = TM_ACT[a] || ['–', 'low']; return `<span class="tm-act ${x[1]}">${x[0]}</span>`; };
-const tmStTag = st => ({ on: '<span class="tm-st on">발생</span>', near: '<span class="tm-st near">대기·근접</span>', warn: '<span class="tm-st warn">주의</span>', void: '<span class="tm-st void">무효</span>' }[st] || '<span class="tm-st off">없음</span>');
+/* ═════════════ 화면 ═════════════
+   주문표(티켓) 형태: 결론 띠 → 매수/매도 주문표 + 세로 가격 사다리(호가창처럼) → 차트 → 탭(규칙 판정·최신 상황·일정·근거)
+   색 규칙: 증권사 주문창처럼 매수 = 빨강, 매도 = 파랑. 관망은 회색, 매수 금지는 주황 */
+const TM_ACT = { BUY: ['지금 1차 매수', 'buy'], WAIT: ['지정가 대기', 'buyw'], WATCH: ['관찰', 'idle'], NO: ['매수 금지', 'no'], HOLD: ['보유 유지', 'hold'], TAKE: ['이익 실현', 'sellw'], HALF: ['절반 매도', 'sell'], PART: ['분할 매도', 'sellw'], EXIT: ['전량 매도', 'sell'] };
+const tmTone = a => (TM_ACT[a] || ['', 'idle'])[1];
+const tmTag = a => { const x = TM_ACT[a] || ['–', 'idle']; return `<span class="tm-act ${x[1]}">${x[0]}</span>`; };
+const TM_ST = { on: ['발생', 'on'], near: ['대기', 'near'], warn: ['주의', 'warn'], void: ['무효', 'void'], off: ['없음', 'off'] };
+const tmStTag = st => { const x = TM_ST[st] || TM_ST.off; return `<span class="tm-st ${x[1]}">${x[0]}</span>`; };
 function tmCodes() {
   const hs = typeof hLoad === 'function' ? [...new Set(hLoad().items.filter(h => tmHold(h.code)).map(h => h.code))] : [];
   const ws = (store.get('tmWatch', []) || []).filter(c => !hs.includes(c));
   return { hs, ws, all: [...hs, ...ws] };
 }
 
+/* 한 문장 결론 (이름 없이) */
 function tmOneLine(D) {
-  const nm = D.s ? D.s.name : D.code;
   if (D.mode === 'hold') {
     const o = D.orders[0];
-    if (D.act === 'HOLD') return `${nm} ${D.qty}주 보유(평단 ${tmW(D.avg)}, ${pct(D.pnl, 1)}) — 지금은 보유. ${tmW(D.eff)} 아래로 내려가면 전량 매도(${D.effWhy}), ${tmW(D.t1)}에서 ${Math.ceil(D.qty / 2)}주 이익 실현, 나머지는 ${tmW(D.t2)} 또는 트레일링 이탈 때 매도.${D.add ? ' ' + D.add.t + '.' : ''}`;
-    return `${nm} ${D.qty}주 보유(평단 ${tmW(D.avg)}, ${pct(D.pnl, 1)}) — ${D.head}. ${o ? `${o[1]}주를 ${tmW(o[2])} 근처에서 매도(약 ${hMoney ? hMoney(o[1] * o[2]) : tmW(o[1] * o[2])})` : ''}${D.orders[1] ? `, 남은 ${D.orders[1][1]}주는 ${tmW(D.orders[1][2])} 기준으로 관리` : ''}.`;
+    if (D.act === 'HOLD') return `지금은 그대로 보유하세요. ${tmW(D.eff)} 아래로 내려가면 전량 매도, ${tmW(D.t1)}에 오면 ${fmt(Math.ceil(D.qty / 2))}주 이익 실현, 나머지는 ${tmW(D.t2)} 또는 트레일링 이탈 때 매도해요.`;
+    return `${o ? `${fmt(o[1])}주를 ${tmW(o[2])} 근처에서 매도(약 ${hMoney(o[1] * o[2])})` : ''}${D.orders[1] && D.orders[1][1] > 0 ? `하고, 남은 ${fmt(D.orders[1][1])}주는 ${tmW(D.orders[1][2])} 기준으로 관리` : ''}하세요.`;
   }
   const p = D.plan;
-  if (D.act === 'BUY' && p) return `${nm} — 지금 ${p.q1}주(약 ${hMoney(p.amt1)}) 1차 매수, 손절 ${tmW(p.stop)}(${pct(p.stopPct, 1)}), ${tmW(p.t1)}에서 절반 매도, 나머지는 ${tmW(p.t2)} 또는 고점 대비 −${D.C.trail}% 트레일링. 2차 ${p.q2}주는 다음 날 ${tmW(p.add2)}(오늘 고가) 위로 다시 올라설 때.`;
-  if (D.act === 'WAIT' && p) return `${nm} — 지금은 사지 않고 ${p.sig.trigger || ''} ${tmW(p.E)}에 ${p.q1}주 지정가. 체결되면 손절 ${tmW(p.stop)}, 목표 ${tmW(p.t1)}(절반)·${tmW(p.t2)}.`;
-  if (D.act === 'NO') return `${nm} — 지금은 사지 않아요(위 금지 사유).${p ? ` 금지 사유가 풀리면 기준가 ${tmW(p.E)} · 손절 ${tmW(p.stop)}.` : ''}`;
-  return `${nm} — ${D.head}. ${D.wait && D.wait[0] ? D.wait[0] : ''}`;
+  if (D.act === 'BUY' && p) return `지금 ${fmt(p.q1)}주(약 ${hMoney(p.amt1)})를 1차로 사고, 손절은 ${tmW(p.stop)}에 바로 걸어두세요. ${tmW(p.t1)}에서 절반, ${tmW(p.t2)} 또는 고점 대비 −${D.C.trail}%에서 나머지를 팔아요.`;
+  if (D.act === 'WAIT' && p) return `지금은 사지 말고 ${tmW(p.E)}에 ${fmt(p.q1)}주 지정가를 걸어두세요. 체결되면 손절 ${tmW(p.stop)}, 목표 ${tmW(p.t1)}·${tmW(p.t2)}.`;
+  if (D.act === 'NO') return `지금은 사지 않아요.${p ? ` 금지 사유가 풀리면 ${tmW(p.E)} 매수 · ${tmW(p.stop)} 손절 기준으로 다시 봐요.` : ''}`;
+  return D.wait && D.wait[0] ? `매수하지 않고 지켜봐요. ${D.wait[0]}.` : '매수하지 않고 지켜봐요.';
 }
 
+/* 주문표 행 모으기 */
+function tmRows(D) {
+  const buy = [], sell = [];
+  if (D.mode === 'hold') {
+    D.orders.filter(o => o[1] > 0).forEach(o => sell.push({ lbl: o[0], p: o[2], q: o[1], note: o[3], stop: /손절|트레일링/.test(o[0]) }));
+    if (D.add && D.add.ok && D.add.pl) buy.push({ lbl: '추가(2차) 매수', p: D.add.pl.E, q: D.add.pl.q1, note: '추세 유지 중 매수 신호' });
+  } else if (D.plan) {
+    const p = D.plan;
+    buy.push({ lbl: D.act === 'BUY' ? '1차 매수 · 지금' : '1차 매수 · 지정가', p: p.E, q: p.q1, note: `자금의 1/${D.C.splits}${p.sig ? ' · ' + p.sig.name : ''}` });
+    buy.push({ lbl: '2차 매수', p: p.add2, q: p.q2, note: '1차 뒤 전일 고가를 다시 넘을 때만', above: true });
+    sell.push({ lbl: '손절 · 매수와 함께 등록', p: p.stop, q: p.qty, note: `${p.sig && p.sig.stopWhy || ''}${p.note ? ' (' + p.note + ')' : ''}`, stop: true, loss: p.loss });
+    sell.push({ lbl: '1차 목표 · 절반', p: p.t1, q: Math.ceil(p.qty / 2), note: `손익비 1:2${p.res ? ` · 위 저항 ${tmW(p.res)}` : ''}` });
+    sell.push({ lbl: '2차 목표 · 나머지', p: p.t2, q: Math.floor(p.qty / 2), note: `또는 고점 대비 −${D.C.trail}% 트레일링` });
+  }
+  return { buy, sell };
+}
+function tmRowHtml(r, D, side) {
+  const d = (r.p / D.P - 1) * 100;
+  return `<div class="tk-row ${side}${r.stop ? ' stop' : ''}">
+    <div class="tk-lbl">${esc(r.lbl)}<small>${esc(r.note || '')}</small></div>
+    <div class="tk-num"><b>${fmt(Math.round(r.p))}</b><span>${r.above ? '이상' : Math.abs(d) < 0.05 ? '현재가' : pct(d, 1)}</span></div>
+    <div class="tk-qty"><b>${r.q === D.plan?.qty && r.stop ? '전량' : fmt(r.q) + '주'}</b><span>${r.loss ? '−' + hMoney(r.loss) : hMoney(r.q * r.p)}</span></div>
+  </div>`;
+}
+/* 주문할 게 없을 때: 무엇을 기다리는지 */
+function tmWaitHtml(D) {
+  const R = D.R, near = R.buys.filter(b => b.state === 'near' && b.entry);
+  const items = [...(D.wait || []), ...near.map(b => `${b.name}: ${b.trigger || ''} ${tmW(b.entry)} 매수 · 손절 ${tmW(b.stop)}`)];
+  if (!R.trend.ok) items.unshift(`추세 회복: 종가가 20일선 ${tmW(R.ma20)} 위에 있고 20일선이 오르기 시작할 때`);
+  return `<div class="tk-orders"><h4 class="tk-side idle">기다릴 조건</h4>${items.length ? `<ul class="tk-wait">${[...new Set(items)].map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="tk-basis">매수 신호가 나오면 이 자리에 주문표가 나와요.</p>'}${D.why.length ? `<p class="tk-basis">${D.why.map(esc).join(' / ')}</p>` : ''}</div>`;
+}
+function tmTicketHtml(D) {
+  const { buy, sell } = tmRows(D);
+  if (!buy.length && !sell.length) return '';
+  const p = D.plan, dim = D.act === 'NO' || D.act === 'WATCH';
+  return `<div class="tk-orders${dim ? ' dim' : ''}">
+    ${dim && p ? '<p class="tk-note">금지 사유가 풀렸을 때 쓸 참고 계획이에요. 지금은 주문하지 않아요.</p>' : ''}
+    ${buy.length ? `<h4 class="tk-side buy">매수</h4>${buy.map(r => tmRowHtml(r, D, 'buy')).join('')}` : ''}
+    ${sell.length ? `<h4 class="tk-side sell">매도</h4>${sell.map(r => tmRowHtml(r, D, 'sell')).join('')}` : ''}
+    ${p ? `<p class="tk-basis">수량은 계좌 ${hMoney(p.A)} 기준으로 「손절 한 번에 계좌의 ${D.C.maxLoss}% 이내」와 「한 종목 ${D.C.maxPos}% 이내」 중 작은 쪽이에요${p.mult < 1 ? `. 시장·일정·물량 위험 때문에 ×${fmt(p.mult, 2)}로 줄였어요` : ''}. 총 ${fmt(p.qty)}주, ${hMoney(p.amt)}.</p>` : ''}
+  </div>`;
+}
+
+/* 세로 가격 사다리 — 위는 목표, 아래는 손절, 가운데 지금 가격 */
 function tmLadder(D) {
-  const pts = [];
-  if (D.mode === 'hold') { pts.push(['손절/트레일링', D.eff, 'st'], ['평단', D.avg, 'av'], ['1차 목표', D.t1, 't'], ['2차 목표', D.t2, 't']); }
-  else if (D.plan) { const p = D.plan; pts.push(['손절', p.stop, 'st'], [D.act === 'BUY' ? '1차 매수' : '매수 지정가', p.E, 'av'], ['1차 목표', p.t1, 't'], ['2차 목표', p.t2, 't']); }
-  else pts.push(['20일선', D.R.ma20, 'av']);
-  pts.push(['현재가', D.P, 'px']);
-  const vals = pts.map(x => x[1]).filter(Boolean), lo = Math.min(...vals) * 0.985, hi = Math.max(...vals) * 1.015, Xp = v => (v - lo) / (hi - lo) * 100;
-  return `<div class="tm-lad">${pts.map(([n, v, k]) => `<b class="tm-mk ${k}" style="left:${Xp(v)}%"><span>${n}<br>${fmt(Math.round(v))}</span></b>`).join('')}</div>`;
-}
-
-function tmOrdersHtml(D) {
-  if (D.mode === 'hold') return `<table class="tm-ord"><thead><tr><th>할 일</th><th>수량</th><th>가격</th><th>금액</th><th>설명</th></tr></thead><tbody>${D.orders.filter(o => o[1] > 0).map(o => `<tr><td><b>${esc(o[0])}</b></td><td class="mono">${fmt(o[1])}주</td><td class="mono">${tmW(o[2])} <small class="${cls(o[2] - D.P)}">${tmP(o[2], D.P)}</small></td><td class="mono">${hMoney(o[1] * o[2])}</td><td class="muted small">${esc(o[3])}</td></tr>`).join('')}</tbody></table>`;
-  const p = D.plan; if (!p) return '';
-  const lossPct = (p.loss / p.A * 100);
-  return `${D.act === 'NO' ? '<div class="hint"><b>⛔ 지금은 주문하지 않아요.</b> 아래는 금지 사유가 풀렸을 때 쓸 참고 계획이에요.</div>' : ''}<table class="tm-ord${D.act === 'NO' ? ' dim' : ''}"><thead><tr><th>할 일</th><th>수량</th><th>가격</th><th>금액</th><th>설명</th></tr></thead><tbody>
-    <tr class="buy"><td><b>${D.act === 'BUY' ? '1차 매수(지금)' : '1차 매수(지정가)'}</b></td><td class="mono">${fmt(p.q1)}주</td><td class="mono">${tmW(p.E)} <small class="${cls(p.E - D.P)}">${p.E !== D.P ? tmP(p.E, D.P) : '현재가'}</small></td><td class="mono">${hMoney(p.amt1)}</td><td class="muted small">자금의 1/${D.C.splits} · ${esc(p.sig ? p.sig.id + ' ' + p.sig.name : '')}</td></tr>
-    <tr class="buy"><td><b>2차 매수</b></td><td class="mono">${fmt(p.q2)}주</td><td class="mono">${tmW(p.add2)} 위</td><td class="mono">${hMoney(p.q2 * p.add2)}</td><td class="muted small">1차 뒤 재반등 확인(전일 고가 회복) 때만</td></tr>
-    <tr class="sell"><td><b>손절(매수와 동시에 등록)</b></td><td class="mono">전량</td><td class="mono">${tmW(p.stop)} <small class="down">${pct(p.stopPct, 1)}</small></td><td class="mono down">−${hMoney(p.loss)}</td><td class="muted small">${esc(p.sig && p.sig.stopWhy || '')}${p.note ? ' · ' + esc(p.note) : ''} · 계좌의 ${fmt(lossPct, 1)}%</td></tr>
-    <tr class="sell"><td><b>1차 목표 — 절반 매도</b></td><td class="mono">${fmt(Math.ceil(p.qty / 2))}주</td><td class="mono">${tmW(p.t1)} <small class="up">${tmP(p.t1, p.E)}</small></td><td class="mono up">+${hMoney((p.t1 - p.E) * Math.ceil(p.qty / 2))}</td><td class="muted small">손익비 1:2 (위험의 2배)${p.res ? ` · 위 저항 ${tmW(p.res)}` : ''}</td></tr>
-    <tr class="sell"><td><b>2차 목표 / 트레일링</b></td><td class="mono">${fmt(Math.floor(p.qty / 2))}주</td><td class="mono">${tmW(p.t2)} <small class="up">${tmP(p.t2, p.E)}</small></td><td class="mono up">+${hMoney((p.t2 - p.E) * Math.floor(p.qty / 2))}</td><td class="muted small">또는 매수 후 최고가 대비 −${D.C.trail}% 이탈 시(과열이면 −${D.C.trailTight}%)</td></tr>
-  </tbody></table>
-  <div class="hint">수량 = 계좌 ${hMoney(p.A)} 기준 「한 번 손절에 계좌 −${D.C.maxLoss}% 이내」와 「종목당 ${D.C.maxPos}% 이내」 중 작은 쪽${p.mult < 1 ? ` × ${fmt(p.mult, 2)}(시장·일정·물량 위험으로 줄임)` : ''} = 총 ${fmt(p.qty)}주(${hMoney(p.amt)}).</div>`;
+  const L = [];
+  if (D.mode === 'hold') L.push(['2차 목표', D.t2, 'sell'], ['1차 목표', D.t1, 'sell'], ['평단', D.avg, 'avg'], [D.effWhy.startsWith('트레일링') ? '트레일링' : '손절', D.eff, 'stop']);
+  else if (D.plan) { const p = D.plan; L.push(['2차 목표', p.t2, 'sell'], ['1차 목표', p.t1, 'sell'], [D.act === 'BUY' ? '매수' : '지정가', p.E, 'buy'], ['손절', p.stop, 'stop']); if (p.add2 > p.E * 1.002) L.push(['2차 매수', p.add2, 'buy']); }
+  else L.push(['60일 고점', D.R.hi60, 'ref'], ['20일선', D.R.ma20, 'ref'], ['60일선', D.R.ma60, 'ref']);
+  L.push(['지금', D.P, 'now']);
+  L.sort((a, b) => b[1] - a[1]);
+  return `<aside class="tk-ladder" aria-label="가격 위치"><h4>가격 위치</h4>${L.map(([n, v, k]) => `<div class="ld ${k}"><span class="ld-n">${n}</span><b class="ld-p">${fmt(Math.round(v))}</b><span class="ld-d">${k === 'now' ? `<em class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 1)}</em>` : pct((v / D.P - 1) * 100, 1)}</span></div>`).join('')}</aside>`;
 }
 
 function tmSigHtml(R) {
-  const card = (x, extra) => `<div class="tm-sig ${x.state}"><div class="tm-sig-h"><b>${x.id}</b> ${esc(x.name)} ${tmStTag(x.state)}</div><div class="small">${esc(x.why || '')}</div>${extra || ''}</div>`;
-  return `<div class="tm-trend ${R.trend.ok ? 'ok' : 'bad'}"><b>추세 필터(최상위 관문) ${R.trend.ok ? '통과 ✓' : '실패 ✗'}</b> <span class="small">${esc(R.trend.why)}</span>${R.trend.ok ? '' : '<div class="small">→ 매수 신호는 전부 무시하고 매도 신호만 감시해요. (과매도 되돌림만 「20일선 우상향 + 60일선 위」로 따로 확인)</div>'}</div>
-    <h4 class="mt">매수 신호</h4><div class="tm-sigs">${R.buys.map(b => card(b, b.entry && b.state !== 'off' && b.state !== 'void' ? `<div class="small mono mt-s">매수 ${tmW(b.entry)} · 손절 ${tmW(b.stop)}${b.trigger ? `<br><span class="muted">조건: ${esc(b.trigger)}</span>` : ''}</div>` : '')).join('')}</div>
-    <h4 class="mt">매도 신호</h4><div class="tm-sigs sells">${R.sells.map(s => card(s, s.state === 'on' || s.state === 'warn' ? `<div class="small mt-s">대응: <b>${esc(s.act)}</b></div>` : '')).join('')}</div>
-    <div class="hint mt-s">지표: 5일선 ${tmW(R.ma5)} · 20일선 ${tmW(R.ma20)} · 60일선 ${tmW(R.ma60)} · RSI ${fmt(R.rsi, 0)} · 스토캐스틱 ${fmt(R.k, 0)}/${fmt(R.dd, 0)} · 거래량 평소의 ${fmt(R.vr || 0, 1)}배${R.partial ? '(장중 → 하루치로 추정)' : ''}</div>`;
+  const row = x => `<li class="sg ${x.state}"><i></i><div><b>${esc(x.name)}</b> ${tmStTag(x.state)}<small class="sg-id">${x.id}</small><p>${esc(x.why || '')}</p>${x.entry && (x.state === 'on' || x.state === 'near') ? `<p class="sg-px">매수 ${tmW(x.entry)} · 손절 ${tmW(x.stop)}${x.trigger ? ` · ${esc(x.trigger)}` : ''}</p>` : ''}${x.act && (x.state === 'on' || x.state === 'warn') ? `<p class="sg-px">대응: ${esc(x.act)}</p>` : ''}</div></li>`;
+  return `<div class="sg-trend ${R.trend.ok ? 'ok' : 'bad'}"><b>${R.trend.ok ? '추세 필터 통과' : '추세 필터 실패'}</b><span>${esc(R.trend.why)}</span>${R.trend.ok ? '' : '<span>매수 신호는 모두 무시하고 매도 신호만 봐요. 과매도 되돌림만 「20일선 우상향 + 60일선 위」로 따로 확인해요.</span>'}</div>
+    <div class="sg-cols"><div><h4 class="tk-side buy">매수 신호</h4><ul class="sg-list">${R.buys.map(row).join('')}</ul></div>
+    <div><h4 class="tk-side sell">매도 신호</h4><ul class="sg-list sells">${R.sells.map(row).join('')}</ul></div></div>
+    <p class="tk-basis">5일선 ${tmW(R.ma5)}, 20일선 ${tmW(R.ma20)}, 60일선 ${tmW(R.ma60)}, RSI ${fmt(R.rsi, 0)}, 스토캐스틱 ${fmt(R.k, 0)}/${fmt(R.dd, 0)}, 거래량은 평소의 ${fmt(R.vr || 0, 1)}배${R.partial ? '(장중이라 하루치로 추정)' : ''}.</p>`;
 }
 
 function tmNewsHtml(D) {
   const ev = TM.ev.get(D.code), cx = D.ctx;
-  const li = (x, k) => `<li class="tm-ev ${k}"><span class="mono muted">${esc(x.d.slice(5, 16))}</span> ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.t)}</a>` : esc(x.t)}${x.by ? ` <small class="muted">${esc(x.by)}</small>` : ''}</li>`;
-  const dis = ev ? ev.dis.slice(0, 10) : [], news = ev ? ev.news.slice(0, 8) : [];
-  const kName = { risk: '악재·물량', good: '호재', sched: '일정', info: '' };
+  const kName = { risk: '악재·물량', good: '호재', sched: '일정' };
   const co = TM.co.get(D.code), tgt = co && co.consensus && co.consensus.target ? Number(String(co.consensus.target).replace(/[^\d.]/g, '')) : null;
-  return `<div class="tm-grid2">
-    <div><h4>판정에 넣은 최신 상황</h4>
-      ${cx.plus.length ? `<ul class="tm-ul good">${cx.plus.map(t => `<li>＋ ${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${cx.minus.length ? `<ul class="tm-ul bad">${cx.minus.map(t => `<li>－ ${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${!cx.plus.length && !cx.minus.length ? '<div class="hint">눈에 띄는 수급·뉴스·공시 변화 없음</div>' : ''}
-      ${tgt ? `<div class="small mt-s">증권사 평균 목표가 <b>${tmW(tgt)}</b> (현재가 대비 ${tmP(tgt, D.P)}) — 참고만</div>` : ''}
-      ${D.s && D.s.short_ratio != null ? `<div class="small muted">공매도 잔고 ${fmt(D.s.short_ratio, 2)}% · 외국인 ${D.s.foreign_streak > 0 ? D.s.foreign_streak + '일 순매수' : D.s.foreign_streak < 0 ? -D.s.foreign_streak + '일 순매도' : '–'} · 기관 ${D.s.inst_streak > 0 ? D.s.inst_streak + '일 순매수' : D.s.inst_streak < 0 ? -D.s.inst_streak + '일 순매도' : '–'}</div>` : ''}
+  const item = (x, k, tag) => `<li class="nw ${k}"><time>${esc(x.d.slice(5, 10).replace('-', '.'))} ${esc(x.d.slice(11, 16))}</time>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.t)}</a>` : `<span>${esc(x.t)}</span>`}${tag ? `<em class="${k}">${tag}</em>` : ''}${x.by ? `<small>${esc(x.by)}</small>` : ''}</li>`;
+  const dis = ev ? ev.dis.slice(0, 8) : [], news = ev ? ev.news.slice(0, 8) : [];
+  const s = D.s;
+  const facts = [];
+  if (tgt) facts.push(['증권사 평균 목표가', `${tmW(tgt)} (${tmP(tgt, D.P)})`]);
+  if (s && s.foreign_streak != null) facts.push(['외국인', s.foreign_streak > 0 ? `${s.foreign_streak}일 연속 순매수` : s.foreign_streak < 0 ? `${-s.foreign_streak}일 연속 순매도` : '방향 없음']);
+  if (s && s.inst_streak != null) facts.push(['기관', s.inst_streak > 0 ? `${s.inst_streak}일 연속 순매수` : s.inst_streak < 0 ? `${-s.inst_streak}일 연속 순매도` : '방향 없음']);
+  if (s && s.short_ratio != null) facts.push(['공매도 잔고', `${fmt(s.short_ratio, 2)}%${s.short_chg != null ? ` (1주 ${s.short_chg > 0 ? '+' : ''}${fmt(s.short_chg, 2)}%p)` : ''}`]);
+  if (s && s.cl) facts.push(['차트 종합판정', `${s.cl.v} ${s.cl.s > 0 ? '+' : ''}${fmt(s.cl.s, 1)}`]);
+  return `<div class="nw-grid">
+    <div><h4>결론에 넣은 것</h4>
+      ${cx.plus.length || cx.minus.length ? `<ul class="pm">${cx.plus.map(t => `<li class="p">${esc(t)}</li>`).join('')}${cx.minus.map(t => `<li class="m">${esc(t)}</li>`).join('')}</ul>` : '<p class="tk-basis">눈에 띄는 수급·뉴스·공시 변화가 없어요.</p>'}
+      ${facts.length ? `<dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
     </div>
-    <div><h4>최근 공시 <small class="muted">${ev ? esc(ev.at.slice(11)) + ' 확인' : '불러오는 중…'}</small></h4>
-      ${dis.length ? `<ul class="tm-evs">${dis.map(x => li(x, tmClassDis(x.t)) .replace('</li>', tmClassDis(x.t) !== 'info' ? ` <span class="tag ${tmClassDis(x.t) === 'risk' ? 'bad' : tmClassDis(x.t) === 'good' ? 'good' : ''}">${kName[tmClassDis(x.t)]}</span></li>` : '</li>')).join('')}</ul>` : `<div class="hint">${ev ? '최근 공시를 받지 못했어요' : ''}</div>`}
-      <h4 class="mt-s">종목 뉴스</h4>
-      ${news.length ? `<ul class="tm-evs">${news.map(x => li(x, TM_NNEG.test(x.t) ? 'neg' : TM_NPOS.test(x.t) ? 'pos' : '')).join('')}</ul>` : `<div class="hint">${ev ? '뉴스 없음' : ''}</div>`}
+    <div><h4>최근 공시 <small>${ev ? esc(ev.at.slice(11)) + ' 확인' : '불러오는 중'}</small></h4>
+      ${dis.length ? `<ul class="nw-list">${dis.map(x => { const k = tmClassDis(x.t); return item(x, k, kName[k]); }).join('')}</ul>` : `<p class="tk-basis">${ev ? '최근 공시가 없어요.' : ''}</p>`}
+      <h4>종목 뉴스</h4>
+      ${news.length ? `<ul class="nw-list">${news.map(x => item(x, TM_NNEG.test(x.t) ? 'risk' : TM_NPOS.test(x.t) ? 'good' : '', '')).join('')}</ul>` : `<p class="tk-basis">${ev ? '최근 뉴스가 없어요.' : ''}</p>`}
     </div></div>`;
 }
 
 function tmCalHtml(D) {
-  const cal = D.ctx.cal; if (!cal.length) return '<div class="hint">45일 안에 눈에 띄는 일정이 없어요.</div>';
-  const today = tmNow().date;
-  return `<ul class="tm-cal">${cal.map(x => { const cd = Math.round((new Date(x.d) - new Date(today)) / 864e5); return `<li class="${x.w >= 2 ? 'hot' : ''} ${x.past ? 'past' : ''}"><b class="mono">${esc(x.d.slice(5))}</b> <small class="muted">${x.past || cd < 0 ? '지난 일' : cd === 0 ? '오늘' : cd + '일 뒤'}</small> ${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.t)}</a>` : esc(x.t)}</li>`; }).join('')}</ul>
-    <div class="hint">FOMC·실적 시즌·동시만기처럼 크게 흔들 수 있는 일정이 3거래일 안에 있으면 1차 매수 비중을 절반으로 줄여 계산해요.</div>`;
+  const cal = D.ctx.cal, today = tmNow().date;
+  if (!cal.length) return '<p class="tk-basis">45일 안에 눈에 띄는 일정이 없어요.</p>';
+  return `<ol class="cal">${cal.map(x => { const cd = Math.round((new Date(x.d) - new Date(today)) / 864e5); const [t, sub] = x.t.split(' — '); return `<li class="${x.w >= 2 ? 'hot' : ''}${x.past || cd < 0 ? ' past' : ''}"><div class="cal-d"><b>${+x.d.slice(5, 7)}.${+x.d.slice(8, 10)}</b><span>${x.past || cd < 0 ? '지남' : cd === 0 ? '오늘' : 'D-' + cd}</span></div><div class="cal-t">${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(t)}</a>` : esc(t)}${sub ? `<small>${esc(sub)}</small>` : ''}</div></li>`; }).join('')}</ol>
+    <p class="tk-basis">실적 발표·FOMC·동시만기처럼 크게 흔들 수 있는 일정이 3거래일 안에 있으면 1차 매수 수량을 절반으로 줄여 계산해요.</p>`;
 }
 
 function tmNoteHtml(D) {
-  const n = D.note;
-  const best = D.mode === 'new' && D.plan ? D.plan : null;
-  return `<div class="tm-note">${n ? `<div>📝 <b>${esc(n.t)}</b> 기록: ${esc(n.txt)}${n.stop ? ` <small class="muted">(근거 기준선 ${tmW(n.stop)} — 이 아래로 내려가면 「근거 소멸」로 매도 판단)</small>` : ''} <button class="btn ghost small" id="tmNoteDel">지우기</button></div>` : '<div class="hint">매수할 때 「왜 샀는지」 한 줄을 남겨두면, 그 근거가 사라졌을 때 매도 판단에 써요.</div>'}
-    <div class="row gap wrap mt-s"><input id="tmNoteTxt" class="inp" style="flex:1;min-width:220px" placeholder="예) 20일선 눌림목 지지 확인 후 1차 매수" value="${best && best.sig ? esc(`${best.sig.id} ${best.sig.name} — ${tmW(best.E)} 매수, 손절 ${tmW(best.stop)}`) : ''}"><button class="btn ghost small" id="tmNoteSave">근거 기록</button></div></div>`;
+  const n = D.note, best = D.mode === 'new' && D.plan ? D.plan : null;
+  return `<div class="tm-note">${n ? `<p><b>${esc(n.t)}에 기록한 근거</b> ${esc(n.txt)}${n.stop ? `<br><small class="muted">기준선 ${tmW(n.stop)} 아래로 내려가면 「근거가 사라졌다」고 보고 매도를 권해요.</small>` : ''} <button class="btn ghost small" id="tmNoteDel">기록 지우기</button></p>` : '<p class="tk-basis">살 때 「왜 샀는지」 한 줄을 남겨두면, 그 근거가 깨질 때 매도 신호로 써요.</p>'}
+    <div class="row gap wrap"><input id="tmNoteTxt" class="inp" style="flex:1;min-width:220px" placeholder="예) 20일선 눌림목 지지를 보고 1차 매수" value="${best && best.sig ? esc(`${best.sig.name} — ${tmW(best.E)} 매수, 손절 ${tmW(best.stop)}`) : ''}"><button class="btn small" id="tmNoteSave">근거 저장</button></div></div>`;
 }
 
 function tmRenderOne() {
   const box = $('#tmOne'); if (!box) return;
-  const code = TM.sel; if (!code) { box.innerHTML = ''; return; }
+  const code = TM.sel; if (!code) { box.innerHTML = '<p class="tk-empty">위에서 종목을 검색하면 매수가·매도가와 타이밍을 계산해요.</p>'; return; }
   const ae = document.activeElement; if (ae && box.contains(ae) && /INPUT|TEXTAREA/.test(ae.tagName)) return;  // 입력 중이면 다시 그리지 않음
   const st = TM.st.get(code), s = S.data.stocks.find(x => x.code === code);
-  if (!st || !st.f) { box.innerHTML = `<div class="empty">${esc(s ? s.name : code)} ${st && st.err ? '— 일봉 자료가 없어 규칙을 계산할 수 없어요(분석 대상 892종목만 가능).' : '일봉 자료를 불러오는 중이에요…'}</div>`; return; }
-  let D; try { D = tmDecide(code); } catch (e) { console.error(e); box.innerHTML = `<div class="empty">계산 중 문제가 생겼어요: ${esc(e.message)}</div>`; return; }
+  if (!st || !st.f) { box.innerHTML = `<p class="tk-empty">${esc(s ? s.name : code)} ${st && st.err ? '— 일봉 자료가 없어 계산할 수 없어요. 분석 대상 892종목만 볼 수 있어요.' : '일봉 자료를 불러오는 중이에요.'}</p>`; return; }
+  let D; try { D = tmDecide(code); } catch (e) { console.error(e); box.innerHTML = `<p class="tk-empty">계산하지 못했어요: ${esc(e.message)}</p>`; return; }
   if (!D) return;
   TM.lastD = D;
-  const q = st.q, R = D.R;
-  const px = `<span class="mono"><b>${tmW(D.P)}</b> <small class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 2)}</small></span>`;
-  box.innerHTML = `<div class="an-card an-wide tm-main">
-    <h3>${esc(s ? s.name : code)} <span class="muted mono">${esc(code)}</span> ${px} ${D.hold ? `<span class="tag good">보유 ${fmt(D.hold.qty)}주 · 평단 ${tmW(D.hold.avg)} · ${pct((D.P / D.hold.avg - 1) * 100, 1)}</span>` : '<span class="tag">보유 안 함</span>'}
-      <span class="tm-live">${q && q.price ? `<span class="gov-live"></span> ${esc(String(q.at || '').slice(11, 19))} 시세` : '종가 기준'}${D.partial ? ' · 장중(잠정)' : ''}</span>
-      <span class="row gap" style="margin-left:auto"><button class="btn ghost small" id="tmAn">종목 분석</button>${D.hold ? '' : `<button class="btn ghost small" id="tmW">${(store.get('tmWatch', []) || []).includes(code) ? '★ 관심 해제' : '☆ 관심 추가'}</button>`}</span></h3>
-    <div class="tm-concl ${D.tone}">
-      <div class="tm-concl-h">최종 결론 ${tmTag(D.act)} <b>${esc(D.head)}</b></div>
-      <p class="tm-one">${esc(tmOneLine(D))}</p>
-      ${tmOrdersHtml(D)}
-      <div class="tm-when"><b>⏰ 타이밍</b> ${esc(D.timing)}</div>
-      ${D.ctx.timing.length ? `<ul class="tm-ul warn">${D.ctx.timing.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${D.bans && D.bans.length ? `<ul class="tm-ul bad">${D.bans.map(t => `<li>⛔ ${esc(t)}</li>`).join('')}</ul>` : ''}
-      ${D.add ? `<div class="small mt-s">${D.add.ok ? '➕' : '🚫'} ${esc(D.add.t)}</div>` : ''}
-      ${D.why.length ? `<div class="small muted mt-s">근거: ${D.why.map(esc).join(' · ')}</div>` : ''}
-      ${D.wait && D.wait.length ? `<ul class="tm-ul">${D.wait.map(t => `<li>⏳ ${esc(t)}</li>`).join('')}</ul>` : ''}
-    </div>
-    ${tmLadder(D)}
-    <div class="tm-chart"><canvas id="tmCv"></canvas></div>
-    <details class="mt" open><summary><b>규칙 판정 — 추세 필터 · 매수 신호 4개 · 매도 신호 5개</b></summary>${tmSigHtml(R)}</details>
-    <details class="mt" open><summary><b>최신 상황 — 공시 · 뉴스 · 수급 · 공매도</b></summary>${tmNewsHtml(D)}</details>
-    <details class="mt" open><summary><b>추후 일정</b></summary>${tmCalHtml(D)}</details>
-    <details class="mt"><summary><b>매수 근거 기록</b></summary>${tmNoteHtml(D)}</details>
-    <div class="hint mt">※ 기술적 분석은 확률 게임이에요. 이 화면은 정해진 규칙을 그대로 계산한 참고 자료이고, 매매 판단과 책임은 본인에게 있어요. 손절가를 답할 수 없으면 사지 않는다 — 이것이 첫 번째 규칙이에요.</div>
-  </div>`;
+  const q = st.q, R = D.R, tone = tmTone(D.act);
+  const watching = (store.get('tmWatch', []) || []).includes(code);
+  const tm = D.mode === 'hold' ? D.ctx.timing.filter(t => !/^호재 뉴스가 몰리는|휴장 전날|^최근 물량 공시/.test(t)).map(t => t.replace(/→ 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입/, '→ 발표 전후로 크게 흔들릴 수 있어요. 손절선을 다시 확인하세요')) : D.ctx.timing;
+  const warns = [...(D.bans || []).map(t => ['no', t]), ...tm.map(t => ['warn', t])];
+  const nOn = R.buys.filter(b => b.state === 'on').length + R.sells.filter(b => b.state === 'on').length;
+  const nCal = D.ctx.cal.filter(x => !x.past && x.d >= tmNow().date).length;
+  const pane = TM.pane || 'sig';
+  const panes = [['sig', '규칙 판정', nOn ? `발생 ${nOn}` : ''], ['news', '최신 상황', ''], ['cal', '일정', nCal ? String(nCal) : ''], ['note', '매수 근거', D.note ? '기록됨' : '']];
+  box.innerHTML = `<article class="tk">
+    <header class="tk-head">
+      <div class="tk-id"><h3>${esc(s ? s.name : code)}</h3><p>${esc(code)} · ${s ? (s.market === 'KOSPI' ? '코스피' : '코스닥') : ''}${s && s.sector ? ' · ' + esc(s.sector) : ''}</p>
+        <p>${D.hold ? `<span class="own">보유 ${fmt(D.hold.qty)}주 · 평단 ${tmW(D.hold.avg)} · <b class="${cls(D.P - D.hold.avg)}">${pct((D.P / D.hold.avg - 1) * 100, 1)}</b></span>` : '<span class="own none">보유하지 않음</span>'}</p></div>
+      <div class="tk-px"><b class="${cls(D.ctx.chg)}">${fmt(D.P)}</b><span class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 2)}</span>
+        <small>${q && q.price ? `<span class="gov-live"></span>${esc(String(q.at || '').slice(11, 19))} 시세` : '종가 기준'}${D.partial ? ' · 장중 잠정' : ''}</small></div>
+      <div class="tk-btns"><button class="btn ghost small" id="tmAn">종목 분석</button>${D.hold ? '' : `<button class="btn ghost small" id="tmW">${watching ? '★ 관심 종목' : '☆ 관심 추가'}</button>`}</div>
+    </header>
+    <section class="tk-verdict v-${tone}">
+      <div class="tk-act">${esc((TM_ACT[D.act] || [''])[0])}</div>
+      <p class="tk-head2">${esc(D.head.replace(/^[^—]{1,14}\s—\s/, ''))}</p>
+      <p class="tk-sum">${esc(tmOneLine(D))}</p>
+      <p class="tk-when"><b>언제</b>${esc(D.timing)}</p>
+      ${D.add ? `<p class="tk-add ${D.add.ok ? 'ok' : 'no'}">${esc(D.add.t)}</p>` : ''}
+      ${warns.length ? `<ul class="tk-warn">${warns.map(([k, t]) => `<li class="${k}">${esc(t)}</li>`).join('')}</ul>` : ''}
+    </section>
+    <section class="tk-body">${tmTicketHtml(D) || tmWaitHtml(D)}${tmLadder(D)}</section>
+    ${tmTicketHtml(D) && (D.why.length || (D.wait && D.wait.length)) ? `<div class="tk-reason">${D.why.length ? `<p><b>판단 근거</b> ${D.why.map(esc).join(' / ')}</p>` : ''}${D.wait && D.wait.length ? `<p><b>기다릴 조건</b> ${D.wait.map(esc).join(' / ')}</p>` : ''}</div>` : ''}
+    <div class="tk-chart"><canvas id="tmCv" aria-label="최근 90일 종가와 이동평균선, 매수·손절·목표 가격"></canvas></div>
+    <nav class="tk-tabs" role="tablist">${panes.map(([k, n, b]) => `<button role="tab" aria-selected="${k === pane}" data-pane="${k}">${n}${b ? `<span>${b}</span>` : ''}</button>`).join('')}</nav>
+    <div class="tk-pane">${pane === 'sig' ? tmSigHtml(R) : pane === 'news' ? tmNewsHtml(D) : pane === 'cal' ? tmCalHtml(D) : tmNoteHtml(D)}</div>
+    <p class="tk-foot">정해진 규칙을 그대로 계산한 참고 자료예요. 기술적 분석은 확률이라 틀릴 수 있고, 매매 판단과 책임은 본인에게 있어요.</p>
+  </article>`;
   const b = $('#tmAn'); if (b) b.onclick = () => showAnalysis(code);
-  const w = $('#tmW'); if (w) w.onclick = () => { tmToggleWatch(code); };
+  const w = $('#tmW'); if (w) w.onclick = () => tmToggleWatch(code);
+  $$('#tmOne [data-pane]').forEach(x => x.onclick = () => { TM.pane = x.dataset.pane; store.set('tmPane', TM.pane); tmRenderOne(); });
   const ns = $('#tmNoteSave'); if (ns) ns.onclick = () => {
     const txt = $('#tmNoteTxt').value.trim(); if (!txt) return;
     const all = tmNotes(), best = D.plan && D.plan.sig ? D.plan : null;
@@ -552,39 +597,41 @@ function tmDraw(D) {
   const R = D.R, B = R.B, N = B.c.length, k = Math.min(90, N), sl = a => a.slice(N - k);
   const css = getComputedStyle(document.documentElement), col = n => css.getPropertyValue(n).trim() || '#888';
   const lines = [];
-  const hl = (lbl, v, c, dash) => v && lines.push({ label: lbl, data: Array(k).fill(v), borderColor: c, borderWidth: 1.2, borderDash: dash || [5, 4], pointRadius: 0, fill: false });
-  if (D.mode === 'hold') { hl('손절/트레일링', D.eff, col('--down')); hl('평단', D.avg, '#888', [2, 3]); hl('1차 목표', D.t1, col('--up')); }
-  else if (D.plan) { hl('손절', D.plan.stop, col('--down')); hl('매수', D.plan.E, '#e0a800', [2, 3]); hl('1차 목표', D.plan.t1, col('--up')); }
+  const hl = (lbl, v, c, dash) => v && lines.push({ label: lbl, data: Array(k).fill(v), borderColor: c, borderWidth: 1.4, borderDash: dash || [6, 4], pointRadius: 0, fill: false });
+  if (D.mode === 'hold') { hl('손절·트레일링', D.eff, col('--down')); hl('평단', D.avg, col('--muted'), [2, 3]); hl('1차 목표', D.t1, col('--down'), [2, 2]); }
+  else if (D.plan) { hl('손절', D.plan.stop, col('--down')); hl('매수', D.plan.E, col('--up'), [2, 3]); hl('1차 목표', D.plan.t1, col('--down'), [2, 2]); }
   TM.chart = new Chart(cv, {
     type: 'line',
-    data: { labels: sl(B.d).map(d => d.slice(5)), datasets: [
-      { label: '종가', data: sl(B.c), borderColor: col('--fg') || '#333', borderWidth: 1.6, pointRadius: 0, fill: false },
-      { label: '5일선', data: sl(R.I.ma5), borderColor: '#f39c12', borderWidth: 1, pointRadius: 0, fill: false },
-      { label: '20일선', data: sl(R.I.ma20), borderColor: '#2e86de', borderWidth: 1.4, pointRadius: 0, fill: false },
-      { label: '60일선', data: sl(R.I.ma60), borderColor: '#8e44ad', borderWidth: 1, pointRadius: 0, fill: false },
+    data: { labels: sl(B.d).map(d => `${+d.slice(5, 7)}.${+d.slice(8, 10)}`), datasets: [
+      { label: '종가', data: sl(B.c), borderColor: col('--text'), borderWidth: 1.8, pointRadius: 0, fill: false },
+      { label: '20일선', data: sl(R.I.ma20), borderColor: col('--warn'), borderWidth: 1.4, pointRadius: 0, fill: false },
+      { label: '60일선', data: sl(R.I.ma60), borderColor: col('--muted'), borderWidth: 1, pointRadius: 0, fill: false },
       ...lines] },
     options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } }, tooltip: { callbacks: { label: c => `${c.dataset.label} ${fmt(Math.round(c.raw))}` } } },
-      scales: { x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } }, y: { ticks: { font: { size: 10 }, callback: v => fmt(v) } } } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 2, color: col('--muted'), font: { size: 11 } } }, tooltip: { callbacks: { label: c => `${c.dataset.label} ${fmt(Math.round(c.raw))}` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: col('--muted'), maxTicksLimit: 7, font: { size: 10 } } }, y: { position: 'right', grid: { color: col('--line') }, ticks: { color: col('--muted'), font: { size: 10 }, callback: v => fmt(v) } } } },
   });
 }
 
+/* 보유·관심 종목 줄 (주문창의 관심종목 목록처럼 가로로) */
 function tmRenderList() {
   const box = $('#tmList'); if (!box) return;
   const { hs, all } = tmCodes();
-  if (!all.length) { box.innerHTML = '<div class="hint">「내 보유 종목」에 기록한 종목과 ☆ 관심 종목이 여기에 모여 실시간으로 판정돼요. 위에서 종목을 검색해 보세요.</div>'; return; }
-  const rows = all.map(code => {
+  if (!all.length) { box.innerHTML = '<p class="tk-basis">「내 보유 종목」에 기록한 종목과 ☆ 관심 종목이 여기에 모여요.</p>'; return; }
+  box.innerHTML = all.map(code => {
     const s = S.data.stocks.find(x => x.code === code); let D = null;
     try { D = TM.st.get(code) && TM.st.get(code).f ? tmDecide(code) : null; } catch (e) { console.error(e); }
-    const key = D ? (D.mode === 'hold' ? `손절 ${tmW(D.eff)} · 목표 ${tmW(D.t1)}` : D.plan ? `매수 ${tmW(D.plan.E)} · 손절 ${tmW(D.plan.stop)} · 목표 ${tmW(D.plan.t1)}` : `20일선 ${tmW(D.R.ma20)}`) : '계산 중…';
-    return `<tr data-tm="${esc(code)}" class="${TM.sel === code ? 'on' : ''}"><td><b>${esc(s ? s.name : code)}</b> <small class="muted">${hs.includes(code) ? '보유' : '관심'}</small></td>
-      <td class="mono">${D ? `${tmW(D.P)} <small class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 1)}</small>` : '–'}</td><td>${D ? tmTag(D.act) : ''}</td>
-      <td class="small">${D ? esc(D.head) : ''}</td><td class="mono small">${key}</td><td>${D ? (D.R.trend.ok ? '<span class="tag good">추세 ✓</span>' : '<span class="tag bad">추세 ✗</span>') : ''}</td>
-      <td>${hs.includes(code) ? '' : `<button class="btn ghost small" data-tmx="${esc(code)}" title="관심 해제">✕</button>`}</td></tr>`;
-  });
-  box.innerHTML = `<table class="clx-tb tm-tb"><thead><tr><th>종목</th><th>현재가</th><th>결론</th><th>내용</th><th>핵심 가격</th><th>추세</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+    const key = D ? (D.mode === 'hold' ? `손절 ${fmt(D.eff)} · 목표 ${fmt(D.t1)}` : D.plan ? `매수 ${fmt(D.plan.E)} · 손절 ${fmt(D.plan.stop)}` : `20일선 ${fmt(Math.round(D.R.ma20))}`) : '계산 중';
+    return `<button class="wl ${TM.sel === code ? 'on' : ''} t-${D ? tmTone(D.act) : 'idle'}" data-tm="${esc(code)}">
+      <span class="wl-top"><b>${esc(s ? s.name : code)}</b><small>${hs.includes(code) ? '보유' : '관심'}</small></span>
+      <span class="wl-px">${D ? `${fmt(D.P)} <em class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 1)}</em>` : '–'}</span>
+      <span class="wl-act">${D ? (TM_ACT[D.act] || [''])[0] : ''}</span>
+      <span class="wl-key">${key}</span>
+      ${hs.includes(code) ? '' : `<span class="wl-x" data-tmx="${esc(code)}" role="button" aria-label="관심 종목에서 빼기" title="관심 종목에서 빼기">×</span>`}
+    </button>`;
+  }).join('');
   $$('#tmList [data-tm]').forEach(el => el.onclick = e => { if (e.target.closest('[data-tmx]')) return; tmSelect(el.dataset.tm); });
-  $$('#tmList [data-tmx]').forEach(el => el.onclick = () => tmToggleWatch(el.dataset.tmx));
+  $$('#tmList [data-tmx]').forEach(el => el.onclick = e => { e.stopPropagation(); tmToggleWatch(el.dataset.tmx); });
 }
 
 /* ── 자료 받기 ── */
@@ -637,8 +684,8 @@ function openTiming(code) { switchTab('timing'); tmSelect(code); }
 function tmStatus() {
   const el = $('#tmStatus'); if (!el) return;
   const mk = tmMarket(), st = TM.sel && TM.st.get(TM.sel), q = st && st.q;
-  const lbl = { open: '<span class="tag good">장중 — 현재가 10초마다 · 일봉 15분마다 다시 계산</span>', pre: '<span class="tag">장 시작 전</span>', after: '<span class="tag">장 마감 — 오늘 종가로 신호 확정</span>', closed: '<span class="tag">휴장일 — 마지막 거래일 종가 기준</span>' }[mk.st];
-  el.innerHTML = `${lbl} ${q && q.at ? `· 마지막 시세 ${esc(String(q.at).slice(11, 19))}` : ''} ${typeof CLX !== 'undefined' && CLX.live ? `· 일봉 계산 ${esc(CLX.live.meta.time.slice(5))}` : ''}`;
+  const lbl = { open: '<span class="gov-live"></span> 장중이에요. 현재가는 10초마다, 일봉은 15분마다 다시 계산해요.', pre: '장 시작 전이에요. 마지막 거래일 종가로 계산했어요.', after: '장이 끝났어요. 오늘 종가로 신호가 확정됐어요.', closed: '오늘은 휴장일이에요. 마지막 거래일 종가로 계산했어요.' }[mk.st];
+  el.innerHTML = `${lbl}${q && q.at ? ` 마지막 시세 ${esc(String(q.at).slice(11, 19))}.` : ''}`;
 }
 
 /* ── 실시간 루프 ── */
@@ -670,6 +717,7 @@ function tmCfgHtml() {
 }
 function initTiming() {
   if (!$('#tab-timing')) return;
+  TM.pane = store.get('tmPane', 'sig');
   $('#tmGo').onclick = tmFind;
   $('#tmQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tmFind(); } };
   $('#tmAddW').onclick = () => { const q = ($('#tmQ').value || '').trim(); const h = q ? findStocks(q) : []; const c = h.length ? h[0].code : TM.sel; if (c) { const w = store.get('tmWatch', []) || []; if (!w.includes(c)) tmToggleWatch(c); tmSelect(c); } };

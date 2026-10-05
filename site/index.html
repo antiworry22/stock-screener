@@ -138,16 +138,18 @@
 <!-- ═══ 매매 타이밍 (규칙 기반 매수가·매도가) ═══ -->
 <section id="tab-timing" class="tab">
   <div class="panel">
-    <div class="ph"><h2>매매 타이밍 — 규칙으로 정하는 매수가·매도가 <small class="muted">(실시간)</small></h2>
-      <div class="row gap wrap"><button class="btn ghost small" id="tmRefresh">지금 새로고침</button></div></div>
+    <div class="ph"><h2>매매 타이밍</h2><button class="btn ghost small" id="tmRefresh">지금 새로고침</button></div>
     <div class="hint gov-status" id="tmStatus"></div>
-    <p class="hint"><b>예측이 아니라 「신호 → 대응」 규칙</b>이에요. ① 추세 필터(현재가 &gt; 20일선, 20일선 5일간 우상향)를 통과해야 매수 신호를 봐요. ② 매수 신호 4개(눌림목·매물대 돌파·쉼 후 재상승·과매도 되돌림)와 매도 신호 5개(20일선 이탈·데드크로스·고점 거래량 폭발·긴 위꼬리·과열 다이버전스)를 계산해요. ③ <b>손절가를 먼저 정하고</b> 손익비 1:2로 목표가를, 계좌 2% 손실·종목 30% 한도로 수량을 정해 2번에 나눠 사요. ④ 보유 종목은 「손절 &gt; 매도 신호 &gt; 관망 &gt; 매수」 순서로 판단해요. ⑤ 최근 공시·뉴스·수급·공매도·시장 상황과 앞으로의 일정(실적·FOMC·만기일·휴장)까지 넣어 <b>최종 결론</b>을 내요. 장중에는 현재가를 10초마다 받아 다시 계산해요.</p>
-    <div class="row gap wrap mt clx-search"><input id="tmQ" class="inp" list="stockNames" placeholder="종목 검색 (이름 또는 6자리 코드) — 예) 삼성전자, 005930" autocomplete="off"><button class="btn primary small" id="tmGo">분석</button><button class="btn ghost small" id="tmAddW">☆ 관심 종목에 추가</button></div>
-    <div class="row gap wrap mt-s small tm-acct"><label>계좌 금액(수량 계산 기준) <input id="tmAcct" class="inp" type="number" step="1000000" min="0" style="width:160px"> 원</label>
-      <details id="tmCfgBox"><summary>규칙 숫자 바꾸기</summary><div id="tmCfgF"></div></details></div>
-    <h4 class="mt">내 보유 종목 · 관심 종목 <small class="muted">— 눌러서 자세히 보기</small></h4>
-    <div id="tmList" class="mt-s" style="overflow-x:auto"></div>
-    <div id="tmOne" class="mt"></div>
+    <details class="tm-intro"><summary>이 화면이 매수가·매도가를 정하는 방법</summary>
+      <p>예측하지 않고 정해진 규칙대로 대응해요. 먼저 추세 필터(현재가가 20일선 위, 20일선이 5일 동안 오름)를 통과해야 매수 신호를 봐요. 매수 신호는 눌림목·매물대 돌파·쉼 뒤 재상승·과매도 되돌림 4가지, 매도 신호는 20일선 이탈·데드크로스·고점 거래량 폭발·긴 위꼬리·과열 다이버전스 5가지예요.</p>
+      <p>손절가를 가장 먼저 정하고, 목표가는 손실 폭의 2배로 잡아요. 수량은 손절 한 번에 계좌의 2%, 한 종목에 계좌의 30%를 넘지 않게 정하고 두 번에 나눠 사요. 보유 종목은 손절 → 매도 신호 → 관망 → 매수 순서로 판단해요. 최근 공시·뉴스·수급·공매도·시장 상황과 앞으로의 일정까지 넣어 결론을 내고, 장중에는 현재가를 10초마다 받아 다시 계산해요.</p></details>
+    <div class="tm-bar">
+      <div class="row gap clx-search"><input id="tmQ" class="inp" list="stockNames" placeholder="종목 이름 또는 6자리 코드" autocomplete="off" aria-label="종목 검색"><button class="btn primary small" id="tmGo">계산하기</button><button class="btn ghost small" id="tmAddW">☆ 관심 추가</button></div>
+      <label>계좌 금액 <input id="tmAcct" class="inp" type="number" step="1000000" min="0" style="width:140px"> 원</label>
+      <details id="tmCfgBox"><summary>규칙 숫자 바꾸기</summary><div id="tmCfgF"></div></details>
+    </div>
+    <div id="tmList" class="wl-strip mt" aria-label="보유·관심 종목"></div>
+    <div id="tmOne"></div>
   </div>
 </section>
 
