@@ -310,9 +310,26 @@ function tmContext(s, R, ev, C) {
   else if (tvf && tvf.k === 'hold') plus.push(`거래대금 시가 지지형(+${tvf.s}) — 거래 많은 날 시가를 지켜냄`);
   else if (tvf && (tvf.k === 'down' || tvf.k === 'dump')) { minus.push(`거래대금 ${tvf.name}(${tvf.s}) — 거래가 많은데 시가 아래로 빠짐`); bans.push(`오늘 거래대금이 시가 아래로 빠져나간 날(${tvf.name}) — 하루 이틀 물량 소화를 보고 매수`); }
   if (s && s.cl) { const t = `차트 종합판정 ${s.cl.v}(${s.cl.s > 0 ? '+' : ''}${fmt(s.cl.s, 1)})`; if (s.cl.s >= 28) plus.push(t); else if (s.cl.s <= -28) minus.push(t); }
+  // 투자자 흐름(외국인·연기금·기관·개인) — 등급·국면·오늘 장중 방향을 매수 판단과 수량에 반영
+  const flow = tmFlow(s, R);
+  if (flow) {
+    plus.push(...flow.plus); minus.push(...flow.minus); bans.push(...flow.bans); timing.push(...flow.timing); mult *= flow.mult;
+  }
+  // 지수 온도(코스피·코스닥 분위기)
+  const md = s && typeof moodGet === 'function' ? moodGet(s.market) : null, mdA = [];
+  if (md) {
+    const t = `${md.nm} 지수 온도 ${md.temp}도(${md.L[1]})`;
+    if (md.temp < 25) { bans.push(`${t} — 시장 전체가 던지는 중이라 신규 매수 보류`); mdA.push(['b', `${t} → 신규 매수 보류`]); }
+    else if (md.temp < 40) { mult *= 0.75; minus.push(t); timing.push(`${t} — 1차 매수 수량을 3/4로 줄여 계산`); mdA.push(['m', `${t} → 1차 수량 ×0.75`]); }
+    else if (md.temp >= 80) { timing.push(`${t} — 과열 장, 추격하지 말고 계획 가격에서만`); mdA.push(['b', `${t} → 추격 금지`]); }
+    else if (md.temp >= 65) { plus.push(`${t} — 매수 신호를 믿기 좋은 장`); mdA.push(['p', `${t} → 가산`]); }
+    else mdA.push(['', `${t} → 영향 없음`]);
+  }
   if (s) {
-    if (s.foreign_streak >= 3) plus.push(`외국인 ${s.foreign_streak}일 연속 순매수`); else if (s.foreign_streak <= -3) minus.push(`외국인 ${-s.foreign_streak}일 연속 순매도`);
-    if (s.inst_streak >= 3) plus.push(`기관 ${s.inst_streak}일 연속 순매수`); else if (s.inst_streak <= -3) minus.push(`기관 ${-s.inst_streak}일 연속 순매도`);
+    if (!flow) {
+      if (s.foreign_streak >= 3) plus.push(`외국인 ${s.foreign_streak}일 연속 순매수`); else if (s.foreign_streak <= -3) minus.push(`외국인 ${-s.foreign_streak}일 연속 순매도`);
+      if (s.inst_streak >= 3) plus.push(`기관 ${s.inst_streak}일 연속 순매수`); else if (s.inst_streak <= -3) minus.push(`기관 ${-s.inst_streak}일 연속 순매도`);
+    }
     if (s.short_chg != null && s.short_chg >= 0.3) minus.push(`공매도 잔고 1주 새 +${fmt(s.short_chg, 2)}%p 증가`);
     else if (s.short_chg != null && s.short_chg <= -0.3) plus.push(`공매도 잔고 감소(${fmt(s.short_chg, 2)}%p) — 숏커버 가능`);
     if (s._newsLive != null && s._newsLive >= 20) plus.push('실시간 뉴스 호재 우세'); else if (s._newsLive != null && s._newsLive <= -20) minus.push('실시간 뉴스 악재 우세');
@@ -341,7 +358,38 @@ function tmContext(s, R, ev, C) {
   if (soon.length) { mult *= 0.5; soon.forEach(x => timing.push(`${x.d.slice(5)} ${x.t.split(' — ')[0]} 앞둠 → 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입`)); }
   const hol = cal.find(x => x.kind === 'hol' && tmBizBetween(today, x.d) <= 1 && x.d > today);
   if (hol) timing.push(`${hol.d.slice(5)} 휴장 전날 — 신규 매수는 휴장 뒤로 미루는 편이 안전`);
-  return { plus, minus, bans, timing, mult, cal, risk, good, n24: n24.length, chg };
+  return { plus, minus, bans, timing, mult, cal, risk, good, n24: n24.length, chg, flow, md, mdA };
+}
+
+/* 투자자 흐름 → 타이밍 규칙
+   · 수급 A·B / 동반 매집·외국인 주도·매수 전환 → 가산
+   · 수급 D → 1차 수량 ×0.75 · 개인만 사는 중 → ×0.5 · 수급 E 또는 큰손 동반 매도(점수 −30↓) → 신규 매수 보류
+   · 오늘 장중 외국인·기관이 함께 크게 팔면 → 종가 확인 뒤 주문 (보유 중이면 경고) */
+function tmFlow(s, R) {
+  if (!s || typeof ivAnalyze !== 'function' || !(s._inv || s._flow)) return null;
+  let a = null, V = null;
+  try { a = ivAnalyze(s); V = a && typeof ivVerdict === 'function' ? ivVerdict(s, a) : null; } catch (e) { console.error(e); return null; }
+  if (!a) return null;
+  const plus = [], minus = [], bans = [], timing = [], hold = [], applied = [];
+  let mult = 1;
+  const rg = a.rg[0], g = V ? V.g[0] : null, gT = V ? `수급 ${g}등급(${V.sc}점)` : '수급';
+  const big = v => v != null && (a.tvAvg ? Math.abs(v) >= a.tvAvg * 0.05 : Math.abs(v) >= 5);
+  if (g === 'A' || g === 'B') { plus.push(`${gT} — ${a.rg[1]}`); applied.push(['p', `${gT} · ${a.rg[1]} → 가산`]); }
+  else if (g === 'D') { minus.push(`${gT} — ${a.rg[1]}`); mult *= 0.75; timing.push(`${gT} — 큰손 매도 우위라 1차 매수 수량을 3/4로`); applied.push(['m', `${gT} → 1차 수량 ×0.75`]); }
+  if (g === 'E' || (rg === 'exit' && a.sc <= -30)) { bans.push(`큰손 이탈 중(${gT}, ${a.rg[1]}) — 외국인·기관이 다시 살 때까지 신규 매수 보류`); applied.push(['b', `${gT} · ${a.rg[1]} → 신규 매수 보류`]); hold.push(`큰손 이탈(${a.rg[1]}) — 반등 때 비중 줄이기, 새로 더 사지 않기`); }
+  else if (rg === 'exit') { minus.push(`큰손 동반 매도 — ${a.rg[2]}`); mult *= 0.75; applied.push(['m', '큰손 동반 매도 → 1차 수량 ×0.75']); hold.push('외국인·기관 동반 매도 중 — 손절선 이탈 시 미루지 말기'); }
+  if (rg === 'retail') { minus.push('개인만 사는 중 — 외국인·기관 물량을 개인이 받는 모습'); mult *= 0.5; timing.push('개인만 사는 종목 — 1차 비중 절반, 외국인·기관 매수 전환을 확인한 뒤 2차'); applied.push(['m', '개인만 사는 중 → 1차 수량 ×0.5']); hold.push('개인만 사는 중 — 반등 때 일부 비중 줄이기'); }
+  if (rg === 'turn') { timing.push('외국인 매도→매수 전환 첫날 — 2~3일 이어지는지 확인 뒤 2차(첫날 추격 금지)'); applied.push(['', '외국인 매수 전환 → 2차는 확인 뒤']); }
+  if (rg === 'dip') { plus.push(`연기금 저가 매수(5일 ${ivEok(a.sum.p5)}) — 하락을 받쳐주는 버팀목`); applied.push(['p', '연기금 저가 매수 → 가산']); }
+  // 오늘 장중(잠정) 방향
+  const tf = a.today.f, ti = a.today.i;
+  if (a.Z.partial && tf != null) {
+    if (tf < 0 && (ti || 0) < 0 && big(tf) && big(ti || 0)) { minus.push(`오늘 장중 외국인 ${ivEok(tf)} · 기관 ${ivEok(ti)} 동반 순매도(잠정)`); timing.push('오늘 외국인·기관이 함께 파는 중 — 매수는 종가(15:10~15:20) 확인 뒤, 아니면 내일로'); applied.push(['m', '오늘 외국인·기관 동반 매도 → 종가 확인 뒤 주문']); hold.push(`오늘 외국인 ${ivEok(tf)} · 기관 ${ivEok(ti)} 동반 매도 — 손절·트레일링 가격을 다시 확인`); }
+    else if (tf < 0 && (a.sum.f5 || 0) > 0 && big(tf)) { timing.push(`오늘 외국인 ${ivEok(tf)} 순매도(잠정) — 5일 매수 흐름이 꺾이는지 종가로 확인`); applied.push(['', '오늘 외국인 매도 전환 → 종가 확인']); if (rg === 'fdrive') hold.push('외국인 주도 상승 종목인데 오늘 외국인이 팔아요 — 이틀 연속이면 일부 이익 실현'); }
+    else if (tf > 0 && (ti || 0) > 0 && big(tf)) { plus.push(`오늘 장중 외국인 ${ivEok(tf)} · 기관 ${ivEok(ti)} 동반 순매수(잠정)`); applied.push(['p', '오늘 외국인·기관 동반 매수 → 가산']); }
+  }
+  if (!applied.length) applied.push(['', `${gT} · ${a.rg[1]} → 영향 없음(중립)`]);
+  return { a, V, plus, minus, bans, timing, hold, mult, applied };
 }
 
 /* ── 최종 결론 ── */
@@ -384,6 +432,8 @@ function tmDecide0(code) {
       else if (R.trend.ok && on.length) { const pl = tmPlan(on[0], R, C, { mult: ctx.mult }); add = { ok: !ctx.bans.length, t: ctx.bans.length ? `추세 유지 중 ${on[0].name} 신호지만 ${ctx.bans[0]}` : `추세 유지 중 ${on[0].name} → 2차(추가) 매수 가능: ${pl ? `${tmW(pl.E)} · 손절 ${tmW(pl.stop)}` : ''}`, pl }; }
       else if (!R.trend.ok) add = { ok: false, t: '추세 필터 실패 — 추가 매수 하지 않음(매도 신호만 감시)' };
     }
+    if (ctx.flow && ctx.flow.hold.length) why.push(...ctx.flow.hold.map(t => '수급: ' + t));
+    if (ctx.md && ctx.md.temp < 25) why.push(`${ctx.md.nm} 지수 온도 ${ctx.md.temp}도(얼어붙음) — 손절선은 미루지 말고 지키기`);
     Object.assign(D, { mode: 'hold', act, tone, head, orders, why, add, eff, effWhy, ruleStop, trail, hiC, t1, t2, pnl, P, avg, qty, timing: act === 'HOLD' ? '지금은 매도 주문만 미리 걸어두기(손절/트레일링). 신호는 매일 종가 기준으로 다시 확인' : (M.partial && act !== 'EXIT' ? confirmTxt : act === 'EXIT' ? (M.partial ? '지금 — 손절·청산 신호는 기다리지 않아요(장 마감 직전까지 회복 못 하면 반드시)' : '다음 거래일 장 초반') : confirmTxt) });
     return D;
   }
@@ -405,6 +455,15 @@ function tmDecide0(code) {
     if (cand.length) { act = 'WAIT'; tone = 'mid'; plan = cand[0].p; plan.sig = cand[0].b; head = `대기 — ${cand[0].b.trigger || tmW(plan.E) + ' 부근'} 1차 매수`; why.push(cand[0].b.why); if (cand.length > 1) wait.push(...cand.slice(1).map(x => `${x.b.id} ${x.b.name}: ${x.b.trigger || tmW(x.p.E)} → ${tmW(x.p.E)} 매수`)); }
     else { act = 'WATCH'; tone = 'low'; head = '관찰 — 가까운 매수 신호 없음'; }
   } else { act = 'WATCH'; tone = 'low'; head = '관찰 — 추세는 살아 있지만 매수 신호(눌림·돌파·쉼 후 재상승·과매도) 없음'; wait.push(`눌림목 대기: 20일선 ${tmW(R.ma20)} 부근까지 내려와 지지하면 눌림목 매수 검토`); }
+  // 외국인 평균 매수가가 매수가~손절가 사이(또는 바로 아래)면 받쳐줄 가격대
+  if (plan && ctx.flow && ctx.flow.a && ctx.flow.a.fAvg) {
+    const fa = ctx.flow.a.fAvg;
+    if (fa <= plan.E && fa >= plan.stop) why.push(`외국인 평균 매수가(약 ${tmW(Math.round(fa))})가 매수가와 손절가 사이 — 외국인이 지킬 가능성이 있는 가격대라 손절 전 버팀목`);
+    else if (fa < plan.stop && fa >= plan.stop * 0.97) why.push(`외국인 평균 매수가(약 ${tmW(Math.round(fa))})가 손절가 바로 아래 — 손절가를 그 아래로 둘지 검토`);
+    else if (fa > plan.E * 1.02 && fa <= plan.t1) why.push(`외국인 평균 매수가(약 ${tmW(Math.round(fa))})가 매수가 위 — 그 근처에서 외국인 본전 매도가 나올 수 있어요`);
+  }
+  // 기다리는 신호가 있어도 금지 사유(수급 이탈·시장 경보·지수 얼어붙음 등)가 있으면 지정가도 걸지 않음
+  if (act === 'WAIT' && bans.length) { act = 'NO'; tone = 'warn'; head = `조건이 와도 매수 보류 — ${bans[0]}`; }
   let timing = '';
   if (act === 'BUY') timing = confirmTxt;
   else if (act === 'WAIT') timing = `지정가 대기 — ${plan.sig.trigger || '조건 충족 시'} ${tmW(plan.E)}에 1차(${plan.q1}주). 체결 후 바로 손절 ${tmW(plan.stop)} 주문 함께`;
@@ -645,6 +704,26 @@ function tmCalHtml(D) {
     <p class="tk-basis">실적 발표·FOMC·동시만기처럼 크게 흔들 수 있는 일정이 3거래일 안에 있으면 1차 매수 수량을 절반으로 줄여 계산해요.</p>`;
 }
 
+/* 판정 아래 한 줄: 수급 등급 · 지수 온도 */
+function tmChipsHtml(D) {
+  const F = D.ctx.flow, md = D.ctx.md, out = [];
+  if (F && F.V) out.push(`<span class="md-tag ${'AB'.includes(F.V.g[0]) ? 'good' : 'DE'.includes(F.V.g[0]) ? 'bad' : ''}" data-tmgo="flow" role="button">수급 ${F.V.g[0]} · ${esc(F.a.rg[1])}</span>`);
+  if (F && F.mult < 1) out.push(`<span class="md-tag warn" data-tmgo="flow" role="button">수급 반영 수량 ×${fmt(F.mult, 2)}</span>`);
+  if (md) out.push(`<span class="md-tag ${md.temp >= 65 ? 'good' : md.temp < 40 ? 'bad' : ''}" data-tmgo="mood" role="button">${md.nm} ${md.temp}도 ${esc(md.L[1])}</span>`);
+  return out.length ? `<div class="tk-mood">${out.join('')}</div>` : '';
+}
+/* 투자자 흐름 칸: 타이밍에 어떻게 반영했는지 + 종목 수급 카드 */
+function tmFlowHtml(D) {
+  const F = D.ctx.flow, md = D.ctx.md, s = D.s;
+  const ap = [...(F ? F.applied : []), ...(D.ctx.mdA || [])];
+  const box = ap.length ? `<div class="tm-flow"><h5>이 화면의 매수가·수량·타이밍에 반영한 내용</h5><ul>${ap.map(([k, t]) => `<li class="${k}">${esc(t)}</li>`).join('')}</ul>
+    ${D.mode === 'hold' && F && F.hold.length ? `<h5 class="mt-s">보유 관리</h5><ul>${F.hold.map(t => `<li class="m">${esc(t)}</li>`).join('')}</ul>` : ''}
+    <p class="tk-basis">수급 A·B는 가산, D는 1차 수량 ×0.75, 개인만 사는 종목은 ×0.5, E 또는 큰손 동반 이탈은 신규 매수 보류. 지수 온도 40도 아래면 ×0.75, 25도 아래면 보류. 손절가는 수급으로 바꾸지 않아요.</p></div>` : '';
+  const mdc = md && typeof mdCard === 'function' ? `<div class="md-cards" style="grid-template-columns:1fr">${mdCard(md)}</div>` : '';
+  const card = s && typeof invHtml === 'function' ? invHtml(s) : '<p class="tk-basis">투자자별 자료를 불러오는 중이에요.</p>';
+  return `${box}${mdc}<div class="mt-s">${card}</div><p class="tk-basis"><button class="btn ghost small" data-tmgo="inv">투자자 흐름 탭에서 크게 보기 →</button></p>`;
+}
+
 function tmNoteHtml(D) {
   const n = D.note, best = D.mode === 'new' && D.plan ? D.plan : null;
   return `<div class="tm-note">${n ? `<p><b>${esc(n.t)}에 기록한 근거</b> ${esc(n.txt)}${n.stop ? `<br><small class="muted">기준선 ${tmW(n.stop)} 아래로 내려가면 「근거가 사라졌다」고 보고 매도를 권해요.</small>` : ''} <button class="btn ghost small" id="tmNoteDel">기록 지우기</button></p>` : '<p class="tk-basis">살 때 「왜 샀는지」 한 줄을 남겨두면, 그 근거가 깨질 때 매도 신호로 써요.</p>'}
@@ -662,12 +741,13 @@ function tmRenderOne() {
   TM.lastD = D;
   const q = st.q, R = D.R, tone = tmTone(D.act);
   const watching = (store.get('tmWatch', []) || []).includes(code);
-  const tm = D.mode === 'hold' ? D.ctx.timing.filter(t => !/^호재 뉴스가 몰리는|휴장 전날|^최근 물량 공시/.test(t)).map(t => t.replace(/→ 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입/, '→ 발표 전후로 크게 흔들릴 수 있어요. 손절선을 다시 확인하세요')) : D.ctx.timing;
+  const tm = D.mode === 'hold' ? D.ctx.timing.filter(t => !/^호재 뉴스가 몰리는|휴장 전날|^최근 물량 공시|지수 온도/.test(t) && !(D.ctx.flow && D.ctx.flow.timing.includes(t))).map(t => t.replace(/→ 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입/, '→ 발표 전후로 크게 흔들릴 수 있어요. 손절선을 다시 확인하세요')) : D.ctx.timing;
   const warns = [...(D.bans || []).map(t => ['no', t]), ...tm.map(t => ['warn', t]), ...(D.ob ? D.ob.notes.map(t => ['ob', '호가: ' + t]) : [])];
   const nOn = R.buys.filter(b => b.state === 'on').length + R.sells.filter(b => b.state === 'on').length;
   const nCal = D.ctx.cal.filter(x => !x.past && x.d >= tmNow().date).length;
   const pane = TM.pane || 'sig';
-  const panes = [['sig', '규칙 판정', nOn ? `발생 ${nOn}` : ''], ['news', '최신 상황', ''], ['cal', '일정', nCal ? String(nCal) : ''], ['note', '매수 근거', D.note ? '기록됨' : '']];
+  const FV = D.ctx.flow && D.ctx.flow.V;
+  const panes = [['sig', '규칙 판정', nOn ? `발생 ${nOn}` : ''], ['flow', '투자자 흐름', FV ? FV.g[0] : ''], ['news', '최신 상황', ''], ['cal', '일정', nCal ? String(nCal) : ''], ['note', '매수 근거', D.note ? '기록됨' : '']];
   box.innerHTML = `<article class="tk">
     <header class="tk-head">
       <div class="tk-id"><h3>${esc(s ? s.name : code)}</h3><p>${esc(code)} · ${s ? (s.market === 'KOSPI' ? '코스피' : '코스닥') : ''}${s && s.sector ? ' · ' + esc(s.sector) : ''}</p>
@@ -682,18 +762,21 @@ function tmRenderOne() {
       <p class="tk-sum">${esc(tmOneLine(D))}</p>
       <p class="tk-when"><b>언제</b>${esc(D.timing)}</p>
       ${D.add ? `<p class="tk-add ${D.add.ok ? 'ok' : 'no'}">${esc(D.add.t)}</p>` : ''}
+      ${tmChipsHtml(D)}
       ${warns.length ? `<ul class="tk-warn">${warns.map(([k, t]) => `<li class="${k}">${esc(t)}</li>`).join('')}</ul>` : ''}
     </section>
     <section class="tk-body">${tmTicketHtml(D) || tmWaitHtml(D)}<div class="tk-col">${tmLadder(D)}${tmBookHtml(D)}</div></section>
     ${tmTicketHtml(D) && (D.why.length || (D.wait && D.wait.length)) ? `<div class="tk-reason">${D.why.length ? `<p><b>판단 근거</b> ${D.why.map(esc).join(' / ')}</p>` : ''}${D.wait && D.wait.length ? `<p><b>기다릴 조건</b> ${D.wait.map(esc).join(' / ')}</p>` : ''}</div>` : ''}
     <div class="tk-chart"><canvas id="tmCv" aria-label="최근 90일 종가와 이동평균선, 매수·손절·목표 가격"></canvas></div>
     <nav class="tk-tabs" role="tablist">${panes.map(([k, n, b]) => `<button role="tab" aria-selected="${k === pane}" data-pane="${k}">${n}${b ? `<span>${b}</span>` : ''}</button>`).join('')}</nav>
-    <div class="tk-pane">${pane === 'sig' ? tmSigHtml(R) : pane === 'news' ? tmNewsHtml(D) : pane === 'cal' ? tmCalHtml(D) : tmNoteHtml(D)}</div>
+    <div class="tk-pane">${pane === 'sig' ? tmSigHtml(R) : pane === 'flow' ? tmFlowHtml(D) : pane === 'news' ? tmNewsHtml(D) : pane === 'cal' ? tmCalHtml(D) : tmNoteHtml(D)}</div>
     <p class="tk-foot">정해진 규칙을 그대로 계산한 참고 자료예요. 기술적 분석은 확률이라 틀릴 수 있고, 매매 판단과 책임은 본인에게 있어요.</p>
   </article>`;
   const b = $('#tmAn'); if (b) b.onclick = () => showAnalysis(code);
   const w = $('#tmW'); if (w) w.onclick = () => tmToggleWatch(code);
   $$('#tmOne [data-pane]').forEach(x => x.onclick = () => { TM.pane = x.dataset.pane; store.set('tmPane', TM.pane); tmRenderOne(); });
+  $$('#tmOne [data-md]').forEach(x => x.onclick = () => { if (typeof MOOD !== 'undefined') MOOD.sel = x.dataset.md; switchTab('mood'); if (typeof renderMoodTab === 'function') renderMoodTab(); });
+  $$('#tmOne [data-tmgo]').forEach(x => x.onclick = () => { const g = x.dataset.tmgo; if (g === 'flow') { TM.pane = 'flow'; store.set('tmPane', 'flow'); tmRenderOne(); const t = $('#tmOne .tk-tabs'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } else if (g === 'mood') switchTab('mood'); else if (g === 'inv') { switchTab('inv'); if (typeof ivSelect === 'function') ivSelect(code); } });
   const ns = $('#tmNoteSave'); if (ns) ns.onclick = () => {
     const txt = $('#tmNoteTxt').value.trim(); if (!txt) return;
     const all = tmNotes(), best = D.plan && D.plan.sig ? D.plan : null;

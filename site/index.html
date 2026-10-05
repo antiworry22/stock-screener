@@ -34,6 +34,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="mood">지수 온도</button>
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="hrep">보유 리포트</button>
   <button data-tab="plan">내일 매수 계획</button>
@@ -46,7 +47,6 @@
   <button data-tab="gov">공공기관</button>
   <button data-tab="rec">추천 종목</button>
   <button data-tab="clx">차트 종합판정</button>
-  <button data-tab="pattern">차트 패턴</button>
   <button data-tab="vol">거래대금 신호</button>
   <button data-tab="inv">투자자 흐름</button>
   <button data-tab="short">공매도</button>
@@ -61,6 +61,7 @@
 <main>
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
+  <div class="panel md-dash" id="moodDash"></div>
   <div class="panel hidden" id="holdDash"></div>
   <div class="panel lv-panel" id="liveDash"></div>
   <div class="cards" id="macroCards"></div>
@@ -87,6 +88,16 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 지수 온도 (코스피·코스닥 흐름 · 분위기) ═══ -->
+<section id="tab-mood" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>코스피 · 코스닥 지수 온도</h2><span class="hint" id="mdMeta"></span></div>
+    <p class="hint">지수 등락 · 추세(이동평균·RSI·고점 대비) · 시장의 폭(오른 종목 수·20일선 위 종목 비율·신고가/신저가) · 외국인·기관 수급 · 거래대금 열기 · 해외(미국 선물·VIX·환율) 6가지를 0~100도 온도로 합쳐 지금 시장의 분위기를 읽어요. 장중에는 지수 현재가를 20초마다, 수급은 1분마다 다시 반영해요.</p>
+    <div id="mdCards" class="md-cards"></div>
+    <div id="mdBody" class="mt"></div>
   </div>
 </section>
 
@@ -244,25 +255,6 @@
     <div id="holdList" class="h-list mt-s"></div>
   </div>
   <div class="panel note">관리 원칙: ① 손절선(평균단가 − 하루 평균 흔들림 ATR × 설정 배수)은 처음 정하면 내리지 않아요. ② 1차 목표(위험폭의 2배)에서 절반 이익 실현 + 손절선을 본전 이상으로. ③ 오른 뒤에는 최고가 − ATR × 배수 의 <b>수익보호선</b>이 따라 올라가요. ④ 시장경보·큰손 이탈·차트 매도 우위가 겹치면 추가 매수 금지. 판정은 공개 데이터를 규칙으로 계산한 참고용이에요.</div>
-</section>
-
-<!-- ═══ 차트 패턴 ═══ -->
-<section id="tab-pattern" class="tab">
-  <div class="panel">
-    <div class="ph"><h2>차트 패턴 찾기</h2>
-      <div class="row gap wrap">
-        <label class="small">패턴 <select id="patType"></select></label>
-        <label class="small">시장 <select id="patMarket"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
-        <label class="small"><input type="checkbox" id="patFund" checked> 실적 좋은 회사만</label>
-        <label class="small"><input type="checkbox" id="patNear"> 거의 다 온 종목도 보기</label>
-      </div>
-    </div>
-    <p class="hint" id="patDesc"></p>
-    <p class="hint">그림 보는 법: <span class="lg lg-c"></span>주가 · <span class="lg lg-m"></span>1달 평균선 · <span class="lg lg-z"></span>버틴 구간(눌림목·박스) · <span class="lg lg-p"></span>고점 · <span class="lg lg-l"></span>저점 · <span class="lg lg-t"></span>오늘(신호 켜짐). 최근 약 6개월(120거래일) 기준. "실적 좋은 회사" = 영업이익 증가(또는 흑자 전환) + 실적 점수 55↑ + 최근 4분기 중 3분기↑ 흑자.</p>
-    <div class="hint" id="patMeta"></div>
-    <div id="patList" class="rec-grid mt"></div>
-  </div>
-  <div class="panel note">패턴은 과거 가격 모양을 규칙으로 찾은 것이며 앞으로의 상승을 보장하지 않습니다. 꿈틀 신호 뒤 다시 버틴 구간 아래로 내려가면 손절 기준으로 삼는 것이 일반적입니다.</div>
 </section>
 
 <!-- ═══ 거래대금 신호 ═══ -->
@@ -567,6 +559,7 @@
 <script src="assets/tvrank.js"></script>
 <script src="assets/market.js"></script>
 <script src="assets/sectorrank.js"></script>
+<script src="assets/mood.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>

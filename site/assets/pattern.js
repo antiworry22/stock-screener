@@ -142,9 +142,11 @@ function renderPatterns() {
 }
 
 function initPattern() {
-  const sel = $('#patType'); if (!sel) return;
-  sel.innerHTML = Object.entries(PAT).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
-  ['patType', 'patMarket', 'patFund', 'patNear'].forEach(id => $('#' + id).onchange = renderPatterns);
+  const sel = $('#patType');   // 「차트 패턴」 탭은 없앰 — 패턴 계산은 종목 분석·조건검색에서 계속 씀
+  if (sel) {
+    sel.innerHTML = Object.entries(PAT).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('');
+    ['patType', 'patMarket', 'patFund', 'patNear'].forEach(id => $('#' + id).onchange = renderPatterns);
+  }
   // 조건검색·문장검색에서도 쓸 수 있게 항목 등록
   FM.pat_pullback = { key: 'pat_pullback', label: '눌림목 반등 시작 패턴', group: '차트 패턴', type: 'bool', unit: '', get: s => { const p = patternPullback(s); return p ? p.ok : false; } };
   FM.pat_box = { key: 'pat_box', label: '박스권 돌파 패턴', group: '차트 패턴', type: 'bool', unit: '', get: s => { const p = patternBox(s); return p ? p.ok : false; } };

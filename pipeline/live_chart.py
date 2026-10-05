@@ -234,6 +234,8 @@ def main():
                 cs.update({"verdict_action": cf["r"]["action"], "c": round(float(c.iloc[-1]), 2),
                            "chg": round((c.iloc[-1] / c.iloc[-2] - 1) * 100, 2)})
                 idx[nm] = cs
+                with open(os.path.join(OUT, f"{sym}.json"), "w", encoding="utf-8") as fp:   # 화면 「지수 온도」의 일봉 추세 계산용
+                    json.dump(cf, fp, ensure_ascii=False, separators=(",", ":"))
         except Exception as e:
             log(f"{nm} 지수 실패: {type(e).__name__}")
 

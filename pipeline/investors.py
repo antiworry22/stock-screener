@@ -225,6 +225,13 @@ def main():
         DIAG["사이트 /api/mflow"] = f"HTTP {rr.status_code}"
     except Exception as e:
         DIAG["사이트 /api/mflow"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
+    try:  # 지수 실시간 경로 점검 기록 (지수 온도 화면)
+        import requests
+        rr = requests.get("https://kmy-stock.netlify.app/api/idx", params={"diag": "1"}, timeout=20)
+        json.dump(rr.json(), open(os.path.join(OUT, "index_check.json"), "w", encoding="utf-8"), ensure_ascii=False)
+        DIAG["사이트 /api/idx"] = f"HTTP {rr.status_code}"
+    except Exception as e:
+        DIAG["사이트 /api/idx"] = f"실패 {type(e).__name__}: {str(e)[:100]}"
     res = {"meta": {"time": NOW.strftime("%Y-%m-%d %H:%M"), "days": days, "partial": partial, "n": len(out), "new_days": got,
                     "elapsed_s": round(time.time() - t0)}, "mkt": mk, "mlive": {"at": NOW.strftime("%Y-%m-%d %H:%M"), **mlive}, "s": out}
     json.dump(res, open(os.path.join(OUT, "investors.json"), "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
