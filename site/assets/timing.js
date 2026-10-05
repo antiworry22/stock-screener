@@ -341,7 +341,7 @@ function tmContext(s, R, ev, C) {
 }
 
 /* ── 최종 결론 ── */
-function tmDecide(code) {
+function tmDecide0(code) {
   const st = TM.st.get(code); if (!st || !st.f) return null;
   const C = tmCfg(), s = S.data.stocks.find(x => x.code === code);
   const M = tmMerge(st.f, st.q), R = tmEngine(M.B, M.partial, C);
@@ -410,6 +410,102 @@ function tmDecide(code) {
   return D;
 }
 
+
+/* ═════════════ 실시간 호가 반영 ═════════════
+   규칙(차트)이 정한 가격을 기준으로, 호가창의 매수벽·매도벽·체결강도·잔량비를 보고 실제 주문 가격을 다듬어요.
+   원칙: 손절가는 규칙 그대로(호가로 느슨하게 하지 않음) · 매수가는 규칙 기준가보다 1% 넘게 비싸게 사지 않음 */
+function tmBookUpdate(st, j) {
+  const b = j.book, q = j.quote || {};
+  if (!b || !(b.asks || []).length || !(b.bids || []).length) return;
+  const K = st.bk = st.bk || { n: 0, prev: null, buyV: 0, sellV: 0, walls: {}, ev: [] };
+  const asks = b.asks.slice(0, 10), bids = b.bids.slice(0, 10);
+  const a1 = asks[0].p, b1 = bids[0].p, price = q.price || Math.round((a1 + b1) / 2);
+  const wallOf = (side, nm) => { const avg = side.reduce((s, x) => s + x.q, 0) / (side.length || 1); return side.filter(x => x.q >= avg * 2.5 && x.q * x.p >= 5e7).map(x => ({ side: nm, p: x.p, q: x.q, amt: x.p * x.q, dist: (x.p / price - 1) * 100 })); };
+  const walls = [...wallOf(asks, 'ask'), ...wallOf(bids, 'bid')];
+  const P = K.prev;
+  if (P && q.vol != null && P.vol != null && q.vol > P.vol) {
+    const dv = q.vol - P.vol; let dir = 0;
+    if (price >= P.a1) dir = 1; else if (price <= P.b1) dir = -1; else dir = price > P.price ? 1 : price < P.price ? -1 : 0;
+    if (dir > 0) K.buyV += dv; else if (dir < 0) K.sellV += dv; else { K.buyV += dv / 2; K.sellV += dv / 2; }
+  }
+  if (P) Object.values(K.walls).forEach(w => {
+    if (walls.find(x => x.side === w.side && x.p === w.p)) return;
+    const lvl = (w.side === 'ask' ? asks : bids).find(x => x.p === w.p);
+    if (lvl && lvl.q >= w.q * 0.4) return;
+    const reached = w.side === 'ask' ? price >= w.p : price <= w.p;
+    K.ev.unshift({ t: String(j.at || '').slice(11, 19), k: reached ? (w.side === 'ask' ? 'eat' : 'break') : 'cancel', w });
+  });
+  K.walls = Object.fromEntries(walls.map(w => [w.side + w.p, w])); K.ev = K.ev.slice(0, 20);
+  K.prev = { price, vol: q.vol, a1, b1 }; K.n++;
+  const totA = b.totA || asks.reduce((s, x) => s + x.q, 0), totB = b.totB || bids.reduce((s, x) => s + x.q, 0);
+  K.x = { at: j.at, asks, bids, a1, b1, price, totA, totB, imb: totA + totB ? totB / (totA + totB) : null, spreadT: Math.round((a1 - b1) / tmTick(price)), walls,
+    cs: K.sellV > 0 ? K.buyV / K.sellV * 100 : (K.buyV > 0 ? 300 : null), ready: K.n >= 4, cancels: K.ev.filter(e => e.k === 'cancel').length, ev: K.ev };
+}
+
+function tmApplyBook(D) {
+  const st = TM.st.get(D.code), x = st && st.bk && st.bk.x, mk = tmMarket();
+  if (!x || mk.st !== 'open' || Date.now() - new Date(String(x.at).replace(' ', 'T') + '+09:00') > 120e3) { D.ob = null; return; }
+  const T = tmTick(x.price), notes = [];
+  const bw = x.walls.filter(w => w.side === 'bid').sort((a, b) => b.p - a.p)[0], aw = x.walls.filter(w => w.side === 'ask').sort((a, b) => a.p - b.p)[0];
+  // 호가 분위기
+  let mood = 'mid';
+  const strong = x.ready && x.cs != null && x.cs >= 115 && x.cancels < 2, weak = (x.ready && x.cs != null && x.cs <= 85) || x.cancels >= 2;
+  if (strong) mood = 'buy'; else if (weak) mood = 'sell';
+  const csTxt = x.cs != null && x.ready ? `체결강도 ${Math.round(x.cs)}` : '체결강도 측정 중';
+  const imbTxt = x.imb != null ? `매수 잔량 ${Math.round(x.imb * 100)}% : 매도 잔량 ${Math.round((1 - x.imb) * 100)}%` : '';
+  const ob = { x, mood, bw, aw, notes, csTxt, imbTxt, adj: {} };
+  if (x.spreadT >= 3) notes.push(`1호가 차이가 ${x.spreadT}호가로 벌어져 있어요 — 시장가 대신 지정가로`);
+  if (x.cancels >= 2) notes.push(`최근 체결 없이 사라진 호가 벽 ${x.cancels}번 — 잔량보다 실제 체결을 믿으세요`);
+
+  if (D.mode === 'new' && D.plan) {
+    const p = D.plan, cap = tmDn(p.E * 1.01), floor = p.stop + 2 * T;
+    let bp = null, how = '';
+    if (D.act === 'BUY') {
+      if (mood === 'buy' && x.a1 <= cap) { bp = x.a1; how = `매도 1호가에 바로 — ${csTxt}로 사는 힘이 강해요`; }
+      else if (bw && bw.p + T <= cap && bw.p + T >= floor && bw.p >= x.price * 0.97) { bp = bw.p + T; how = `매수벽 ${fmt(bw.p)}원(${tmEok(bw.amt)}) 바로 위 — 벽 앞에서 먼저 체결`; }
+      else if (mood === 'sell') { bp = Math.max(floor, x.bids[1] ? x.bids[1].p : x.b1 - T); how = `매수 2호가에 걸어두기 — ${csTxt}, 파는 힘이 더 세요`; notes.push('호가가 매도 우위라 1차 수량의 절반만 먼저 걸고, 체결강도가 100을 넘으면 나머지를 넣어요'); }
+      else { bp = Math.min(x.b1, cap); how = `매수 1호가에 걸어두기 — ${csTxt}`; }
+    } else if (D.act === 'WAIT') {
+      if (bw && Math.abs(bw.p / p.E - 1) <= 0.015 && bw.p + T >= floor) { bp = bw.p + T; how = `기준가 근처 매수벽 ${fmt(bw.p)}원 바로 위로 조정`; }
+      else notes.push(`지정가 ${tmW(p.E)}는 지금 호가창(10단계) 밖이에요 — 가격이 다가오면 다시 다듬어요`);
+    }
+    if (bp != null && bp !== p.E) ob.adj.buy = { p: bp, from: p.E, how };
+    else if (bp != null) ob.adj.buy = { p: bp, from: p.E, how };
+    // 1차 목표 근처(호가창 안)에 매도벽이 있으면 그 바로 아래로
+    if (aw && aw.p > (bp || p.E) && aw.p <= p.t1) ob.adj.part = { p: aw.p - T, how: `매도벽 ${fmt(aw.p)}원(${tmEok(aw.amt)}) 바로 아래 — 벽에 막히기 전에 1/3 먼저 이익 실현` };
+    if (aw && Math.abs(aw.p / p.t1 - 1) <= 0.01) ob.adj.t1 = { p: aw.p - T, from: p.t1, how: `1차 목표 바로 위 매도벽 ${fmt(aw.p)}원 — 1호가 아래로` };
+    if (bw && bw.p > p.stop && (bw.p / p.stop - 1) <= 0.02) notes.push(`손절선 바로 위에 매수벽 ${fmt(bw.p)}원(${tmEok(bw.amt)}) — 이 벽이 체결 없이 사라지면 손절 대비`);
+  }
+  if (D.mode === 'hold') {
+    const o = D.orders[0];
+    if (['EXIT', 'HALF', 'PART', 'TAKE'].includes(D.act) && o) {
+      const urgent = D.act === 'EXIT' || D.act === 'HALF' || mood === 'sell';
+      ob.adj.sell = urgent ? { p: x.b1, how: `매수 1호가에 바로 팔기 — ${D.act === 'EXIT' ? '손절·청산은 기다리지 않아요' : csTxt}` }
+        : { p: x.a1, how: `매도 1호가에 걸어두기 — ${csTxt}로 사는 힘이 남아 있어 조금 더 받기` };
+    }
+    if (D.act === 'HOLD' && aw && aw.p > D.P && aw.p < D.t1) ob.adj.part = { p: aw.p - T, how: `위 매도벽 ${fmt(aw.p)}원(${tmEok(aw.amt)}) 바로 아래 — 벽에 막히기 전에 일부(1/3) 정리하는 것도 방법` };
+    if (bw && bw.p > D.eff && (bw.p / D.eff - 1) <= 0.02) notes.push(`손절선 바로 위 매수벽 ${fmt(bw.p)}원 — 이 벽이 무너지면 손절선 도달이 빨라질 수 있어요`);
+  }
+  D.ob = ob;
+}
+const tmEok = v => v >= 1e8 ? fmt(v / 1e8, v >= 1e10 ? 0 : 1) + '억' : fmt(v / 1e4, 0) + '만';
+function tmDecide(code) { const D = tmDecide0(code); if (D) { try { tmApplyBook(D); } catch (e) { console.error(e); D.ob = null; } } return D; }
+
+/* 호가 패널 (가격 위치 아래) */
+function tmBookHtml(D) {
+  const st = TM.st.get(D.code), x = st && st.bk && st.bk.x, mk = tmMarket();
+  if (mk.st !== 'open') return `<div class="tk-book off"><h4>실시간 호가</h4><p>장중(9:00~15:30)에만 호가를 반영해요. 지금은 규칙 가격 그대로예요.</p></div>`;
+  if (!x) return `<div class="tk-book off"><h4>실시간 호가</h4><p>호가를 받는 중이에요.</p></div>`;
+  const ob = D.ob, mx = Math.max(...x.asks.slice(0, 5).map(a => a.q), ...x.bids.slice(0, 5).map(b => b.q), 1);
+  const isW = (side, p) => x.walls.some(w => w.side === side && w.p === p);
+  const row = (l, side) => `<div class="bk ${side}${isW(side, l.p) ? ' wall' : ''}${l.p === x.price ? ' cur' : ''}"><i style="width:${Math.round(l.q / mx * 100)}%"></i><span class="bk-p">${fmt(l.p)}</span><span class="bk-q">${fmt(l.q)}</span></div>`;
+  const moodTxt = { buy: ['사는 힘 우세', 'buy'], sell: ['파는 힘 우세', 'sell'], mid: ['팽팽함', 'mid'] }[ob ? ob.mood : 'mid'];
+  return `<div class="tk-book"><h4>실시간 호가 <span class="bk-mood ${moodTxt[1]}">${x.ready ? moodTxt[0] : '분석 중'}</span></h4>
+    <div class="bk-lad">${x.asks.slice(0, 5).reverse().map(a => row(a, 'ask')).join('')}${x.bids.slice(0, 5).map(b => row(b, 'bid')).join('')}</div>
+    <dl class="bk-st"><dt>체결강도</dt><dd>${x.cs != null && x.ready ? Math.round(x.cs) : '측정 중'}</dd><dt>잔량</dt><dd>매수 ${x.imb != null ? Math.round(x.imb * 100) : '–'}% · 매도 ${x.imb != null ? Math.round((1 - x.imb) * 100) : '–'}%</dd><dt>1호가 차이</dt><dd>${x.spreadT}호가</dd></dl>
+    <p class="bk-at">${esc(String(x.at).slice(11, 19))} 기준 · 5초마다</p></div>`;
+}
+
 /* ═════════════ 화면 ═════════════
    주문표(티켓) 형태: 결론 띠 → 매수/매도 주문표 + 세로 가격 사다리(호가창처럼) → 차트 → 탭(규칙 판정·최신 상황·일정·근거)
    색 규칙: 증권사 주문창처럼 매수 = 빨강, 매도 = 파랑. 관망은 회색, 매수 금지는 주황 */
@@ -429,11 +525,13 @@ function tmOneLine(D) {
   if (D.mode === 'hold') {
     const o = D.orders[0];
     if (D.act === 'HOLD') return `지금은 그대로 보유하세요. ${tmW(D.eff)} 아래로 내려가면 전량 매도, ${tmW(D.t1)}에 오면 ${fmt(Math.ceil(D.qty / 2))}주 이익 실현, 나머지는 ${tmW(D.t2)} 또는 트레일링 이탈 때 매도해요.`;
-    return `${o ? `${fmt(o[1])}주를 ${tmW(o[2])} 근처에서 매도(약 ${hMoney(o[1] * o[2])})` : ''}${D.orders[1] && D.orders[1][1] > 0 ? `하고, 남은 ${fmt(D.orders[1][1])}주는 ${tmW(D.orders[1][2])} 기준으로 관리` : ''}하세요.`;
+    const sp = o && D.ob && D.ob.adj.sell ? D.ob.adj.sell.p : o && o[2];
+    return `${o ? `${fmt(o[1])}주를 ${tmW(sp)}${D.ob && D.ob.adj.sell ? '(호가 반영)' : ' 근처'}에서 매도(약 ${hMoney(o[1] * sp)})` : ''}${D.orders[1] && D.orders[1][1] > 0 ? `하고, 남은 ${fmt(D.orders[1][1])}주는 ${tmW(D.orders[1][2])} 기준으로 관리` : ''}하세요.`;
   }
-  const p = D.plan;
+  const p = D.plan, bp = D.ob && D.ob.adj.buy ? D.ob.adj.buy.p : null;
+  if (D.act === 'BUY' && p && bp) return `${tmW(bp)}에 ${fmt(p.q1)}주(약 ${hMoney(bp * p.q1)})를 1차로 사고, 손절은 ${tmW(p.stop)}에 바로 걸어두세요. ${tmW(D.ob.adj.t1 ? D.ob.adj.t1.p : p.t1)}에서 절반, ${tmW(p.t2)} 또는 고점 대비 −${D.C.trail}%에서 나머지를 팔아요.`;
   if (D.act === 'BUY' && p) return `지금 ${fmt(p.q1)}주(약 ${hMoney(p.amt1)})를 1차로 사고, 손절은 ${tmW(p.stop)}에 바로 걸어두세요. ${tmW(p.t1)}에서 절반, ${tmW(p.t2)} 또는 고점 대비 −${D.C.trail}%에서 나머지를 팔아요.`;
-  if (D.act === 'WAIT' && p) return `지금은 사지 말고 ${tmW(p.E)}에 ${fmt(p.q1)}주 지정가를 걸어두세요. 체결되면 손절 ${tmW(p.stop)}, 목표 ${tmW(p.t1)}·${tmW(p.t2)}.`;
+  if (D.act === 'WAIT' && p) return `지금은 사지 말고 ${tmW(bp || p.E)}에 ${fmt(p.q1)}주 지정가를 걸어두세요. 체결되면 손절 ${tmW(p.stop)}, 목표 ${tmW(p.t1)}·${tmW(p.t2)}.`;
   if (D.act === 'NO') return `지금은 사지 않아요.${p ? ` 금지 사유가 풀리면 ${tmW(p.E)} 매수 · ${tmW(p.stop)} 손절 기준으로 다시 봐요.` : ''}`;
   return D.wait && D.wait[0] ? `매수하지 않고 지켜봐요. ${D.wait[0]}.` : '매수하지 않고 지켜봐요.';
 }
@@ -442,22 +540,31 @@ function tmOneLine(D) {
 function tmRows(D) {
   const buy = [], sell = [];
   if (D.mode === 'hold') {
-    D.orders.filter(o => o[1] > 0).forEach(o => sell.push({ lbl: o[0], p: o[2], q: o[1], note: o[3], stop: /손절|트레일링/.test(o[0]) }));
+    const A = D.ob ? D.ob.adj : {};
+    D.orders.filter(o => o[1] > 0).forEach((o, i) => sell.push(i === 0 && A.sell && !/손절|트레일링|목표/.test(o[0]) ? { lbl: o[0] + ' · 호가 반영', p: A.sell.p, q: o[1], note: A.sell.how, ob: true } : { lbl: o[0], p: o[2], q: o[1], note: o[3], stop: /손절|트레일링/.test(o[0]) }));
+    if (A.part && D.act === 'HOLD' && D.qty >= 3) {
+      const qp = Math.round(D.qty / 3), q1 = Math.round((D.qty - qp) / 2);
+      sell.forEach(r => { if (/1차 목표/.test(r.lbl)) r.q = q1; else if (/2차 목표/.test(r.lbl)) r.q = D.qty - qp - q1; });
+      sell.splice(1, 0, { lbl: '일부 정리 · 호가', p: A.part.p, q: qp, note: A.part.how, ob: true });
+    }
     if (D.add && D.add.ok && D.add.pl) buy.push({ lbl: '추가(2차) 매수', p: D.add.pl.E, q: D.add.pl.q1, note: '추세 유지 중 매수 신호' });
   } else if (D.plan) {
-    const p = D.plan;
-    buy.push({ lbl: D.act === 'BUY' ? '1차 매수 · 지금' : '1차 매수 · 지정가', p: p.E, q: p.q1, note: `자금의 1/${D.C.splits}${p.sig ? ' · ' + p.sig.name : ''}` });
+    const p = D.plan, A = D.ob ? D.ob.adj : {};
+    if (A.buy) buy.push({ lbl: D.act === 'BUY' ? '1차 매수 · 호가 반영' : '1차 매수 · 지정가(호가 반영)', p: A.buy.p, q: p.q1, note: `${A.buy.how} · 규칙 기준가 ${tmW(p.E)}`, ob: true });
+    else buy.push({ lbl: D.act === 'BUY' ? '1차 매수 · 지금' : '1차 매수 · 지정가', p: p.E, q: p.q1, note: `자금의 1/${D.C.splits}${p.sig ? ' · ' + p.sig.name : ''}` });
     buy.push({ lbl: '2차 매수', p: p.add2, q: p.q2, note: '1차 뒤 전일 고가를 다시 넘을 때만', above: true });
     sell.push({ lbl: '손절 · 매수와 함께 등록', p: p.stop, q: p.qty, note: `${p.sig && p.sig.stopWhy || ''}${p.note ? ' (' + p.note + ')' : ''}`, stop: true, loss: p.loss });
-    sell.push({ lbl: '1차 목표 · 절반', p: p.t1, q: Math.ceil(p.qty / 2), note: `손익비 1:2${p.res ? ` · 위 저항 ${tmW(p.res)}` : ''}` });
-    sell.push({ lbl: '2차 목표 · 나머지', p: p.t2, q: Math.floor(p.qty / 2), note: `또는 고점 대비 −${D.C.trail}% 트레일링` });
+    const qp = A.part && p.qty >= 3 ? Math.round(p.qty / 3) : 0, qt1 = qp ? Math.round((p.qty - qp) / 2) : Math.ceil(p.qty / 2), qt2 = p.qty - qp - qt1;
+    if (qp) sell.push({ lbl: '일부 익절 · 호가', p: A.part.p, q: qp, note: A.part.how, ob: true });
+    sell.push(A.t1 ? { lbl: `1차 목표 · ${qp ? '1/3' : '절반'}(호가 반영)`, p: A.t1.p, q: qt1, note: A.t1.how, ob: true } : { lbl: `1차 목표 · ${qp ? '1/3' : '절반'}`, p: p.t1, q: qt1, note: `손익비 1:2${p.res ? ` · 위 저항 ${tmW(p.res)}` : ''}` });
+    sell.push({ lbl: '2차 목표 · 나머지', p: p.t2, q: qt2, note: `또는 고점 대비 −${D.C.trail}% 트레일링` });
   }
   return { buy, sell };
 }
 function tmRowHtml(r, D, side) {
   const d = (r.p / D.P - 1) * 100;
   return `<div class="tk-row ${side}${r.stop ? ' stop' : ''}">
-    <div class="tk-lbl">${esc(r.lbl)}<small>${esc(r.note || '')}</small></div>
+    <div class="tk-lbl">${esc(r.lbl.replace(/ · 호가 반영|\(호가 반영\)| · 호가$/, ''))}${r.ob ? '<em class="tk-ob">호가</em>' : ''}<small>${esc(r.note || '')}</small></div>
     <div class="tk-num"><b>${fmt(Math.round(r.p))}</b><span>${r.above ? '이상' : Math.abs(d) < 0.05 ? '현재가' : pct(d, 1)}</span></div>
     <div class="tk-qty"><b>${r.q === D.plan?.qty && r.stop ? '전량' : fmt(r.q) + '주'}</b><span>${r.loss ? '−' + hMoney(r.loss) : hMoney(r.q * r.p)}</span></div>
   </div>`;
@@ -487,6 +594,8 @@ function tmLadder(D) {
   if (D.mode === 'hold') L.push(['2차 목표', D.t2, 'sell'], ['1차 목표', D.t1, 'sell'], ['평단', D.avg, 'avg'], [D.effWhy.startsWith('트레일링') ? '트레일링' : '손절', D.eff, 'stop']);
   else if (D.plan) { const p = D.plan; L.push(['2차 목표', p.t2, 'sell'], ['1차 목표', p.t1, 'sell'], [D.act === 'BUY' ? '매수' : '지정가', p.E, 'buy'], ['손절', p.stop, 'stop']); if (p.add2 > p.E * 1.002) L.push(['2차 매수', p.add2, 'buy']); }
   else L.push(['60일 고점', D.R.hi60, 'ref'], ['20일선', D.R.ma20, 'ref'], ['60일선', D.R.ma60, 'ref']);
+  if (D.ob && D.ob.adj.buy && D.plan && D.ob.adj.buy.p !== D.plan.E) L.push(['호가 매수', D.ob.adj.buy.p, 'buy']);
+  if (D.ob && D.ob.adj.part) L.push(['일부 익절', D.ob.adj.part.p, 'sell']);
   L.push(['지금', D.P, 'now']);
   L.sort((a, b) => b[1] - a[1]);
   return `<aside class="tk-ladder" aria-label="가격 위치"><h4>가격 위치</h4>${L.map(([n, v, k]) => `<div class="ld ${k}"><span class="ld-n">${n}</span><b class="ld-p">${fmt(Math.round(v))}</b><span class="ld-d">${k === 'now' ? `<em class="${cls(D.ctx.chg)}">${pct(D.ctx.chg, 1)}</em>` : pct((v / D.P - 1) * 100, 1)}</span></div>`).join('')}</aside>`;
@@ -550,7 +659,7 @@ function tmRenderOne() {
   const q = st.q, R = D.R, tone = tmTone(D.act);
   const watching = (store.get('tmWatch', []) || []).includes(code);
   const tm = D.mode === 'hold' ? D.ctx.timing.filter(t => !/^호재 뉴스가 몰리는|휴장 전날|^최근 물량 공시/.test(t)).map(t => t.replace(/→ 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입/, '→ 발표 전후로 크게 흔들릴 수 있어요. 손절선을 다시 확인하세요')) : D.ctx.timing;
-  const warns = [...(D.bans || []).map(t => ['no', t]), ...tm.map(t => ['warn', t])];
+  const warns = [...(D.bans || []).map(t => ['no', t]), ...tm.map(t => ['warn', t]), ...(D.ob ? D.ob.notes.map(t => ['ob', '호가: ' + t]) : [])];
   const nOn = R.buys.filter(b => b.state === 'on').length + R.sells.filter(b => b.state === 'on').length;
   const nCal = D.ctx.cal.filter(x => !x.past && x.d >= tmNow().date).length;
   const pane = TM.pane || 'sig';
@@ -571,7 +680,7 @@ function tmRenderOne() {
       ${D.add ? `<p class="tk-add ${D.add.ok ? 'ok' : 'no'}">${esc(D.add.t)}</p>` : ''}
       ${warns.length ? `<ul class="tk-warn">${warns.map(([k, t]) => `<li class="${k}">${esc(t)}</li>`).join('')}</ul>` : ''}
     </section>
-    <section class="tk-body">${tmTicketHtml(D) || tmWaitHtml(D)}${tmLadder(D)}</section>
+    <section class="tk-body">${tmTicketHtml(D) || tmWaitHtml(D)}<div class="tk-col">${tmLadder(D)}${tmBookHtml(D)}</div></section>
     ${tmTicketHtml(D) && (D.why.length || (D.wait && D.wait.length)) ? `<div class="tk-reason">${D.why.length ? `<p><b>판단 근거</b> ${D.why.map(esc).join(' / ')}</p>` : ''}${D.wait && D.wait.length ? `<p><b>기다릴 조건</b> ${D.wait.map(esc).join(' / ')}</p>` : ''}</div>` : ''}
     <div class="tk-chart"><canvas id="tmCv" aria-label="최근 90일 종가와 이동평균선, 매수·손절·목표 가격"></canvas></div>
     <nav class="tk-tabs" role="tablist">${panes.map(([k, n, b]) => `<button role="tab" aria-selected="${k === pane}" data-pane="${k}">${n}${b ? `<span>${b}</span>` : ''}</button>`).join('')}</nav>
@@ -646,7 +755,7 @@ async function tmLoadBars(code) {
 }
 async function tmQuote(code) {
   const st = TM.st.get(code) || {}; TM.st.set(code, st);
-  try { const r = await fetch('/api/hoga?code=' + code, { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.quote && j.quote.price) st.q = { ...j.quote, at: j.at }; } } catch (e) {}
+  try { const r = await fetch('/api/hoga?code=' + code, { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.quote && j.quote.price) st.q = { ...j.quote, at: j.at }; if (j.book) tmBookUpdate(st, j); } } catch (e) {}
   st.qt = Date.now();
   return st;
 }
@@ -700,7 +809,7 @@ async function tmLoop() {
     // 15분마다 새 일봉
     for (const c of [TM.sel, ...all].filter(Boolean)) { const st = TM.st.get(c); const t = (typeof CLX !== 'undefined' && CLX.live && CLX.live.meta.time) || ''; if (!st || !st.f || st.ft !== t) { await tmLoadBars(c); } }
     // 선택 종목: 장중 10초, 그 밖엔 3분
-    if (TM.sel) { const st = TM.st.get(TM.sel); if (!st || !st.qt || now - st.qt >= (live ? 10e3 : 180e3)) { await tmQuote(TM.sel); tmRenderOne(); } tmEvents(TM.sel).then(() => {}); }
+    if (TM.sel) { const st = TM.st.get(TM.sel); if (!st || !st.qt || now - st.qt >= (live ? 5e3 : 180e3)) { await tmQuote(TM.sel); tmRenderOne(); } tmEvents(TM.sel).then(() => {}); }
     // 목록: 한 번에 한 종목씩 돌아가며 (장중 1종목/5초)
     const others = all.filter(c => c !== TM.sel);
     if (others.length) { const c = others[TM.rot++ % others.length], st = TM.st.get(c); if (!st || !st.qt || now - st.qt >= (live ? 30e3 : 600e3)) await tmQuote(c); }
