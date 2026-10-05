@@ -17,8 +17,8 @@ function plan(now) {
   if (t >= 360 && t < 1380 && m % 15 === 0) jobs.push('public.yml');
   // 외국인·기관 수급(거래소 잠정치 시각)
   if (wd && [[9, 35], [11, 5], [13, 25], [14, 35], [15, 50], [16, 40], [18, 20]].some(([a, b]) => at(a, b))) jobs.push('flows.yml');
-  // 공매도
-  if (wd && (at(18, 45) || at(7, 30))) jobs.push('shorts.yml');
+  // 공매도: 거래소 공개 시각에 맞춰 여러 번(장 마감 뒤 당일 거래 · 다음 날 아침 잔고)
+  if (wd && [[16, 35], [17, 30], [18, 45], [20, 10], [7, 30]].some(([a, b]) => at(a, b))) jobs.push('shorts.yml');
   // 아침·장마감 정기 수집
   if (wd && (at(6, 40) || at(16, 50))) jobs.push('daily.yml');
   return { jobs, kst: `${k.toISOString().slice(0, 10)} ${String(h).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}` };

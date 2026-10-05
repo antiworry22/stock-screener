@@ -992,3 +992,33 @@ a.news-item[href]:hover{border-color:var(--accent)}
 
 .tvf-cell{white-space:nowrap;font-size:12.5px}.tvf-cell b{margin-right:3px}.tvf-cell.up{color:var(--up)}.tvf-cell.down{color:var(--down)}.tvf-cell.ok{color:var(--ok)}.tvf-cell.muted{color:var(--muted)}
 .vsig-cell{font-size:12px;white-space:nowrap}.vsig-cell.up{color:var(--up)}.vsig-cell.down{color:var(--down)}
+
+/* 공매도 자세히 */
+.sh-wrap{display:flex;flex-direction:column;gap:10px}
+.sh-top{display:grid;grid-template-columns:170px 1fr;gap:12px}
+.sh-score{padding:12px 14px;border-radius:12px;background:var(--panel2);display:flex;flex-direction:column}
+.sh-score small{font-size:12px;color:var(--muted)}.sh-score b{font-family:var(--mono);font-size:34px;line-height:1.1;letter-spacing:-1px}.sh-score span{font-weight:700;font-size:13px}
+.sh-score.good{background:color-mix(in srgb,var(--up) 8%,var(--panel))}.sh-score.good b,.sh-score.good span{color:var(--up)}
+.sh-score.bad{background:color-mix(in srgb,var(--down) 8%,var(--panel))}.sh-score.bad b,.sh-score.bad span{color:var(--down)}
+.sh-reg{padding:12px 14px;border-radius:12px;border:1px solid var(--line);border-left:5px solid var(--muted)}
+.sh-reg small{font-size:12px;color:var(--muted)}.sh-reg b{display:block;font-size:16px;margin-top:1px}.sh-reg p{margin:4px 0 0;font-size:13.5px;line-height:1.65}
+.r-bear{border-left-color:var(--down)!important}.r-fuel{border-left-color:var(--warn)!important}.r-cover{border-left-color:var(--up)!important}.r-exit{border-left-color:var(--muted)!important}
+.sh-kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:0}
+.sh-kpi div{padding:8px 10px;border:1px solid var(--line);border-radius:8px;min-width:0}
+.sh-kpi dt{font-size:11.5px;color:var(--muted)}.sh-kpi dd{margin:2px 0 0;font-family:var(--mono);font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sh-kpi em{font-style:normal;font-size:11.5px;color:var(--muted)}
+.sh-live{margin:0;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.sh-charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sh-charts h5,.sh-h{font-size:12.5px;color:var(--muted);margin:4px 0}
+.sh-svg{width:100%;height:70px;display:block;border-bottom:1px solid var(--line)}
+.sh-ax{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted)}
+.sh-ex{list-style:none;margin:0;padding:0}
+.sh-ex li{padding:8px 0 8px 14px;border-bottom:1px solid var(--line);position:relative}
+.sh-ex li::before{content:"";position:absolute;left:0;top:13px;width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.sh-ex li.bad::before{background:var(--down)}.sh-ex li.warn::before{background:var(--warn)}.sh-ex li.good::before{background:var(--up)}
+.sh-ex b{font-size:14px}.sh-ex p{margin:3px 0 0;font-size:13px;line-height:1.65;color:var(--muted)}
+.sh-todo{margin:0;padding-left:18px;font-size:13.5px;line-height:1.7}
+.sh-det summary{cursor:pointer;font-size:12.5px;color:var(--accent)}.sh-det ul{list-style:none;margin:6px 0;padding:0}.sh-det li{display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px dashed var(--line)}.sh-det b{font-family:var(--mono)}
+.sh-rg{font-size:12px;padding:1px 7px;border-radius:4px;background:var(--panel2);border-left:3px solid var(--muted);white-space:nowrap}
+.sh-tb tr{cursor:pointer}
+@media(max-width:760px){.sh-top{grid-template-columns:1fr}.sh-kpi{grid-template-columns:1fr 1fr}.sh-charts{grid-template-columns:1fr}}
+#shOne h4{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

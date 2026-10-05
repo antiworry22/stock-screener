@@ -46,7 +46,7 @@ def num(x):
 
 def biz_days(n=12):
     d, out = NOW.date(), []
-    if NOW.hour < 18:  # 오늘 공매도 거래는 저녁에 공개
+    if NOW.hour < 16:  # 오늘 공매도 거래는 장 마감 뒤(오후~저녁)에 공개 — 자료가 없으면 아래에서 건너뜀
         d -= dt.timedelta(days=1)
     while len(out) < n:
         if d.weekday() < 5:
@@ -106,7 +106,7 @@ def krx_collect(days):
     trade, bal = {}, {}
     # 거래: 최근 영업일부터 자료가 나오는 날까지
     tdays = []
-    for d in days[:8]:
+    for d in days[:28]:
         rows = []
         for mkt in ("STK", "KSQ"):
             rows += k.trades(d, mkt)
@@ -120,12 +120,12 @@ def krx_collect(days):
             trade.setdefault(code, []).append({"d": d, "sv": num(pick(r, "CVSRTSELL_TRDVOL", "SRTSELL_TRDVOL")),
                                                "sa": num(pick(r, "CVSRTSELL_TRDVAL", "SRTSELL_TRDVAL")),
                                                "tv": num(pick(r, "ACC_TRDVOL")), "w": num(pick(r, "TRDVOL_WT", "SRTSELL_WT"))})
-        if len(tdays) >= 5:
+        if len(tdays) >= 20:
             break
     DIAG["KRX 공매도 거래"] = f"{len(tdays)}일 · {len(trade)}종목" if tdays else "자료 없음"
     # 잔고: 2거래일 늦게 공개 → 자료 있는 최근 날 + 5거래일 전
     bdays = []
-    for d in days[1:12]:
+    for d in days[1:30]:
         rows = []
         for mkt in ("STK", "KSQ"):
             rows += k.balance(d, mkt)
@@ -137,7 +137,7 @@ def krx_collect(days):
         for r in rows:
             code = str(pick(r, "ISU_SRT_CD", "ISU_CD") or "")[-6:]
             bal.setdefault(code, []).append({"d": d, "q": num(pick(r, "BAL_QTY")), "a": num(pick(r, "BAL_AMT")), "r": num(pick(r, "BAL_RTO"))})
-        if len(bdays) >= 6:
+        if len(bdays) >= 20:
             break
     DIAG["KRX 공매도 잔고"] = f"{len(bdays)}일 · {len(bal)}종목" if bdays else "자료 없음"
     return trade, bal
@@ -150,7 +150,7 @@ def pykrx_collect(days):
     fv = getattr(stock, "get_shorting_volume_by_ticker", None)
     fb = getattr(stock, "get_shorting_balance_by_ticker", None)
     n = 0
-    for d in days[:8]:
+    for d in days[:28]:
         got = False
         for mkt in ("KOSPI", "KOSDAQ"):
             try:
@@ -168,11 +168,11 @@ def pykrx_collect(days):
                 trade.setdefault(str(code)[-6:], []).append({"d": d, "sv": num(v), "tv": num(tv), "w": num(w), "sa": None})
         if got:
             n += 1
-        if n >= 5:
+        if n >= 20:
             break
     DIAG["pykrx 거래"] = f"{n}일 · {len(trade)}종목"
     m = 0
-    for d in days[1:12]:
+    for d in days[1:30]:
         got = False
         for mkt in ("KOSPI", "KOSDAQ"):
             try:
@@ -187,7 +187,7 @@ def pykrx_collect(days):
                 bal.setdefault(str(code)[-6:], []).append({"d": d, "q": num(r.get("공매도잔고")), "a": num(r.get("공매도금액")), "r": num(r.get("비중"))})
         if got:
             m += 1
-        if m >= 6:
+        if m >= 20:
             break
     DIAG["pykrx 잔고"] = f"{m}일 · {len(bal)}종목"
     return trade, bal
@@ -215,7 +215,7 @@ def main():
     t0 = time.time()
     stocks = json.load(open(LATEST, encoding="utf-8")).get("stocks", [])
     targets = {s["code"]: s for s in stocks if s.get("market") in ("KOSPI", "KOSDAQ")}
-    days = biz_days(14)
+    days = biz_days(32)
     log(f"대상 {len(targets)}종목 · 기준 영업일 {days[0]}")
     trade, bal, src = {}, {}, None
     for nm, fn in (("KRX 직접", krx_collect), ("pykrx", pykrx_collect)):
@@ -248,12 +248,19 @@ def main():
             last = t[-1]
             o.update({"td": last["d"], "sv": last["sv"], "sa": last.get("sa"), "w": last["w"] if last["w"] is not None else (round(last["sv"] / last["tv"] * 100, 2) if last.get("tv") else None),
                       "w5": round(sum(x["w"] or 0 for x in t[-5:]) / len(t[-5:]), 2) if any(x.get("w") is not None for x in t[-5:]) else None,
-                      "sv_h": [x["sv"] for x in t[-5:]], "w_h": [x["w"] for x in t[-5:]], "d_h": [x["d"] for x in t[-5:]]})
+                      "w20": round(sum(x["w"] or 0 for x in t[-20:]) / len(t[-20:]), 2) if any(x.get("w") is not None for x in t[-20:]) else None,
+                      "sv_h": [x["sv"] for x in t[-20:]], "w_h": [round(x["w"], 2) if x.get("w") is not None else None for x in t[-20:]],
+                      "tv_h": [x.get("tv") for x in t[-20:]], "d_h": [x["d"] for x in t[-20:]]})
         if b:
-            lb, fb = b[-1], b[0]
+            lb = b[-1]
+            fb = b[-6] if len(b) >= 6 else b[0]      # 약 1주(5거래일) 전
+            f20 = b[0]                                # 가장 오래된 것(최대 20거래일 전)
             o.update({"bd": lb["d"], "bq": lb["q"], "ba": lb["a"], "br": lb["r"],
                       "br_chg": round((lb["r"] or 0) - (fb["r"] or 0), 3) if lb.get("r") is not None and fb.get("r") is not None and lb is not fb else None,
-                      "bq_chg": round(((lb["q"] or 0) / fb["q"] - 1) * 100, 1) if fb.get("q") else None})
+                      "bq_chg": round(((lb["q"] or 0) / fb["q"] - 1) * 100, 1) if fb.get("q") else None,
+                      "br_chg20": round((lb["r"] or 0) - (f20["r"] or 0), 3) if lb.get("r") is not None and f20.get("r") is not None and lb is not f20 else None,
+                      "bq_chg20": round(((lb["q"] or 0) / f20["q"] - 1) * 100, 1) if f20.get("q") else None,
+                      "bq_h": [x["q"] for x in b[-20:]], "br_h": [round(x["r"], 3) if x.get("r") is not None else None for x in b[-20:]], "bd_h": [x["d"] for x in b[-20:]]})
         out[code] = o
     res = {"meta": {"time": NOW.strftime("%Y-%m-%d %H:%M"), "src": src, "n": len(out), "trade_day": max((v.get("td", "") for v in out.values()), default=""),
                     "bal_day": max((v.get("bd", "") for v in out.values()), default=""), "elapsed_s": round(time.time() - t0)}, "s": out}
