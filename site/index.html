@@ -36,6 +36,7 @@
   <button data-tab="dash" class="on">대시보드</button>
   <button data-tab="hold">내 보유 종목</button>
   <button data-tab="hrep">보유 리포트</button>
+  <button data-tab="plan">내일 매수 계획</button>
   <button data-tab="fuse">실시간 종합</button>
   <button data-tab="analysis">종목 분석</button>
   <button data-tab="timing">매매 타이밍</button>
@@ -194,6 +195,16 @@
 </section>
 
 <!-- ═══ 내 보유 종목 ═══ -->
+<section id="tab-plan" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>내일 매수 계획</h2></div>
+    <p class="hint">장 마감 뒤 저녁에 내일 살 후보를 넣어두면, 종목마다 종합평가(점수·등급)와 실전 의견, 내일 시초가에 따라 어떻게 할지까지 정리해요. 지금 보유 종목과 합친 포트폴리오로 예산 안에서 살 순서를 정해요.</p>
+    <div class="tm-bar"><div class="row gap clx-search"><input id="plQ" class="inp" list="stockNames" placeholder="후보 종목 이름 또는 6자리 코드" autocomplete="off" aria-label="후보 종목 추가"><button class="btn primary small" id="plGo">후보에 넣기</button></div>
+      <button class="btn ghost small" id="plAuto">자동으로 후보 찾기</button><button class="btn ghost small" id="plFromW">관심 종목 가져오기</button></div>
+    <div id="plMount" class="mt"></div>
+  </div>
+</section>
+
 <section id="tab-hrep" class="tab">
   <div class="panel"><div id="rpMount"></div></div>
 </section>
@@ -517,6 +528,7 @@
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
 <script src="assets/report.js"></script>
+<script src="assets/plan.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
