@@ -46,11 +46,49 @@ function parseDetail(html) {
   return out;
 }
 
+/* ── 새 네이버(모바일) 업종 API — 모양이 정확히 알려지지 않아 키 이름으로 찾음 ── */
+const UA_M = { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1', 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'ko-KR,ko;q=0.9', 'Referer': 'https://m.stock.naver.com/' };
+async function getM(url, ms = 6000) { const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms); try { const r = await fetch(url, { headers: UA_M, signal: ac.signal }); return { status: r.status, txt: await r.text() }; } finally { clearTimeout(t); } }
+function arrays(j, out = []) { if (Array.isArray(j)) { if (j.length && typeof j[0] === 'object') out.push(j); j.forEach(x => arrays(x, out)); } else if (j && typeof j === 'object') Object.values(j).forEach(v => arrays(v, out)); return out; }
+const kOf = (o, re) => Object.keys(o).find(k => re.test(k));
+function listFromJson(j) {
+  for (const A of arrays(j)) {
+    const o = A[0], nk = kOf(o, /^(name|groupName|industryName|upjongName|.*Name)$/i), rk = kOf(o, /fluctuationsRatio|changeRate|ratio|rate/i), ik = kOf(o, /^(no|code|groupNo|industryCode|upjongNo|id|.*No|.*Code)$/i);
+    if (!nk || !rk || !ik || kOf(o, /^itemCode$/)) continue;
+    return A.map(x => { const g = re => { const k = kOf(x, re); return k ? num(x[k]) : null; };
+      return { no: String(x[ik]), name: String(x[nk]), pct: num(x[rk]), n: g(/total|count$/i), up: g(/rise|up(?!per)/i), flat: g(/steady|flat|unchanged/i), dn: g(/fall|down(?!.*limit)/i) }; }).filter(x => x.name && x.pct != null);
+  }
+  return [];
+}
+function detailFromJson(j) {
+  for (const A of arrays(j)) {
+    const o = A[0]; if (!kOf(o, /^itemCode$|^code$/i) || !kOf(o, /closePrice|nowPrice|price/i)) continue;
+    return A.map(x => { const g = re => { const k = kOf(x, re); return k ? x[k] : null; };
+      const tvRaw = g(/accumulatedTradingValue$/i), tvH = g(/accumulatedTradingValueKrwHangeul/i);
+      let tv = null; if (tvH) { const m = String(tvH).replace(/[,\s원]/g, '').match(/(?:([\d.]+)조)?(?:([\d.]+)억)?/); tv = m ? (+m[1] || 0) * 1e4 + (+m[2] || 0) : null; } else if (tvRaw != null) { const s = String(tvRaw); tv = /[조억]/.test(s) ? (() => { const m = s.replace(/[,\s원]/g, '').match(/(?:([\d.]+)조)?(?:([\d.]+)억)?/); return m ? (+m[1] || 0) * 1e4 + (+m[2] || 0) : null; })() : (num(s) != null ? Math.round(num(s) / 100 * 10) / 10 : null); }
+      let r = num(g(/fluctuationsRatio|changeRate/i)); const dir = x.compareToPreviousPrice ? String(x.compareToPreviousPrice.name || '') : ''; if (/FALL|LOWER/.test(dir) && r > 0) r = -r;
+      return { c: String(g(/^itemCode$|^code$/i)).slice(-6), n: String(g(/stockName|name/i) || ''), p: num(g(/closePrice|nowPrice/i)), r, v: num(g(/accumulatedTradingVolume/i)), tv }; }).filter(x => x.c && x.p);
+  }
+  return [];
+}
+const NEW_LIST = ['https://m.stock.naver.com/api/stocks/industry?page=1&pageSize=100', 'https://m.stock.naver.com/api/stocks/industry/all?page=1&pageSize=100', 'https://m.stock.naver.com/api/stocks/upjong?page=1&pageSize=100'];
+const NEW_DET = no => [`https://m.stock.naver.com/api/stocks/industry/${no}?page=1&pageSize=100`, `https://m.stock.naver.com/api/stocks/upjong/${no}?page=1&pageSize=100`];
+
 export default async (req) => {
   const u = new URL(req.url), diag = u.searchParams.get('diag') === '1';
   const k = new Date(Date.now() + 9 * 3600e3);
   const out = { ok: false, at: k.toISOString().slice(0, 19).replace('T', ' '), list: [], det: {} }, D = {};
-  try {
+  // ① 새 모바일 업종 API
+  let newDet = null;
+  for (const url of NEW_LIST) {
+    try { const r = await getM(url); D['new ' + url.slice(26, 60)] = `HTTP ${r.status} ${diag ? r.txt.slice(0, 300) : ''}`; if (r.status === 200) { const L = listFromJson(JSON.parse(r.txt)); if (L.length) { out.list = L; out.src = 'mobile'; D.list = `ok(모바일) ${L.length}업종`; break; } } } catch (e) { D['new ' + url.slice(26, 60)] = '실패 ' + String(e).slice(0, 60); }
+  }
+  if (out.list.length) {
+    // 구성 종목: 어느 주소가 되는지 첫 업종으로 정함
+    for (const f of [0, 1]) { try { const r = await getM(NEW_DET(out.list[0].no)[f]); if (r.status === 200 && detailFromJson(JSON.parse(r.txt)).length) { newDet = f; break; } if (diag) D['det try ' + f] = `HTTP ${r.status} ${r.txt.slice(0, 300)}`; } catch (e) {} }
+  }
+  // ② 예전 PC 화면(없어졌으면 0업종)
+  if (!out.list.length) try {
     const r = await get('https://finance.naver.com/sise/sise_group.naver?type=upjong');
     if (r.status === 200) { out.list = parseList(r.txt); D.list = `ok ${out.list.length}업종`; if (diag && !out.list.length) D.list_head = strip(r.txt).slice(0, 600); }
     else D.list = `HTTP ${r.status}`;
@@ -61,8 +99,8 @@ export default async (req) => {
   for (let i = 0; i < nos.length; i += 12) {
     await Promise.all(nos.slice(i, i + 12).map(async no => {
       try {
-        const r = await get(`https://finance.naver.com/sise/sise_group_detail.naver?type=upjong&no=${no}`, 6000);
-        if (r.status === 200) { const L = parseDetail(r.txt); if (L.length) { out.det[no] = L; okN++; } else if (diag && !D.det_head) D.det_head = strip(r.txt).slice(0, 800); }
+        const r = newDet != null ? await getM(NEW_DET(no)[newDet], 6000) : await get(`https://finance.naver.com/sise/sise_group_detail.naver?type=upjong&no=${no}`, 6000);
+        if (r.status === 200) { let L = []; try { L = newDet != null ? detailFromJson(JSON.parse(r.txt)) : parseDetail(r.txt); } catch (e) {} if (L.length) { out.det[no] = L; okN++; } else if (diag && !D.det_head) D.det_head = strip(r.txt).slice(0, 800); }
         else fail++;
       } catch (e) { fail++; }
     }));

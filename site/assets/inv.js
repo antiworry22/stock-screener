@@ -34,8 +34,26 @@ async function invMarketLive(force) {
   const open = wd >= 1 && wd <= 5 && m >= 535 && m <= 960;
   if (!force && Date.now() - INV.mt < (open ? 55e3 : 600e3)) return;
   INV.mt = Date.now();
-  try { const r = await fetch('/api/mflow', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) INV.m = j; } } catch (e) {}
+  try { const r = await fetch('/api/mflow', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { ivMfSeries(j); INV.m = j; } } } catch (e) {}
   renderInvMarket();
+}
+
+/* 시장 투자자 누적값을 1분마다 이 기기에 쌓아 「시간대별 흐름」을 만듦 (네이버 시간별 표가 없어져서) */
+function ivMfSeries(j) {
+  const kd = new Date(Date.now() + 9 * 3600e3), today = kd.toISOString().slice(0, 10), td = today.replace(/-/g, ''), m0 = kd.getUTCHours() * 60 + kd.getUTCMinutes();
+  const key = 'mfSeries_' + today, S0 = store.get(key, {}) || {};
+  ['KOSPI', 'KOSDAQ'].forEach(m => {
+    const o = j.mkt && j.mkt[m]; if (!o || !o.now) return;
+    if (o.bizdate && o.bizdate !== td) return;              // 오늘 자료가 아니면(장 시작 전·휴장) 쌓지 않음
+    if (m0 < 540 || m0 > 940) return;
+    const L = S0[m] = S0[m] || [], last = L[L.length - 1];
+    const same = last && ['개인', '외국인', '기관'].every(k => last[k] === o.now[k]);
+    if (!same && (!last || last.t !== o.now.t)) L.push(o.now); else if (last && last.t === o.now.t) L[L.length - 1] = o.now;
+    while (L.length > 420) L.shift();
+    o.time = L.slice().reverse();                            // 최근 → 과거 (예전 표와 같은 순서)
+  });
+  try { store.set(key, S0); Object.keys(localStorage).filter(x => x.startsWith('scr_mfSeries_') && x !== 'scr_' + key).forEach(x => localStorage.removeItem(x)); } catch (e) {}
+  ['KOSPI', 'KOSDAQ'].forEach(m => { const o = j.mkt && j.mkt[m]; if (o && !o.time && S0[m] && S0[m].length) o.time = S0[m].slice().reverse(); });
 }
 
 /* 종목별 시계열(억원): 거래소 20일 + 오늘 장중 잠정(외국인·기관·개인) */

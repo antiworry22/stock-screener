@@ -270,7 +270,7 @@ function renderBoard(part) {
     $$('#bdRoot [data-bdtf]').forEach(b => b.onclick = () => { BD.tf = b.dataset.bdtf; $$('#bdRoot [data-bdtf]').forEach(x => x.classList.toggle('on', x === b)); set('bdChart', bdChartHtml(BD.st[BD.sel], BD.q[BD.sel])); });
   }
   set('bdWl', bdQuoteRows());
-  const wt = $('#bdWlT'); if (wt) wt.innerHTML = `${bdOpen() ? '<span class="gov-live"></span> 5초마다' : '장 마감 — 마지막 값'}${Object.values(BD.q)[0] ? ` · ${esc(String(Object.values(BD.q)[0].at || '').slice(11, 19))}` : ''}`;
+  const wt = $('#bdWlT'); if (wt) wt.innerHTML = `${bdOpen() ? '<span class="gov-live"></span> 5초마다' : typeof msState === 'function' && msState().st === 'pre' ? '장 시작 전 — 09:00부터 실시간' : '장 마감 — 마지막 값'}${Object.values(BD.q)[0] ? ` · ${esc(String(Object.values(BD.q)[0].at || '').slice(11, 19))}` : ''}`;
   set('bdHead', c ? bdHeadHtml(c, q) : '<p class="hint">왼쪽 목록에서 종목을 고르세요.</p>');
   set('bdBook', c ? bdBookHtml(st, q) : '');
   set('bdTicks', c ? bdTicksHtml(st) : '');

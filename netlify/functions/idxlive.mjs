@@ -51,6 +51,14 @@ function breadth(txt) {
   return o.up != null && o.down != null && o.up + o.down >= 200 ? o : null;
 }
 
+function upDown(x) {
+  if (!x) return null; const o = {};
+  const put = (k, v) => { const n = num(v); if (n == null) return; if (/upper|상한/i.test(k)) o.upl = n; else if (/lower|하한/i.test(k)) o.dnl = n; else if (/rise|up|상승/i.test(k)) o.up = n; else if (/fall|down|하락/i.test(k)) o.down = n; else if (/steady|flat|unchanged|보합/i.test(k)) o.flat = n; };
+  const walk = y => { if (!y || typeof y !== 'object') return; if (Array.isArray(y)) { y.forEach(z => { if (z && typeof z === 'object' && (z.key || z.code) && z.value != null) put(String(z.code || '') + String(z.key || ''), z.value); else walk(z); }); return; } Object.entries(y).forEach(([k, v]) => { if (v != null && typeof v !== 'object') put(k, v); else walk(v); }); };
+  walk(x);
+  return o.up != null && o.down != null ? o : null;
+}
+
 export default async (req) => {
   const u = new URL(req.url), diag = u.searchParams.get('diag') === '1';
   const k = new Date(Date.now() + 9 * 3600e3), day = k.toISOString().slice(0, 10).replace(/-/g, '');
@@ -61,7 +69,7 @@ export default async (req) => {
       poll: get(`https://polling.finance.naver.com/api/realtime/domestic/index/${m}`, UA_M),
       basic: get(`https://m.stock.naver.com/api/index/${m}/basic`, UA_M),
       fch: get(`https://fchart.stock.naver.com/sise.nhn?symbol=${m}&timeframe=minute&count=420&requestType=0`, UA_PC),
-      pc: get(`https://finance.naver.com/sise/sise_index.naver?code=${m}`, UA_PC),
+      int: get(`https://m.stock.naver.com/api/index/${m}/integration`, UA_M),
     };
     const R = {};
     await Promise.all(Object.entries(J).map(async ([key, p]) => { try { R[key] = await p; } catch (e) { R[key] = { err: String(e).slice(0, 100) }; } }));
@@ -79,7 +87,10 @@ export default async (req) => {
         else D[m + '_napi'] = `HTTP ${r.status}`;
       } catch (e) { D[m + '_napi'] = '실패 ' + String(e).slice(0, 80); }
     }
-    if (R.pc && R.pc.status === 200) { const b = breadth(R.pc.txt); D[m + '_pc'] = b ? `ok 상승 ${b.up} 하락 ${b.down}` : 'ok 종목수 못 찾음'; if (b) o.br = b; if (diag && !b) { const s = strip(R.pc.txt), i = s.indexOf('상승'); D[m + '_pc_head'] = s.slice(Math.max(0, i - 150), i + 350); } }
+    if (R.int && R.int.status === 200) {   // 오른/내린 종목 수: 모바일 지수 종합의 upDownStockInfo
+      try { const j = JSON.parse(R.int.txt), b = upDown(j.upDownStockInfo); D[m + '_updown'] = b ? `ok 상승 ${b.up} 하락 ${b.down}` : '못 찾음 ' + JSON.stringify(j.upDownStockInfo).slice(0, 300); if (b) o.br = b; } catch (e) { D[m + '_updown'] = '해석 실패'; }
+    } else D[m + '_updown'] = R.int ? (R.int.err || `HTTP ${R.int.status}`) : '없음';
+    if (false) { const b = breadth(R.pc.txt); D[m + '_pc'] = b ? `ok 상승 ${b.up} 하락 ${b.down}` : 'ok 종목수 못 찾음'; if (b) o.br = b; if (diag && !b) { const s = strip(R.pc.txt), i = s.indexOf('상승'); D[m + '_pc_head'] = s.slice(Math.max(0, i - 150), i + 350); } }
     else D[m + '_pc'] = R.pc ? (R.pc.err || `HTTP ${R.pc.status}`) : '없음';
     if (o.min && o.min.length > 400) o.min = o.min.filter((x, i) => i % 2 === 0 || i === o.min.length - 1);
     out.mkt[m] = o;

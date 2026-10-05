@@ -277,7 +277,7 @@ function obHtml(x, s) {
   return `<div class="ob-head">
       <div><b>${esc((s && s.name) || q.name || OB.code)}</b> <span class="muted mono">${esc(OB.code)}</span>
         <span class="mono big ${cls(q.chgPct)}">${fmt(x.price)}원</span> <span class="mono ${cls(q.chgPct)}">${q.chgPct != null ? pct(q.chgPct) : ''}</span></div>
-      <div class="hint">${live ? '<span class="gov-live"></span> 3초마다 갱신' : '장 마감 — 마지막 호가'} · ${esc(x.r.at.slice(11))} · ${esc((x.r.src || []).join('·'))} · 조회 ${st.n}회</div>
+      <div class="hint">${live ? '<span class="gov-live"></span> 3초마다 갱신' : (typeof msState === 'function' && msState().st === 'pre' ? '장 시작 전 — 마지막 거래일 호가(09:00부터 실시간)' : '장 마감 — 마지막 호가')} · ${esc(x.r.at.slice(11))} · ${esc((x.r.src || []).join('·'))} · 조회 ${st.n}회</div>
     </div>
     ${obLiveHtml(x, s)}
     <div class="ob-wrap">
