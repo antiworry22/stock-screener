@@ -164,7 +164,7 @@ function bdQuoteRows() {
     const q = BD.q[code], s = bdStock(code), H = hold ? bdHold(code) : null, nm = (s && s.name) || (q && q.name) || code;
     const pl = H && q ? (q.price - H.avg) * H.qty : null, plp = H && q ? (q.price / H.avg - 1) * 100 : null;
     const fl = BD.flash[code]; delete BD.flash[code];
-    return `<tr data-bd="${esc(code)}" class="${BD.sel === code ? 'on' : ''}"><td class="l"><b>${esc(nm)}</b>${hold ? ' <small class="bd-own">보유</small>' : ''}${pl != null ? `<small class="bd-pl ${cls(pl)}">${pl > 0 ? '+' : ''}${fmt(Math.round(pl))}원 ${bdP(plp)}</small>` : ''}</td>
+    return `<tr data-bd="${esc(code)}" class="${BD.sel === code ? 'on' : ''}"><td class="l"><b>${esc(nm)}</b>${hold ? ' <small class="bd-own">보유</small>' : ''}${bdGradeChip(s)}${pl != null ? `<small class="bd-pl ${cls(pl)}">${pl > 0 ? '+' : ''}${fmt(Math.round(pl))}원 ${bdP(plp)}</small>` : ''}</td>
       <td class="mono ${q ? cls(q.pct) : ''}"><span class="${fl ? 'bd-fl-' + fl : ''}">${q ? fmt(q.price) : (s ? fmt(s.close) : '–')}</span></td>
       <td class="mono ${q ? cls(q.pct) : ''}">${q ? bdP(q.pct) : s ? bdP(s.chg) : '–'}</td><td class="mono">${q ? bdEok(q.tv) : '–'}</td>
       <td>${hold ? '' : `<span class="bd-x" data-bdx="${esc(code)}" role="button" title="목록에서 빼기">×</span>`}</td></tr>`; }).join('')}</tbody></table>`;
@@ -233,12 +233,12 @@ function bdHoldHtml() {
     const v = p * H.qty, pl = v - H.avg * H.qty, dp = q && q.chg != null ? q.chg * H.qty : null;
     inv += H.avg * H.qty; val += v; if (dp != null) day += dp;
     const nearStop = H.stop && p <= H.stop * 1.02, hitT = H.t1 && p >= H.t1;
-    return `<tr data-bd="${esc(H.code)}"><td class="l"><b>${esc(H.name || (s && s.name) || H.code)}</b></td><td class="mono">${fmt(H.qty)}</td><td class="mono">${fmt(Math.round(H.avg))}</td><td class="mono ${q ? cls(q.pct) : ''}">${fmt(p)}</td><td class="mono ${cls(dp)}">${dp != null ? `${dp > 0 ? '+' : ''}${fmt(Math.round(dp))}` : '–'}</td><td class="mono ${cls(pl)}">${pl > 0 ? '+' : ''}${fmt(Math.round(pl))}</td><td class="mono ${cls(pl)}">${bdP((p / H.avg - 1) * 100)}</td><td class="mono">${fmt(Math.round(v))}</td>
+    return `<tr data-bd="${esc(H.code)}"><td class="l"><b>${esc(H.name || (s && s.name) || H.code)}</b></td><td class="mono">${fmt(H.qty)}</td><td class="mono">${fmt(Math.round(H.avg))}</td><td class="mono ${q ? cls(q.pct) : ''}">${fmt(p)}</td><td class="mono ${cls(dp)}">${dp != null ? `${dp > 0 ? '+' : ''}${fmt(Math.round(dp))}` : '–'}</td><td class="mono ${cls(pl)}">${pl > 0 ? '+' : ''}${fmt(Math.round(pl))}</td><td class="mono ${cls(pl)}">${bdP((p / H.avg - 1) * 100)}</td><td class="mono">${fmt(Math.round(v))}</td><td>${bdGradeChip(s, true)}</td>
       <td class="l">${nearStop ? `<span class="tag bad">손절선 ${fmt(H.stop)} 근접</span>` : ''}${hitT ? `<span class="tag good">1차 목표 ${fmt(H.t1)} 도달</span>` : ''}${!nearStop && !hitT && H.stop ? `<small class="muted">손절 ${fmt(H.stop)} · 목표 ${fmt(H.t1)}</small>` : ''}</td></tr>`;
   }).join('');
   const pl = val - inv;
   return `<div class="bd-sum"><div><small>평가금액</small><b>${fmt(Math.round(val))}원</b></div><div><small>평가손익</small><b class="${cls(pl)}">${pl > 0 ? '+' : ''}${fmt(Math.round(pl))}원 <em>${bdP(inv ? pl / inv * 100 : null)}</em></b></div><div><small>오늘 손익</small><b class="${cls(day)}">${day > 0 ? '+' : ''}${fmt(Math.round(day))}원</b></div><div><small>매입금액</small><b>${fmt(Math.round(inv))}원</b></div></div>
-    <div class="table-wrap"><table class="tbl bd-hold"><thead><tr><th class="l">종목</th><th>수량</th><th>평단</th><th>현재가</th><th>오늘 손익</th><th>평가손익</th><th>수익률</th><th>평가금액</th><th class="l">손절·목표</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    <div class="table-wrap"><table class="tbl bd-hold"><thead><tr><th class="l">종목</th><th>수량</th><th>평단</th><th>현재가</th><th>오늘 손익</th><th>평가손익</th><th>수익률</th><th>평가금액</th><th>수급</th><th class="l">손절·목표</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function bdAlertsHtml() {
   if (!BD.alerts.length) return `<p class="hint">${bdOpen() ? '장중 급등락(5분 ±2%), 큰 체결, 손절선 이탈, 목표가 도달, 오늘 최고가 경신을 여기에 알려드려요.' : '장이 열리면 급등락·큰 체결·손절선/목표가 알림이 여기에 쌓여요.'}</p>`;
@@ -261,7 +261,8 @@ function renderBoard(part) {
         <h4 class="mt">실시간 알림</h4><div id="bdAl"></div></section>
       <section class="bd-p bd-main"><div id="bdHead"></div>
         <div class="bd-row2"><div class="bd-p2"><h5>호가</h5><div id="bdBook"></div></div><div class="bd-p2"><h5>체결</h5><div id="bdTicks"></div></div></div>
-        <div class="bd-p2 mt-s"><div class="row gap wrap bd-tfs">${[['min', '분봉(오늘)'], ['day3', '일봉 3개월'], ['day6', '일봉 6개월']].map(([k, n]) => `<button class="chip ${BD.tf === k ? 'on' : ''}" data-bdtf="${k}">${n}</button>`).join('')}</div><div id="bdChart"></div></div></section>
+        <div class="bd-p2 mt-s"><div class="row gap wrap bd-tfs">${[['min', '분봉(오늘)'], ['day3', '일봉 3개월'], ['day6', '일봉 6개월']].map(([k, n]) => `<button class="chip ${BD.tf === k ? 'on' : ''}" data-bdtf="${k}">${n}</button>`).join('')}</div><div id="bdChart"></div></div>
+        <div class="bd-p2 mt-s"><h5>투자자 흐름 <small class="muted">외국인·연기금·기관·개인 — 종목 · 시장</small></h5><div id="bdFlow"></div></div></section>
       <section class="bd-p bd-holdp"><h4>내 보유 현황 <small class="muted">「내 보유 종목」에 기록한 평단·수량 × 실시간 현재가</small></h4><div id="bdHold"></div></section>
     </div>`;
     const go = () => { const v = ($('#bdQ').value || '').trim(); if (!v) return; const h = typeof findStocks === 'function' ? findStocks(v) : []; const code = h.length ? h[0].code : (/^\d{6}$/.test(v) ? v : null); if (!code) { alert(`"${v}"과(와) 맞는 종목이 없어요`); return; } bdAdd(code); $('#bdQ').value = ''; bdSelect(code); };
@@ -274,6 +275,7 @@ function renderBoard(part) {
   set('bdBook', c ? bdBookHtml(st, q) : '');
   set('bdTicks', c ? bdTicksHtml(st) : '');
   if (part !== 'fast') set('bdChart', c ? bdChartHtml(st, q) : '');
+  if (part !== 'fast' || !BD.flowT || Date.now() - BD.flowT > 15e3) { set('bdFlow', c ? bdFlowHtml(c, q) : ''); BD.flowT = Date.now(); }
   set('bdHold', bdHoldHtml());
   set('bdAl', bdAlertsHtml());
   $$('#bdRoot [data-bd]').forEach(el => el.onclick = e => { if (e.target.closest('[data-bdx]')) return; bdSelect(el.dataset.bd); });
@@ -295,7 +297,8 @@ async function bdLoop() {
   BD.busy = true;
   try {
     const t0 = BD.qt, b0 = BD.sel && BD.st[BD.sel] ? BD.st[BD.sel].bt : 0, c0 = BD.sel && BD.st[BD.sel] ? BD.st[BD.sel].ct : 0;
-    await Promise.all([bdLoadQuotes(), bdLoadBook(), bdLoadChart()]);
+    await Promise.all([bdLoadQuotes(), bdLoadBook(), bdLoadChart(), typeof invMarketLive === 'function' ? invMarketLive() : null]);
+    bdFlowAlerts();
     const st = BD.sel && BD.st[BD.sel];
     const changed = BD.qt !== t0 || (st && st.bt !== b0), chartNew = st && st.ct !== c0;
     if (changed || chartNew) renderBoard(chartNew ? 'data' : (BD.tf === 'min' ? 'data' : 'fast'));
@@ -395,6 +398,8 @@ function bdChartTalkHtml(R, vwap, prev, q, st) {
   // 큰 거래
   const bigV = D.map((r, i) => ({ r, i })).filter(x => vAvg && x.r[5] >= vAvg * 3).sort((a, b) => b.r[5] - a.r[5])[0];
   if (bigV) { const r = bigV.r, up = r[4] >= r[1]; L.push(`${r[0]}에 평소의 ${fmt(r[5] / vAvg, 1)}배 큰 거래가 ${up ? '오르면서' : '내리면서'} 나왔어요 — ${up ? '그때 들어온 매수세가 지지선 역할을 할 수 있어요' : bigV.r === lo || Math.abs(r[3] - lo[3]) / lo[3] < 0.003 ? '던지는 물량(투매)이 쏟아진 뒤 저점이 만들어진 모습이에요' : '대량 매도가 나온 자리라 다시 그 가격에 오면 매물이 나올 수 있어요'}.`); }
+  // 투자자 흐름(오늘 잠정)과 차트 방향
+  const fl = bdFlowLine(BD.sel, P, prev); if (fl) L.push(fl);
   // 시간외
   const after = R.filter(r => r[0] > '15:30');
   if (after.length) L.push(`15:30 이후(점선 오른쪽)는 정규장이 끝난 뒤 대체거래소(NXT) 시간외 거래예요. 거래량이 적어 가격 움직임의 신뢰도는 낮아요.`);
@@ -415,4 +420,85 @@ function bdDayTalkHtml(all, q) {
   L.push(`최근 한 달 ${bdP(r20)} · 3개월 고점 ${bdW(hi)} 대비 ${bdP((P / hi - 1) * 100)} · 3개월 저점 ${bdW(lo)} 대비 ${bdP((P / lo - 1) * 100)}.`);
   L.push(P > m5 ? `5일선(${bdW(Math.round(m5))}) 위 — 단기 흐름은 살아 있어요.` : `5일선(${bdW(Math.round(m5))}) 아래 — 단기 힘이 빠졌어요. 5일선을 다시 넘는 날이 단기 반등 신호예요.`);
   return `<div class="bd-talk"><p class="bd-th ${P > m20 ? 'up' : 'down'}"><b>일봉 해설</b> ${P > m20 && m20 > m60 ? '상승 추세' : P < m20 && m20 < m60 ? '하락 추세' : '추세 전환 구간'}</p><ul>${L.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`;
+}
+
+/* ═════════════ 투자자 흐름 연결 ═════════════
+   종목: 거래소 20일 + 오늘 장중 잠정(외국인·기관·개인, 하루 4번) · 연기금(장 마감 뒤) · 외국인 평균 매수가(지금 실시간 가격과 비교)
+   시장: 코스피·코스닥 투자자별 누적 순매수(장중 1분) */
+function bdIv(c) {
+  const s = bdStock(c); if (!s || typeof ivAnalyze !== 'function' || !(s._inv || s._flow)) return null;
+  const k = c + '|' + ((typeof INV !== 'undefined' && INV.d && INV.d.meta.time) || '') + '|' + ((typeof FLOW !== 'undefined' && FLOW.d && FLOW.d.meta && FLOW.d.meta.time) || '');
+  BD.ivc = BD.ivc || {};
+  if (BD.ivc[c] && BD.ivc[c].k === k) return BD.ivc[c].v;
+  let v = null; try { const a = ivAnalyze(s); v = a ? { s, a, V: typeof ivVerdict === 'function' ? ivVerdict(s, a) : null } : null; } catch (e) { console.error(e); }
+  BD.ivc[c] = { k, v }; return v;
+}
+function bdGradeChip(s, wide) {
+  if (!s) return ''; const x = bdIv(s.code); if (!x || !x.V) return wide ? '<small class="muted">–</small>' : '';
+  const g = x.V.g[0];
+  return `<small class="bd-g g${g}" title="수급 종합평가 ${x.V.sc}점 · ${esc(x.a.rg[1])}">수급 ${g}${wide ? ' · ' + esc(x.a.rg[1]) : ''}</small>`;
+}
+const bdEk = v => typeof ivEok === 'function' ? ivEok(v) : v == null ? '–' : `${v > 0 ? '+' : ''}${fmt(v, 0)}억`;
+const bdDay8 = d => d ? `${+String(d).slice(4, 6)}/${+String(d).slice(6, 8)}` : '';
+/* 차트 해설에 넣을 한 줄 */
+function bdFlowLine(c, P, prev) {
+  const x = bdIv(c); if (!x) return '';
+  const a = x.a, f = a.today.f, i = a.today.i, live = a.Z.partial, chg = prev ? (P / prev - 1) * 100 : 0;
+  if (f == null) return '';
+  const who = `${live ? '오늘 장중(잠정)' : bdDay8(a.Z.d[a.Z.d.length - 1]) + ' 확정'} 외국인 ${bdEk(f)}${i != null ? ` · 기관 ${bdEk(i)}` : ''}`;
+  if (f > 0 && chg < -0.5) return `${who} — 주가가 빠지는데 외국인은 사고 있어요. 하락 속 저가 매수(매집)일 수 있어요.`;
+  if (f < 0 && chg > 0.5) return `${who} — 주가는 오르는데 외국인은 팔고 있어요. 개인이 끌어올린 상승이면 오래가기 어려워요.`;
+  if (f > 0 && (i || 0) > 0 && chg >= 0) return `${who} — 큰손 둘이 함께 사며 주가도 올라요. 수급이 확인해 주는 상승이에요.`;
+  if (f < 0 && (i || 0) < 0 && chg <= 0) return `${who} — 큰손 둘이 함께 팔며 주가도 내려요. 반등이 나와도 위에서 물량이 나오기 쉬워요.`;
+  return `${who}.`;
+}
+/* 투자자 흐름 칸 */
+function bdFlowHtml(c, q) {
+  const x = bdIv(c), s = bdStock(c);
+  const mk = s ? s.market : 'KOSPI', mR = typeof ivMktRows === 'function' && typeof INV !== 'undefined' ? (() => { try { return ivMktRows(mk); } catch (e) { return null; } })() : null;
+  const mLast = mR && mR.rows && mR.rows.length ? (mR.krx || mR.day ? mR.rows[0] : mR.rows[mR.rows.length - 1]) : null;
+  const mkt = mLast ? `<div class="bd-fm"><b>${mk === 'KOSPI' ? '코스피' : '코스닥'} 시장 전체 ${mR.live ? `<span class="gov-live"></span>${esc(mLast.t || '')} 누적` : esc(mLast.t || '') + ' 확정'}</b>${['외국인', '기관', '개인', '연기금'].filter(k => mLast[k] != null).map(k => `<span>${k} <em class="${cls(mLast[k])}">${bdEk(mLast[k])}</em></span>`).join('')}</div>` : '';
+  if (!x) return `${mkt}<p class="hint">${s ? '이 종목은 투자자별 자료가 아직 없어요(분석 대상 892종목만 · 장중 4번 잠정, 장 마감 뒤 확정).' : '분석 대상 밖 종목이라 투자자별 자료가 없어요.'}</p>`;
+  const a = x.a, V = x.V, P = q && q.price ? q.price : a.px, live = a.Z.partial, lastD = a.Z.d[a.Z.d.length - 1];
+  const fPl = a.fAvg ? (P / a.fAvg - 1) * 100 : null;
+  const K = [['f', '외국인'], ['i', '기관'], ['p', '연기금'], ['r', '개인']];
+  const mx = Math.max(1, ...K.map(([k]) => Math.abs(a.sum[k + 5] || 0)));
+  const bars = K.map(([k, n]) => { const v = a.sum[k + 5]; return `<div class="bd-fb"><span>${n}</span><div class="bd-fbar"><i class="${(v || 0) >= 0 ? 'p' : 'm'}" style="${(v || 0) >= 0 ? 'left:50%' : 'right:50%'};width:${Math.abs(v || 0) / mx * 50}%"></i><em></em></div><b class="${cls(v)}">${bdEk(v)}</b><small>${a.st[k] > 1 ? a.st[k] + '일 연속 매수' : a.st[k] === 1 ? '마지막 날 매수' : a.st[k] < -1 ? -a.st[k] + '일 연속 매도' : a.st[k] === -1 ? '마지막 날 매도' : ''}</small></div>`; }).join('');
+  const today = K.filter(([k]) => a.today[k] != null).map(([k, n]) => `<span>${n} <em class="${cls(a.today[k])}">${bdEk(a.today[k])}</em></span>`).join('');
+  // 쉬운 해설
+  const T = [];
+  T.push(`${esc(a.rg[1])} — ${esc(a.rg[2])}`);
+  if (fPl != null) T.push(fPl < -3 ? `외국인이 그동안 산 평균 가격은 약 ${bdW(Math.round(a.fAvg))}이에요. 지금 ${bdW(P)}은 그보다 ${fmt(-fPl, 1)}% 낮아 외국인도 손실 구간이에요 — 이 근처에서 버티거나 더 사서 평단을 낮추려 할 수 있어요.` : fPl > 10 ? `외국인 평균 매수가(약 ${bdW(Math.round(a.fAvg))})보다 ${fmt(fPl, 1)}% 높아요 — 외국인이 이익을 챙기려는 매도가 나올 수 있는 자리예요.` : `외국인 평균 매수가(약 ${bdW(Math.round(a.fAvg))}) 근처(${bdP(fPl)})예요 — 이 가격이 단기 지지선 역할을 할 수 있어요.`);
+  const fl = bdFlowLine(c, P, q && q.chg != null ? P - q.chg : null); if (fl) T.push(fl);
+  if (a.drv && a.drv.c >= 0.5) T.push(`이 종목은 ${a.drv.n} 매매와 주가가 같이 움직여요(상관 ${fmt(a.drv.c, 2)}) — ${a.drv.n} 흐름을 가장 먼저 보세요.`);
+  if (mLast && mLast['외국인'] != null && a.today.f != null) { const mf = mLast['외국인']; if (mf < 0 && a.today.f > 0) T.push(`시장 전체로는 외국인이 팔지만(${bdEk(mf)}) 이 종목은 사고 있어요 — 외국인이 골라 담는 종목이에요.`); else if (mf > 0 && a.today.f < 0) T.push(`시장 전체로는 외국인이 사는데(${bdEk(mf)}) 이 종목은 팔아요 — 외국인 관심에서 밀려난 모습이에요.`); }
+  const ev = typeof ivStockEvents === 'function' ? ivStockEvents(c).slice(-5).reverse() : [];
+  return `${mkt}
+    <div class="bd-fl">
+      <div class="bd-fv">${V ? `<b class="bd-g g${V.g[0]} big">${V.g[0]}</b><div><small>수급 종합 ${V.sc}점 · ${esc(V.g[1])}</small><p>${esc(V.head)}</p></div>` : ''}</div>
+      <div class="bd-ft"><b>${live ? '<span class="gov-live"></span>오늘 장중 잠정' : bdDay8(lastD) + ' 확정'}</b>${today || '<span class="muted">–</span>'}</div>
+      <div class="bd-fbs"><small class="muted">최근 5일 순매수 (막대) · 연속 매수·매도일</small>${bars}</div>
+      <ul class="bd-fx">${T.map(t => `<li>${t}</li>`).join('')}</ul>
+      ${ev.length ? `<div class="bd-ev"><b>오늘 수급 변화</b>${ev.map(e => `<p class="${e.tone}">${esc(e.txt)}</p>`).join('')}</div>` : ''}
+      <p class="tk-basis">종목별 외국인·기관·개인은 거래소가 장중 4번(9:30·11:00·13:20·14:30 무렵) 잠정 공개하고, 연기금과 확정치는 장 마감 뒤 공개돼요. 시장 전체는 1분마다 갱신돼요. <button class="btn ghost small" data-bdgo="inv">투자자 흐름 탭에서 자세히 →</button></p>
+    </div>`;
+}
+/* 관심·보유 종목의 수급 변화 → 실시간 알림 */
+function bdFlowAlerts() {
+  if (typeof ivStockEvents !== 'function') return;
+  BD.fseen = BD.fseen || new Set();
+  const first = !BD.fInit; BD.fInit = true;
+  BD.fcodes = BD.fcodes || new Set();
+  bdList().forEach(({ code }) => {
+    const nm = (bdStock(code) || {}).name || code, fresh = !BD.fcodes.has(code); BD.fcodes.add(code);   // 목록에 처음 들어온 종목은 지난 기록을 알림으로 쏟지 않음
+    ivStockEvents(code).forEach(e => { const k = code + e.txt; if (BD.fseen.has(k)) return; BD.fseen.add(k); if (!first && !fresh) bdPush(code, 'flow', `${nm} 수급: ${e.txt.replace(/^\d{2}:\d{2} /, '')}`, e.tone); });
+  });
+  // 시장 외국인 전환
+  ['KOSPI', 'KOSDAQ'].forEach(m => {
+    let R = null; try { R = typeof ivMktRows === 'function' ? ivMktRows(m) : null; } catch (e) {}
+    if (!R || !R.live || !R.rows || R.rows.length < 2) return;
+    const a = R.rows[R.rows.length - 2], b = R.rows[R.rows.length - 1], k = m + b.t;
+    if (BD.fseen.has(k)) return; BD.fseen.add(k);
+    if (a['외국인'] != null && b['외국인'] != null && Math.sign(a['외국인']) !== Math.sign(b['외국인']) && !first) bdPush(m, 'mflow', `${m === 'KOSPI' ? '코스피' : '코스닥'} 외국인 ${b['외국인'] > 0 ? '순매수로 전환' : '순매도로 전환'} (${bdEk(a['외국인'])} → ${bdEk(b['외국인'])})`, b['외국인'] > 0 ? 'up' : 'down');
+  });
 }

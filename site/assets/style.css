@@ -1212,3 +1212,17 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .bd-ev{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}.bd-ev b{font-size:12px}
 .bd-ev p{margin:3px 0 0;font-size:12px;word-break:keep-all}.bd-ev p.up{color:var(--up)}.bd-ev p.down{color:var(--down)}.bd-ev time{color:var(--muted);margin-right:6px;font-variant-numeric:tabular-nums}
 .bd-tip span{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:5px;padding:0 5px;margin-right:4px}
+.bd-g{display:inline-block;font-size:10px;font-weight:700;border-radius:6px;padding:0 5px;margin-left:4px;border:1px solid var(--line);color:var(--muted);background:var(--panel2);vertical-align:1px}
+.bd-g.gA{background:var(--up)!important;color:#fff!important;border-color:var(--up)}.bd-g.gB{color:var(--up)!important;border-color:var(--up);background:var(--panel)!important}
+.bd-g.gC{background:var(--panel2)!important;color:var(--text)!important}.bd-g.gD{color:var(--down)!important;border-color:var(--down);background:var(--panel)!important}.bd-g.gE{background:var(--down)!important;color:#fff!important;border-color:var(--down)}
+.bd-g.big{font-size:20px;width:38px;height:38px;display:grid;place-items:center;border-radius:9px;margin:0;flex:none}
+.bd-fm{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:12px;padding:6px 9px;border-radius:8px;background:var(--panel2);margin-bottom:8px}.bd-fm b{font-size:12px}.bd-fm em{font-style:normal;font-weight:700}
+.bd-fl{display:flex;flex-direction:column;gap:8px}
+.bd-fv{display:flex;gap:10px;align-items:center}.bd-fv small{color:var(--muted);font-size:11.5px}.bd-fv p{margin:1px 0 0;font-weight:700;font-size:13.5px}
+.bd-ft{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;align-items:center}.bd-ft em{font-style:normal;font-weight:700}
+.bd-fbs{display:flex;flex-direction:column;gap:3px}
+.bd-fb{display:grid;grid-template-columns:48px minmax(60px,1fr) 74px 92px;gap:6px;align-items:center;font-size:12px}
+.bd-fb b{text-align:right;font-variant-numeric:tabular-nums}.bd-fb small{color:var(--muted);font-size:11px}
+.bd-fbar{position:relative;height:9px;background:var(--panel2);border-radius:5px;overflow:hidden}.bd-fbar i{position:absolute;top:0;bottom:0}.bd-fbar i.p{background:var(--up)}.bd-fbar i.m{background:var(--down)}.bd-fbar em{position:absolute;left:50%;top:0;bottom:0;border-left:1px solid var(--muted)}
+.bd-fx{margin:0;padding-left:17px}.bd-fx li{font-size:12.5px;line-height:1.55;margin:3px 0;word-break:keep-all}
+@media (max-width:480px){.bd-fb{grid-template-columns:42px minmax(40px,1fr) 64px}.bd-fb small{display:none}}
