@@ -456,6 +456,9 @@ function cellVal(s, k, r) {
     case 'sector_sc': return `<span class="mono">${sc.sector ?? '–'}</span>`;
     case 'stop': return `<span class="mono">${fmt(r.stop)}</span>`;
     case 'qty': return `<span class="mono">${fmt(r.qty)}</span>`;
+    case 'tvf_s': { const f = s._tvf; if (!f) return '<span class="muted">–</span>'; if (f.k === 'quiet') return '<span class="muted">평소</span>'; const c = f.k === 'up' ? 'up' : f.k === 'hold' ? 'ok' : f.k === 'mixed' ? 'muted' : 'down'; return `<span class="tvf-cell ${c}" title="${esc(f.txt)}"><b class="mono">${f.s > 0 ? '+' : ''}${f.s}</b> ${esc(f.name.replace('거래 많음·방향 없음', '혼조'))}</span>`; }
+    case 'vsig_n': { const t = FM.vsig_txt ? FM.vsig_txt.get(s) : null, n = FM.vsig_n ? FM.vsig_n.get(s) : null; if (!t) return '<span class="muted">–</span>'; return `<span class="vsig-cell ${n > 0 ? 'up' : n < 0 ? 'down' : ''}" title="${esc(t)}">${esc(t.length > 26 ? t.slice(0, 26) + '…' : t)}</span>`; }
+    case 'tvalue': return s.tvalue == null ? '<span class="muted">–</span>' : `<span class="mono">${fmt(s.tvalue, s.tvalue < 10 ? 1 : 0)}억</span>`;
   }
   const fd = FM[k]; const v = fd ? fd.get(s) : s[k];
   if (v == null) return '<span class="muted">–</span>';
@@ -467,13 +470,15 @@ function cellVal(s, k, r) {
 function exportCSV(rows, name) {
   if (!rows.length) return;
   const keys = ['code', 'name', 'market', 'sector', 'close', 'chg', 'total', 'technical', 'supply', 'earnings', 'sector_sc', 'stability', 'banned', 'stop', 'qty',
-    'vol_ratio', 'tvalue', 'rsi', 'tech3', 'macd_above', 'bb_pb', 'sr5', 'sr20', 'sr120', 'ma_align', 'pos52', 'low_tests', 'foreign_streak', 'foreign_net5', 'inst_streak', 'inst_net5',
+    'vol_ratio', 'tv_ratio', 'tvalue', 'tvf_s', 'tvf_k', 'vol_score', 'vsig_txt', 'rsi', 'tech3', 'macd_above', 'bb_pb', 'sr5', 'sr20', 'sr120', 'ma_align', 'pos52', 'low_tests', 'foreign_streak', 'foreign_net5', 'inst_streak', 'inst_net5',
     'pension_streak', 'pension_net5', 'pension_5pct', 'foreign_hold', 'exhaustion', 'short_ratio', 'short_chg', 'sales_yoy', 'op_yoy', 'debt_ratio', 'current_ratio', 'ocf', 'profit_q',
     'upside', 'news_score', 'sector_rel5', 'us_impact', 'atr'];
   const lab = k => ({ code: '코드', name: '종목명', market: '시장', stop: '손절가', qty: '권장수량', banned: '매수금지사유', atr: 'ATR', macd_above: 'MACD>시그널' }[k] || FM[k]?.label || k);
   const val = (s, k) => {
     if (['total', 'technical', 'supply', 'earnings', 'stability'].includes(k)) return s._sc[k];
     if (k === 'sector_sc') return s._sc.sector;
+    if (k === 'tvf_s') return s._tvf ? s._tvf.s : '';
+    if (k === 'tvf_k') return s._tvf ? s._tvf.name : '';
     if (k === 'banned') return s._ban.join(' / ');
     if (k === 'stop' || k === 'qty') return riskCalc(s)[k];
     return s[k];
@@ -486,17 +491,20 @@ function exportCSV(rows, name) {
 }
 
 /* ═════════════ 전체 종목 ═════════════ */
-function initAllTable() { $('#allQ').oninput = renderAll; $('#allCsv').onclick = () => exportCSV(allRows(), '전체종목'); }
+function initAllTable() { $('#allQ').oninput = renderAll; if ($('#allVol')) $('#allVol').onchange = renderAll; $('#allCsv').onclick = () => exportCSV(allRows(), '전체종목'); }
 function allRows() {
   const q = ($('#allQ').value || '').trim();
   let rows = S.data.stocks.filter(s => !q || s.name.includes(q) || s.code.includes(q) || (s.sector || '').includes(q));
+  const vf = $('#allVol') ? $('#allVol').value : '';
+  if (vf) rows = rows.filter(s => { const f = s._tvf, n = FM.vsig_n ? FM.vsig_n.get(s) : null;
+    return vf === 'up' ? f && f.k === 'up' : vf === 'hold' ? f && f.k === 'hold' : vf === 'down' ? f && (f.k === 'down' || f.k === 'dump') : vf === 'good' ? n > 0 : vf === 'bad' ? n < 0 : vf === 'big' ? (s.vol_ratio || 0) >= 2 : true; });
   const k = S.allSort.key, g = FM[k]?.get || (s => s[k]);
   return rows.sort((a, b) => { const x = g(a), y = g(b); if (x == null) return 1; if (y == null) return -1; return S.allSort.asc ? x - y : y - x; });
 }
 function renderAll() {
   const rows = allRows();
-  const cols = [['name', '종목', 'l'], ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
-    ['vol_ratio', '거래량배수'], ['rsi', 'RSI'], ['tech3', '3종'], ['pos52', '52주위치'], ['foreign_streak', '외국인'], ['inst_streak', '기관'], ['op_yoy', '영업익YoY'], ['upside', '상승여력']];
+  const cols = [['name', '종목', 'l'], ['sector', '업종', 'l'], ['close', '종가'], ['chg', '등락'], ['total', '종합'], ['tvf_s', '대금흐름', 'l'], ['technical', '지표'], ['supply', '수급'], ['earnings', '실적'], ['sector_sc', '섹터'], ['stability', '안정'],
+    ['vol_ratio', '거래량배수'], ['tv_ratio', '대금배수'], ['tvalue', '거래대금'], ['vol_score', '거래질'], ['vsig_n', '거래량 신호', 'l'], ['rsi', 'RSI'], ['tech3', '3종'], ['pos52', '52주위치'], ['foreign_streak', '외국인'], ['inst_streak', '기관'], ['op_yoy', '영업익YoY'], ['upside', '상승여력']];
   const t = $('#allTable');
   t.innerHTML = `<thead><tr>${cols.map(c => thHtml(c, S.allSort)).join('')}</tr></thead>
     <tbody>${rows.map(s => { const r = riskCalc(s); return `<tr data-code="${esc(s.code)}">${cols.map(c => `<td class="${c[2] || ''}">${cellVal(s, c[0], r)}</td>`).join('')}</tr>`; }).join('')}</tbody>`;
@@ -688,6 +696,7 @@ function renderGuide() {
     ['+2', '공매도 잔고', '잔고 비중과 5일 증감 — 급증 시 매수 금지', 'pykrx 공매도 잔고', '수급 / 매수금지', st(true)],
     ['+3', '기업행사 관리', '배당락·액면변경·유상증자·합병 → 수정주가(adjusted=True)로 지표 왜곡 방지', 'pykrx adjusted=True', '전체', st(true)],
     ['+4', '리스크 관리', `손절가 = 진입가 − ATR×${T.atr_mult}, 수량 = 자본의 ${T.risk_pct}% 손실 기준`, '계산', '화이트리스트·상세', st(true)],
+    ['+6', '거래대금 흐름(시가 기준)', '거래가 평소 1.5배↑인 날: 대금이 늘며 시가 위 마감 = 상승 유입(+) · 대금 유지하며 시가 지킴 = 시가 지지(+) · 대금이 줄며 시가 아래 마감 = 하락 이탈(−). −100~+100점, 종합 점수에 최대 ±12점 가산', '일봉 OHLCV(장중 15분마다)', '전체 종목·종목 분석·거래대금 신호·종목 비교', st(true)],
     ['+5', '백테스트', '과거 3년 시점화 적용(t일 데이터로 점수 → t+1 시가 진입) 후 수익률·MDD·승률 검증', 'pipeline/backtest.py', '백테스트 탭', st(!!S.bt, S.bt ? '반영' : '실행 필요')],
   ];
   $('#guideTable').innerHTML = `<thead><tr><th class="l">#</th><th class="l">항목</th><th class="l">판정 기준</th><th class="l">데이터 소스</th><th class="l">반영 위치</th><th class="l">상태</th></tr></thead>

@@ -416,7 +416,7 @@
 <section id="tab-all" class="tab">
   <div class="panel">
     <div class="ph"><h2>전체 종목 점수표</h2>
-      <div class="row gap"><input id="allQ" class="inp" placeholder="종목명·코드·섹터 검색"><button class="btn ghost small" id="allCsv">CSV</button></div>
+      <div class="row gap wrap"><input id="allQ" class="inp" placeholder="종목명·코드·섹터 검색"><select id="allVol" class="inp" aria-label="거래량·거래대금 판정으로 거르기"><option value="">거래량·대금 판정: 전체</option><option value="up">상승 유입형(대금↑·시가 위)</option><option value="hold">시가 지지형(대금 유지)</option><option value="down">하락 이탈형·대량 매도</option><option value="good">좋은 거래량 신호가 더 많은 종목</option><option value="bad">거래량 경고가 더 많은 종목</option><option value="big">거래량 평소 2배 이상</option></select><button class="btn ghost small" id="allCsv">CSV</button></div>
     </div>
     <details class="gloss-box"><summary>표에 나오는 용어 쉽게 보기</summary><div id="glossAll"></div></details>
     <div class="table-wrap"><table class="tbl" id="allTable"></table></div>

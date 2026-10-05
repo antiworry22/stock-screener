@@ -20,6 +20,9 @@ const GLOSS = {
   vol_ratio: ['평소 대비 거래량', '오늘 거래량이 최근 20일 평균의 몇 배인지입니다. 2배 이상이면 관심이 몰린 것입니다.'],
   tv_ratio: ['평소 대비 거래금액', '오늘 거래금액이 최근 20일 평균의 몇 배인지입니다.'],
   tvalue: ['거래 금액', '하루 동안 거래된 금액(억원)입니다.'],
+  tvf_s: ['거래대금 흐름', '거래가 많은 날 돈이 어디로 움직였는지 −100~+100점으로 매긴 값이에요. 상승 유입형(대금이 늘며 시가 위 마감)·시가 지지형(대금 유지하며 시가를 지킴)은 +, 하락 이탈형(대금이 줄며 시가 아래 마감)은 −예요. 종합 점수에 최대 ±12점 더해져요.'],
+  vol_score: ['거래 질 점수', '거래량·거래대금의 크기와 질(돌파·매집·이탈 신호)을 0~100점으로 매긴 값이에요. 50이 보통이에요.'],
+  vsig_n: ['거래량 신호', '지금 켜진 거래량·거래대금 신호예요(유효 돌파·진성 상승·건강한 눌림·큰손 이탈 경보 등). 빨간 글씨는 좋은 신호가 많고, 파란 글씨는 경고가 많은 종목이에요.'],
   rsi: ['과열 정도(RSI)', '0~100 사이 숫자. 30 이하면 많이 떨어져 싸 보이는 상태, 70 이상이면 많이 올라 과열된 상태입니다.'],
   tech3: ['반등 신호 수', 'RSI·MACD·볼린저밴드 3가지 매수 신호 중 몇 개가 켜졌는지(0~3)입니다.'],
   bb_pb: ['밴드 내 위치', '최근 가격 범위(볼린저밴드)에서 아래(0)~위(1) 중 어디쯤인지입니다.'],
@@ -184,7 +187,7 @@ function initExtra() {
   renderGlossary();
 }
 function renderGlossary() {
-  const keys = ['total', 'technical', 'supply', 'earnings', 'sector_sc', 'stability', 'close', 'chg', 'vol_ratio', 'rsi', 'tech3', 'pos52', 'low_tests', 'ma_align',
+  const keys = ['total', 'tvf_s', 'technical', 'supply', 'earnings', 'sector_sc', 'stability', 'close', 'chg', 'vol_ratio', 'tv_ratio', 'tvalue', 'vol_score', 'vsig_n', 'rsi', 'tech3', 'pos52', 'low_tests', 'ma_align',
     'foreign_streak', 'inst_streak', 'pension_net5', 'exhaustion', 'op_yoy', 'sales_yoy', 'debt_ratio', 'current_ratio', 'ocf', 'upside', 'sector_rel5', 'us_impact', 'short_ratio', 'stop', 'qty'];
   ['#glossSearch', '#glossAll', '#glossGuide'].forEach(id => { const el = $(id); if (el) el.innerHTML = glossaryHtml(keys); });
 }

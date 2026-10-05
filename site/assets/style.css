@@ -989,3 +989,6 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .cmp-tb td.best .cmp-bar i{background:var(--up)}
 .cmp-tb td small{line-height:1.5}
 @media(max-width:760px){.cmp-tb{min-width:calc(130px + var(--n,3) * 132px)}.cmp-tb col.c-lbl{width:130px}.cmp-tb th.lbl span{display:none}}
+
+.tvf-cell{white-space:nowrap;font-size:12.5px}.tvf-cell b{margin-right:3px}.tvf-cell.up{color:var(--up)}.tvf-cell.down{color:var(--down)}.tvf-cell.ok{color:var(--ok)}.tvf-cell.muted{color:var(--muted)}
+.vsig-cell{font-size:12px;white-space:nowrap}.vsig-cell.up{color:var(--up)}.vsig-cell.down{color:var(--down)}

@@ -598,6 +598,9 @@ function initVolume() {
   FM.vs_pull = { key: 'vs_pull', label: '거래대금 마르는 건강한 눌림', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.flags.healthyPull) };
   FM.tvf_s = { key: 'tvf_s', label: '거래대금 흐름 점수(−100~+100)', group: g, type: 'num', unit: '점', get: s => get(s, a => a.tvf ? a.tvf.s : null) };
   FM.tvf_k = { key: 'tvf_k', label: '거래대금 흐름 유형', group: g, type: 'enum', unit: '', opts: Object.values(TVF_NAME), get: s => get(s, a => a.tvf ? a.tvf.name : null) };
+  const sigOn = a => VSIG.filter(v => { try { return v[4](a); } catch (e) { return false; } });
+  FM.vsig_n = { key: 'vsig_n', label: '거래량 신호(좋은 신호 수 − 경고 수)', group: g, type: 'num', unit: '개', get: s => get(s, a => { const on = sigOn(a); return on.filter(v => v[2] === 'good').length - on.filter(v => v[2] === 'bad').length; }) };
+  FM.vsig_txt = { key: 'vsig_txt', label: '켜진 거래량 신호', group: g, type: 'text', unit: '', get: s => get(s, a => sigOn(a).map(v => v[1].replace(/\(.*\)/, '')).join(', ') || null) };
   FM.vs_warn = { key: 'vs_warn', label: '거래량 경보(큰손 이탈·제자리 폭증·과열 등)', group: g, type: 'bool', unit: '', get: s => !!get(s, a => a.bads.length) };
 }
 
