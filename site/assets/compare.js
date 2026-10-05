@@ -101,7 +101,7 @@ function cmpHtml(P) {
   const a = L[0], why = cmpPickWhy(P), p = a.D.plan;
   const best = k => Math.max(...L.map(x => x.c[k]));
   const cols = L.map(x => `<th class="${x.rank === 1 ? 'pick' : ''}"><span class="cmp-rk">${x.rank}위</span><b>${esc(x.name)}</b><small>${x.held ? '보유 중' : esc(x.D.s ? x.D.s.sector : '')}</small><button class="pl-x" data-cmpx="${esc(x.code)}" aria-label="비교에서 빼기" title="비교에서 빼기">×</button></th>`).join('');
-  const cell = (x, k) => `<td class="${x.c[k] === best(k) && L.length > 1 ? 'best' : ''}${x.rank === 1 ? ' pick' : ''}"><div class="cmp-cell"><b>${x.c[k]}</b><i style="width:${x.c[k]}%"></i></div><small>${esc(x.why[k])}</small></td>`;
+  const cell = (x, k) => `<td class="${x.c[k] === best(k) && L.length > 1 && Math.min(...L.map(y => y.c[k])) < best(k) ? 'best' : ''}${x.rank === 1 ? ' pick' : ''}"><div class="cmp-cell"><b>${x.c[k]}</b><span class="cmp-bar"><i style="width:${x.c[k]}%"></i></span></div><small>${esc(x.why[k])}</small></td>`;
   return `<article class="cmp">
     <section class="cmp-hero">
       <p class="rp-l">${L.length}종목 비교 결과 · ${esc(P.at)} 기준</p>
@@ -112,8 +112,8 @@ function cmpHtml(P) {
       ${p && (a.D.act === 'BUY' || a.D.act === 'WAIT') ? `<p class="cmp-plan">${a.D.act === 'BUY' ? '지금' : '지정가'} <b>${tmW(p.E)}</b>에 1차 <b>${fmt(p.q1)}주</b>(${hWon(p.amt1)}) · 손절 <b class="down">${tmW(p.stop)}</b> · 목표 <b class="down">${tmW(p.t1)}</b> / ${tmW(p.t2)}</p>` : a.D.mode === 'hold' ? `<p class="cmp-plan">보유 중 — ${esc(a.D.head)}</p>` : ''}
       <div class="row gap wrap mt-s"><button class="btn small primary" data-cmpt="${esc(a.code)}">${esc(a.name)} 매매 타이밍 보기</button><button class="btn ghost small" data-cmpp="${esc(a.code)}">내일 매수 계획에 넣기</button></div>
     </section>
-    <div class="cmp-wrap"><table class="cmp-tb">
-      <thead><tr><th class="lbl">항목 <small>(가중치)</small></th>${cols}</tr></thead>
+    <div class="cmp-wrap"><table class="cmp-tb" style="--n:${L.length}">
+      <colgroup><col class="c-lbl">${L.map(() => '<col class="c-stk">').join('')}</colgroup><thead><tr><th class="lbl">항목 <small>(가중치)</small></th>${cols}</tr></thead>
       <tbody>
         <tr class="tot"><th class="lbl">종합 점수</th>${L.map(x => `<td class="${x.rank === 1 ? 'pick' : ''}"><b class="cmp-big">${x.total}</b><small>${esc(cmpOneLine(x))}</small></td>`).join('')}</tr>
         ${CMP_CAT.map(([k, n, w, d]) => `<tr><th class="lbl">${n} <small>${w}%</small><span>${d}</span></th>${L.map(x => cell(x, k)).join('')}</tr>`).join('')}

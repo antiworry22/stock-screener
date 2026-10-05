@@ -974,3 +974,18 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .tvf-m{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0 0}.tvf-m dt{font-size:11px;color:var(--muted)}.tvf-m dd{margin:0;font-family:var(--mono);font-size:13px}
 @media(max-width:760px){.tvf-m{grid-template-columns:repeat(3,1fr)}}
 .tvf-how{margin-top:6px}.tvf-how summary{cursor:pointer;color:var(--accent);font-size:12.5px}.tvf-how p{font-size:12.5px;line-height:1.7;margin:6px 0 0;max-width:90ch}
+
+/* 종목 비교 표 — 글자 겹침 방지(고정 칸 너비·막대 칸 안에 가두기) */
+.cmp-tb{table-layout:fixed;min-width:calc(190px + var(--n,3) * 150px)}
+.cmp-tb col.c-lbl{width:190px}.cmp-tb col.c-stk{width:auto}
+.cmp-tb th,.cmp-tb td{word-break:keep-all;overflow-wrap:anywhere;overflow:hidden}
+.cmp-tb td{max-width:none}
+.cmp-tb thead th b{white-space:normal;line-height:1.25;margin-top:2px}
+.cmp-tb th.lbl span{white-space:normal}
+.cmp-cell{display:flex;align-items:center;gap:8px;min-width:0}
+.cmp-cell b{flex:none}
+.cmp-bar{flex:1 1 auto;min-width:0;max-width:110px;height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;display:block}
+.cmp-bar i{display:block;height:100%;border-radius:3px;background:var(--line);max-width:100%}
+.cmp-tb td.best .cmp-bar i{background:var(--up)}
+.cmp-tb td small{line-height:1.5}
+@media(max-width:760px){.cmp-tb{min-width:calc(130px + var(--n,3) * 132px)}.cmp-tb col.c-lbl{width:130px}.cmp-tb th.lbl span{display:none}}
