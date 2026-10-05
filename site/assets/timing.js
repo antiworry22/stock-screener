@@ -246,7 +246,7 @@ const TM_NPOS = /급등|상승|신고가|강세|수주|계약|호실적|최대\s
 
 /* ── 추후 일정: 시장 공통 + 종목 공시에서 나온 일정 ── */
 const TM_FOMC = [['2026-10-28', '2026-10-29'], ['2026-12-09', '2026-12-10']];
-function tmCalendar(today, dis) {
+function tmCalendar(today, dis, news) {
   const out = [], end = tmAdd(today, 45);
   const push = (d, t, kind, w) => { if (d >= today && d <= end) out.push({ d, t, kind, w }); };
   // 선물·옵션 만기일: 매월 둘째 목요일(휴장이면 앞 거래일), 3·6·9·12월은 동시만기
@@ -271,6 +271,16 @@ function tmCalendar(today, dis) {
       else push(dl > today ? dl : today, `${lbl} 발표 시즌 — 늦어도 ${dl.slice(5)}까지 공개(잠정실적이 먼저 나올 수 있음). 발표 전 신규 매수는 비중 절반`, 'earn', 2);
     }
   }));
+  // 뉴스 제목에서 실적 발표일 찾기: 「실적 D-3」, 「8일 실적 발표」
+  const seen = new Set();
+  (news || []).forEach(x => {
+    if (!/실적|어닝/.test(x.t)) return;
+    let d = null; const m1 = x.t.match(/D\s*-\s*(\d{1,2})/), m2 = x.t.match(/(\d{1,2})일\s*(잠정\s*)?실적\s*(발표|공개)/);
+    if (m1) d = tmAdd(x.d.slice(0, 10), +m1[1]);
+    else if (m2) { const dd = +m2[1], base = x.d.slice(0, 8); d = base + String(dd).padStart(2, '0'); if (d < x.d.slice(0, 10)) { const nx = new Date(x.d.slice(0, 7) + '-01T00:00:00Z'); nx.setUTCMonth(nx.getUTCMonth() + 1); d = nx.toISOString().slice(0, 8) + String(dd).padStart(2, '0'); } }
+    if (d && d >= today && !seen.has(d)) { seen.add(d); out.push({ d, t: `실적 발표 예정(뉴스: 「${x.t.slice(0, 40)}」) — 발표 전 신규 매수는 비중 절반, 발표 뒤 반응 확인`, kind: 'earn', w: 2, url: x.url }); }
+  });
+  if (seen.size) { for (let i = out.length - 1; i >= 0; i--) if (out[i].kind === 'earn' && !out[i].url) out.splice(i, 1); }
   // MSCI 분기 리뷰 반영(2·5·8·11월 마지막 거래일)
   [2, 5, 8, 11].forEach(mo => { [y, y + 1].forEach(yy => { const last = new Date(Date.UTC(yy, mo, 0)).toISOString().slice(0, 10); let d = last; while (!tmBiz(d)) d = tmAdd(d, -1); push(d, 'MSCI 지수 정기변경 반영일 — 편입·편출 종목 장 마감 동시호가에 대량 거래', 'mkt', 1); }); });
   if (today.slice(5) >= '11-15') { const ye = `${y}-12-15`; push(ye > today ? ye : today, '연말 대주주 양도세 회피 매물(12월 중순~말) — 개인 비중 높은 코스닥 종목 주의', 'mkt', 1); }
@@ -321,7 +331,7 @@ function tmContext(s, R, ev, C) {
     else timing.push(`호재 뉴스가 몰리는 중${n24.length >= 6 ? `(24시간 ${n24.length}건)` : ''} — 뉴스 따라 추격하지 말고 계획한 가격에서만`);
   }
   // 일정
-  const cal = tmCalendar(today, dis);
+  const cal = tmCalendar(today, dis, news);
   const soon = cal.filter(x => !x.past && x.w >= 2 && tmBizBetween(today, x.d) <= 3);
   if (soon.length) { mult *= 0.5; soon.forEach(x => timing.push(`${x.d.slice(5)} ${x.t.split(' — ')[0]} 앞둠 → 1차 비중을 절반으로, 또는 발표 뒤 반응 보고 진입`)); }
   const hol = cal.find(x => x.kind === 'hol' && tmBizBetween(today, x.d) <= 1 && x.d > today);

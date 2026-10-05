@@ -80,7 +80,7 @@ export default async (req) => {
       return a;
     } catch (e) { D[k] = '해석 실패 ' + String(e).slice(0, 80); if (diag) D[k + '_head'] = r.txt.slice(0, 800); return []; }
   };
-  const dis = uniq([...take('mdis', true).map(x => ({ ...x, url: x.id ? `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${x.id}` : `https://finance.naver.com/item/news_notice.naver?code=${code}` })), ...take('pdis', false)])
+  const dis = uniq([...take('mdis', true).map(x => ({ ...x, url: `https://m.stock.naver.com/domestic/stock/${code}/notice` })), ...take('pdis', false)])
     .sort((a, b) => b.d.localeCompare(a.d)).slice(0, 25);
   const news = uniq([...take('mnews', true).map(x => ({ ...x, url: x.oid && x.id ? `https://n.news.naver.com/mnews/article/${x.oid}/${x.id}` : `https://finance.naver.com/item/news.naver?code=${code}` })), ...take('pnews', false)])
     .sort((a, b) => b.d.localeCompare(a.d)).slice(0, 25);
