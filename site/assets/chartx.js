@@ -299,7 +299,8 @@ function renderClxTab() {
   const idx = S.data.cl_index || {};
   $('#clxIdx').innerHTML = Object.keys(idx).length ? Object.entries(idx).map(([k, v]) => `<div class="clx-idx ${clxVcls(v.s)}"><small>${k} 지수</small><b>${v.s > 0 ? '+' : ''}${fmt(v.s, 1)}</b><span>${esc(v.v)}</span><em>${esc(v.verdict_action || '')}</em></div>`).join('') + '<div class="hint">지수가 장기선 위 정배열이면 개별 종목 매수 신호의 신뢰도가 올라가고, 지수가 무너지면 개별 신호는 힘을 잃어요.</div>' : '<div class="hint">지수 판정은 다음 수집부터 표시돼요.</div>';
   const vf = $('#clxV').value, pf = $('#clxP').value, mk = $('#clxM').value, sort = $('#clxSort').value;
-  const ck = $('#clxCk').checked, rr = $('#clxRR').checked, wk = $('#clxW').checked, nw = $('#clxNW').checked;
+  const ck = $('#clxCk').checked, rr = $('#clxRR').checked, wk = $('#clxW').checked, nw = $('#clxNW').checked, td = $('#clxTd') && $('#clxTd').checked;
+  const B = CLX.base || {}, dlt = s => B[s.code] ? s.cl.s - B[s.code].s : 0;
   let rows = S.data.stocks.filter(s => s.cl);
   const total = rows.length;
   // 종목 검색: 검색어가 있으면 아래 필터와 관계없이 이름·코드로 찾음
@@ -317,17 +318,23 @@ function renderClxTab() {
   if (rr) rows = rows.filter(s => s.cl.rr >= 1.5);
   if (wk) rows = rows.filter(s => (s.cl.w || 0) > 0 && s.cl.ax[0] > 0);
   if (nw) rows = rows.filter(s => !s.cl.nw);
+  if (td) rows = rows.filter(s => B[s.code] && B[s.code].v !== s.cl.v);
   }
-  const key = { score: s => s.cl.s, rr: s => s.cl.rr, ck: s => s.cl.ck * 100 + s.cl.s, week: s => s.cl.w || -999, low: s => -s.cl.s }[sort];
+  const key = { score: s => s.cl.s, rr: s => s.cl.rr, ck: s => s.cl.ck * 100 + s.cl.s, week: s => s.cl.w || -999, low: s => -s.cl.s, up: s => dlt(s), dn: s => -dlt(s) }[sort] || (s => s.cl.s);
   rows.sort((a, b) => key(b) - key(a));
-  $('#clxMeta').textContent = q ? `"${q}" 검색 결과 ${rows.length}종목 (검색 중에는 아래 필터를 적용하지 않아요)` : `조건에 맞는 ${rows.length}종목 / 판정 완료 ${total}종목`;
+  const nf = Object.keys(CLX.flash || {}).length;
+  $('#clxMeta').textContent = (q ? `"${q}" 검색 결과 ${rows.length}종목 (검색 중에는 아래 필터를 적용하지 않아요)` : `조건에 맞는 ${rows.length}종목 / 판정 완료 ${total}종목`) +
+    (CLX.live ? ` · 「오늘 변화」는 ${CLX.baseAsof || ''} 종가 판정 대비 점수 변화` + (nf ? ` · 노란 줄 = 방금(${CLX.live.meta.time.slice(11)}) 점수가 바뀐 ${nf}종목` : '') : '');
   const patName = p => { const k = p.replace(/[+\-=!]/g, ''); return `<span class="tag ${p[0] === '+' ? 'good' : p[0] === '-' ? 'bad' : ''}">${esc((CLX_PAT[k] || [k])[0])}${p.endsWith('!') ? ' ✓' : ''}</span>`; };
-  box.innerHTML = rows.length ? `<table class="clx-tb"><thead><tr><th>종목</th><th>현재가</th><th>종합 점수</th><th>판정</th><th title="추세·모멘텀·거래량·구조·패턴·주봉">6축</th><th>패턴</th><th>손익비</th><th>체크</th><th>권장 비중</th></tr></thead><tbody>${rows.slice(0, 150).map(s => {
+  box.innerHTML = rows.length ? `<table class="clx-tb"><thead><tr><th>종목</th><th>현재가</th><th>종합 점수</th><th title="${esc(CLX.baseAsof || '')} 종가 기준 판정과 비교">오늘 변화</th><th>판정</th><th title="추세·모멘텀·거래량·구조·패턴·주봉">6축</th><th>패턴</th><th>손익비</th><th>체크</th><th>권장 비중</th></tr></thead><tbody>${rows.slice(0, 150).map(s => {
     const c = s.cl;
     const chx = CLX.chg && CLX.chg[s.code];
-    return `<tr data-an="${esc(s.code)}" class="${chx ? 'clx-chg' : ''}"><td>${chx ? `<span class="tag ${chx.up ? 'good' : 'bad'}" title="${esc(chx.from)} → ${esc(chx.to)}">${chx.up ? '▲' : '▼'} 변화</span> ` : ''}<b>${esc(s.name)}</b> <small class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'}</small></td>
+    const b0 = B[s.code], d0 = b0 ? c.s - b0.s : null, fl = CLX.flash && CLX.flash[s.code];
+    const dCell = d0 == null || !CLX.live ? '<span class="muted">-</span>' : `<b class="mono ${Math.abs(d0) < 0.05 ? 'muted' : cls(d0)}">${Math.abs(d0) < 0.05 ? '0' : (d0 > 0 ? '▲' : '▼') + fmt(Math.abs(d0), 1)}</b>${b0.v !== c.v ? `<br><small class="muted">아침 ${esc(b0.v)}</small>` : ''}`;
+    return `<tr data-an="${esc(s.code)}" class="${chx ? 'clx-chg' : ''}${fl ? ' clx-flash' : ''}"><td>${chx ? `<span class="tag ${chx.up ? 'good' : 'bad'}" title="${esc(chx.from)} → ${esc(chx.to)}">${chx.up ? '▲' : '▼'} 변화</span> ` : ''}<b>${esc(s.name)}</b> <small class="muted">${s.market === 'KOSPI' ? '코스피' : '코스닥'}</small></td>
       <td class="mono">${s._live ? `${fmt(s._live.c)} <small class="${cls(s._live.chg)}">${pct(s._live.chg, 1)}</small>` : `${fmt(s.close)} <small class="${cls(s.chg)}">${pct(s.chg, 1)}</small>`}</td>
-      <td><div class="clx-mini"><i class="${c.s >= 0 ? 'p' : 'm'}" style="${c.s >= 0 ? `left:50%;width:${c.s / 2}%` : `right:50%;width:${-c.s / 2}%`}"></i></div><b class="mono ${cls(c.s)}">${c.s > 0 ? '+' : ''}${fmt(c.s, 1)}</b></td>
+      <td><div class="clx-mini"><i class="${c.s >= 0 ? 'p' : 'm'}" style="${c.s >= 0 ? `left:50%;width:${c.s / 2}%` : `right:50%;width:${-c.s / 2}%`}"></i></div><b class="mono ${cls(c.s)}">${c.s > 0 ? '+' : ''}${fmt(c.s, 1)}</b>${fl ? ` <small class="${cls(fl)}">(${fl > 0 ? '+' : ''}${fmt(fl, 1)})</small>` : ''}</td>
+      <td>${dCell}</td>
       <td><span class="clx-v ${clxVcls(c.s)}">${esc(c.v)}</span></td>
       <td class="clx-6">${c.ax.map(v => `<i class="${v >= 0 ? 'p' : 'm'}" style="height:${Math.max(2, Math.abs(v) * 18)}px" title="${fmt(v, 2)}"></i>`).join('')}</td>
       <td>${(c.pat || []).map(patName).join('')}${(c.cnd || []).map(k => `<span class="tag ${k[0] === '+' ? 'good' : 'bad'}">${esc(CLX_CNAME[k.slice(1)] || k)}</span>`).join('')}</td>
@@ -342,8 +349,9 @@ function clxRenderOne(s, q, n) {
   if (!s) { box.innerHTML = n ? `<div class="hint">여러 종목이 검색됐어요 — 아래 표에서 고르거나 이름을 더 정확히 입력하세요.</div>` : `<div class="empty">"${esc(q)}"과(와) 맞는 종목이 없어요.</div>`; box.dataset.code = ''; return; }
   if (box.dataset.code === s.code && box.dataset.t === (CLX.live ? CLX.live.meta.time : '')) return;  // 같은 종목·같은 자료면 다시 그리지 않음
   box.dataset.code = s.code; box.dataset.t = CLX.live ? CLX.live.meta.time : '';
-  box.innerHTML = `<div class="an-card an-wide"><h4>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span> 차트 종합 판정 <button class="btn ghost small" id="clxOneAn">종목 분석 전체 보기 →</button></h4><div id="clxOneMount" data-code="${esc(s.code)}"></div></div>`;
+  box.innerHTML = `<div class="an-card an-wide"><h4>${esc(s.name)} <span class="muted mono">${esc(s.code)}</span> 차트 종합 판정 <button class="btn ghost small" id="clxOneAn">종목 분석 전체 보기 →</button></h4><div id="clxOneQ" class="clx-q"></div><div id="clxOneMount" data-code="${esc(s.code)}"></div></div>`;
   if (typeof renderClx === 'function') renderClx(s, 'clxOneMount');
+  clxQuote(true);
   const b = $('#clxOneAn'); if (b) b.onclick = () => showAnalysis(s.code);
 }
 function initClx() {
@@ -357,7 +365,7 @@ function initClx() {
   if ($('#clxV')) {
     $('#clxP').innerHTML = '<option value="">모든 패턴</option><optgroup label="구조 패턴">' + Object.entries(CLX_PAT).map(([k, v]) => `<option value="${k}">${v[0]}</option>`).join('') + '</optgroup><optgroup label="캔들 패턴(오늘·어제)">' +
       ['bullish_engulfing', 'morning_star', 'three_white_soldiers', 'hammer', 'piercing', 'bullish_harami', 'bearish_engulfing', 'evening_star', 'three_black_crows', 'shooting_star', 'dark_cloud'].map(k => `<option value="${k}">${CLX_CNAME[k] || k}</option>`).join('') + '</optgroup>';
-    ['clxV', 'clxP', 'clxM', 'clxSort', 'clxCk', 'clxRR', 'clxW', 'clxNW'].forEach(id => $('#' + id).onchange = renderClxTab);
+    ['clxV', 'clxP', 'clxM', 'clxSort', 'clxCk', 'clxRR', 'clxW', 'clxNW', 'clxTd'].forEach(id => { if ($('#' + id)) $('#' + id).onchange = renderClxTab; });
   }
   const g = '차트 종합판정';
   FM.cl_score = { key: 'cl_score', label: '차트 종합 점수(−100~+100)', group: g, type: 'num', unit: '점', get: s => s.cl ? s.cl.s : null };
@@ -375,12 +383,18 @@ CLX.next = 0; CLX.first = true;
 async function clxLive(manual) {
   let d = null;
   try { const r = await fetch(CLX.RAW + 'summary.json?t=' + Date.now(), { cache: 'no-store' }); if (r.ok) d = await r.json(); } catch (e) { /* 아직 없음 */ }
-  CLX.next = Date.now() + 180e3;
+  CLX.next = Date.now() + 60e3;
   if (!d || !d.s) { clxStatus(); return; }
   const changed = !CLX.live || CLX.live.meta.time !== d.meta.time;
   CLX.live = d;
   if (!changed && !manual) { clxStatus(); return; }
+  clxBase();
+  const prev = {}; S.data.stocks.forEach(s => { if (s.cl) prev[s.code] = s.cl.s; });
   S.data.stocks.forEach(s => { const x = d.s[s.code]; if (x) { s.cl = x; s._live = { c: x.c, chg: x.chg, d: x.d }; } });
+  // 이번 계산에서 점수가 움직인 종목(첫 확인 때는 아침 기준과 같으니 표시하지 않음)
+  if (changed) CLX.flash = {};
+  if (!CLX.first && changed) S.data.stocks.forEach(s => { const x = d.s[s.code]; if (x && prev[s.code] != null && Math.abs(x.s - prev[s.code]) >= 0.5) CLX.flash[s.code] = x.s - prev[s.code]; });
+  clxLogAdd(d);
   if (d.idx && Object.keys(d.idx).length) S.data.cl_index = d.idx;
   if (typeof liveApplyTf === 'function') { try { liveApplyTf(d); } catch (e) { console.error(e); } }
   if (typeof volApplyLive === 'function') { try { volApplyLive(d); } catch (e) { console.error(e); } }
@@ -396,24 +410,89 @@ async function clxLive(manual) {
   if (typeof fuOnUpdate === 'function') { try { fuOnUpdate('chart'); } catch (e) { console.error(e); } }
   clxStatus();
 }
+/* 한국 시각 기준 장 상태 — 서버 재계산은 평일 9:00~15:45 매 15분(+수집 2~4분) */
+function clxKst() { const k = new Date(Date.now() + 9 * 3600e3); return { wd: k.getUTCDay(), m: k.getUTCHours() * 60 + k.getUTCMinutes(), date: k.toISOString().slice(0, 10) }; }
+function clxSession() {
+  const k = clxKst(), open = k.wd >= 1 && k.wd <= 5 && k.m >= 8 * 60 + 40 && k.m <= 16 * 60 + 15;
+  let nx = null;
+  if (open) { for (let m = 9 * 60; m <= 15 * 60 + 45; m += 15) if (m + 4 > k.m) { nx = m + 4; break; } if (nx == null && k.m < 16 * 60 + 14) nx = 16 * 60 + 14; }
+  return { ...k, open, nx: nx == null ? null : `${String(Math.floor(nx / 60)).padStart(2, '0')}:${String(nx % 60).padStart(2, '0')}` };
+}
 function clxStatus() {
   const el = $('#clxStatus'); if (!el) return;
-  const sec = Math.max(0, Math.round((CLX.next - Date.now()) / 1000));
-  if (!CLX.live) { el.innerHTML = `실시간 판정 대기 중 — 장중 첫 계산 전에는 아침 수집 결과(${esc(S.data.meta.asof || '')} 종가 기준)를 보여줘요 · 다음 확인 ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; return; }
+  const sec = Math.max(0, Math.round((CLX.next - Date.now()) / 1000)), cd = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  const ss = clxSession();
+  const sess = ss.open ? `<span class="tag good">장중 자동 갱신</span> 다음 재계산 약 <b>${ss.nx || '-'}</b>` : `<span class="tag">장 마감·휴일</span> 다음 재계산은 평일 오전 9:00`;
+  if (!CLX.live) { el.innerHTML = `${sess} · 실시간 판정 대기 중 — 첫 계산 전에는 아침 수집 결과(${esc(S.data.meta.asof || '')} 종가 기준)를 보여줘요 · 새 결과 확인 ${cd} 후`; return; }
   const m = CLX.live.meta, mins = Math.round((Date.now() - new Date(m.time.replace(' ', 'T') + ':00+09:00')) / 60000);
-  el.innerHTML = `<span class="gov-live"></span> 실시간 판정 <b>${esc(m.time.slice(11))}</b> 기준 (${mins < 1 ? '방금' : mins < 60 ? mins + '분 전' : Math.round(mins / 60) + '시간 전'}) · 시세 ${esc(m.asof)} 일봉(장중엔 오늘 봉 포함) · ${m.n}종목 재계산 · 다음 확인 ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  const late = ss.open && ss.m >= 9 * 60 + 25 && mins > 40 ? ` · <b class="down">마지막 계산이 ${mins}분 전이에요 — 오늘이 휴장일이거나 계산이 늦어지고 있어요</b>` : '';
+  el.innerHTML = `<span class="gov-live"></span> 실시간 판정 <b>${esc(m.time.slice(11))}</b> 기준 (${mins < 1 ? '방금' : mins < 60 ? mins + '분 전' : mins < 1440 ? Math.round(mins / 60) + '시간 전' : esc(m.time.slice(5, 10)) + ' 계산'}) · ${m.n}종목 재계산 · ${sess} · 새 결과 확인 ${cd} 후${late}`;
 }
 function clxRenderLive() {
   const box = $('#clxChanges'); if (!box) return;
   const ch = (CLX.live && CLX.live.changes) || [];
-  if (!ch.length) { box.innerHTML = CLX.live ? `<div class="hint">직전 계산(${esc(CLX.live.meta.prev_time || '-')}) 대비 판정이 바뀐 종목이 없어요.</div>` : ''; return; }
   const M = Object.fromEntries(S.data.stocks.map(s => [s.code, s]));
   const chip = c => { const s = M[c.code]; return s ? `<button class="mn-chip ${c.up ? 'good' : 'bad'}" data-an="${esc(c.code)}">${c.up ? '▲' : '▼'} ${esc(s.name)} <small>${esc(c.from)} → <b>${esc(c.to)}</b></small></button>` : ''; };
   const up = ch.filter(c => c.up), dn = ch.filter(c => !c.up);
-  box.innerHTML = `<h4>판정이 바뀐 종목 <small class="muted">${esc(CLX.live.meta.prev_time || '')} → ${esc(CLX.live.meta.time)}</small></h4>
+  let h = !ch.length ? (CLX.live ? `<div class="hint">직전 계산(${esc(CLX.live.meta.prev_time || '-')}) 대비 판정이 바뀐 종목이 없어요.</div>` : '') :
+    `<h4>방금 판정이 바뀐 종목 <small class="muted">${esc(CLX.live.meta.prev_time || '')} → ${esc(CLX.live.meta.time)}</small></h4>
     ${up.length ? `<div class="mn-grp"><span class="mn-gl good">좋아짐 ${up.length}</span>${up.slice(0, 30).map(chip).join('')}</div>` : ''}
     ${dn.length ? `<div class="mn-grp mt-s"><span class="mn-gl bad">나빠짐 ${dn.length}</span>${dn.slice(0, 30).map(chip).join('')}</div>` : ''}`;
+  // 오늘 하루 판정 변화 기록(이 기기에 쌓임)
+  const lg = clxLogGet();
+  if (lg.items.length) {
+    const byT = {}; lg.items.forEach(x => (byT[x.t] = byT[x.t] || []).push(x));
+    const ts = Object.keys(byT).sort().reverse();
+    h += `<details class="clx-log mt-s"${CLX.logOpen ? ' open' : ''}><summary>📜 ${esc(lg.date.slice(5))} 판정 변화 기록 — ${ts.length}번 계산 · ${lg.items.length}건 <small class="muted">(누르면 펼쳐요)</small></summary>
+      ${ts.map(tm => `<div class="clx-log-row"><b class="mono">${esc(tm.slice(11))}</b> ${byT[tm].slice(0, 40).map(chip).join('')}${byT[tm].length > 40 ? `<small class="muted"> 외 ${byT[tm].length - 40}건</small>` : ''}</div>`).join('')}</details>`;
+  }
+  box.innerHTML = h;
+  const det = box.querySelector('details.clx-log'); if (det) det.ontoggle = () => { CLX.logOpen = det.open; };
   $$('#clxChanges [data-an]').forEach(el => el.onclick = () => showAnalysis(el.dataset.an));
+}
+function clxLogGet() { const lg = store.get('clxLog', null); return lg && lg.date && Array.isArray(lg.items) ? lg : { date: '', items: [] }; }
+function clxLogAdd(d) {
+  if (!d || !d.meta || !d.meta.time) return;
+  const date = d.meta.time.slice(0, 10);
+  let lg = clxLogGet(); if (lg.date !== date) lg = { date, items: [] };
+  if (lg.items.some(x => x.t === d.meta.time)) return;
+  (d.changes || []).forEach(c => lg.items.push({ t: d.meta.time, code: c.code, from: c.from, to: c.to, up: c.up }));
+  if (lg.items.length > 600) lg.items = lg.items.slice(-600);
+  try { store.set('clxLog', lg); } catch (e) {}
+}
+/* 기준(오늘 아침 = 직전 거래일 종가 판정) 기억 — 「오늘 변화」 열의 비교 대상 */
+function clxBase() {
+  if (CLX.base) return;
+  CLX.base = {}; CLX.baseAsof = S.data.meta.asof || '';
+  S.data.stocks.forEach(s => { if (s.cl) CLX.base[s.code] = { s: s.cl.s, v: s.cl.v }; });
+}
+/* 검색한 한 종목: 지금 가격을 20초마다 받아 손절선·목표가와 비교 */
+async function clxQuote(force) {
+  const el = $('#clxOneQ'), box = $('#clxOne'); if (!el || !box || !box.dataset.code) return;
+  const tabOn = $('#tab-clx') && $('#tab-clx').classList.contains('on');
+  if (!force && (!tabOn || document.hidden || !clxSession().open)) return;
+  const code = box.dataset.code, s = S.data.stocks.find(x => x.code === code); if (!s || !s.cl) return;
+  let q = null;
+  try { const r = await fetch('/api/hoga?code=' + code, { cache: 'no-store' }); if (r.ok) { const j = await r.json(); q = j.quote; q && (q.at = j.at); } } catch (e) {}
+  if (box.dataset.code !== code || !$('#clxOneQ')) return;
+  const c = s.cl, ref = c.c || s.close;
+  const p = q && q.price ? q.price : null;
+  if (!p) { el.innerHTML = `<div class="hint">지금 가격을 받지 못했어요 — 판정 계산 때 가격 ${fmt(ref)}원 기준으로 보여줘요.</div>`; return; }
+  const chg = q.chgPct != null && q.chgPct !== 0 ? q.chgPct : (s._live ? s._live.chg : s.chg);
+  const d = x => x ? (x / p - 1) * 100 : null;
+  const st = d(c.stop), t1 = d(c.t1), t2 = d(c.t2);
+  let warn = '';
+  if (c.stop && p <= c.stop) warn = '<b class="down">⚠ 지금 가격이 손절선 아래예요 — 판정과 상관없이 위험 관리 먼저</b>';
+  else if (c.t2 && p >= c.t2) warn = '<b class="up">🎯 2차 목표가 도달</b>';
+  else if (c.t1 && p >= c.t1) warn = '<b class="up">🎯 1차 목표가 도달 — 일부 차익 실현 구간</b>';
+  else if (st != null && st > -2) warn = '<b class="down">손절선까지 2% 안쪽 — 주의</b>';
+  const mv = ref ? (p / ref - 1) * 100 : 0;
+  el.innerHTML = `<div class="clx-qbar"><span><span class="gov-live"></span> 지금 <b class="mono">${fmt(p)}원</b> <small class="${cls(chg)}">${pct(chg, 2)}</small></span>
+    <span class="muted">판정 계산 때 ${fmt(ref)}원${Math.abs(mv) >= 0.05 ? ` → 그 뒤 <b class="${cls(mv)}">${pct(mv, 2)}</b>` : ''}</span>
+    ${c.stop ? `<span>손절선 ${fmt(c.stop)} <small class="down">(${pct(st, 1)})</small></span>` : ''}
+    ${c.t1 ? `<span>1차 목표 ${fmt(c.t1)} <small class="${cls(t1)}">(${pct(t1, 1)})</small></span>` : ''}
+    ${c.t2 ? `<span>2차 목표 ${fmt(c.t2)} <small class="${cls(t2)}">(${pct(t2, 1)})</small></span>` : ''}
+    <small class="muted">${esc((q.at || '').slice(11, 19))} 시세 · 장중 20초마다</small></div>${warn ? `<div class="mt-s">${warn}</div>` : ''}`;
 }
 function clxNotify(ch) {
   const M = Object.fromEntries(S.data.stocks.map(s => [s.code, s]));
@@ -438,9 +517,13 @@ function initClxLive() {
     };
     draw();
   }
+  clxBase();
   clxLive();
-  setInterval(() => clxLive(), 180e3);
+  setInterval(() => clxLive(), 60e3);
   setInterval(clxStatus, 1000);
+  setInterval(() => clxQuote(false), 20e3);
+  // 다른 창에 있다가 돌아오면 바로 새 결과 확인
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() > CLX.next - 45e3) clxLive(); });
 }
 (function waitBootClx() {
   if (typeof S !== 'undefined' && S.data && S.data.stocks && typeof getJSON === 'function' && typeof FM !== 'undefined' && FM.cl_score) initClxLive();

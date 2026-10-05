@@ -140,7 +140,7 @@
     <div class="ph"><h2>차트 종합판정 — 6축 점수 엔진 <small class="muted">(실시간)</small></h2>
       <div class="row gap wrap"><button class="btn ghost small" id="clxRefresh">지금 새로고침</button><button class="btn ghost small" id="clxNoti">🔕 판정 변화 알림 켜기</button></div></div>
     <div class="hint gov-status" id="clxStatus"></div>
-    <p class="hint">추세(26%)·모멘텀(20%)·거래량(16%)·구조/지지저항(20%)·패턴(12%)·주봉 정합(6%)을 각각 −1~+1로 매겨 더한 종합 점수(−100~+100)와 7단계 판정, 진입·손절·목표·손익비·권장 비중을 전 종목에 계산합니다. <b>장중(평일 9:00~15:45)에는 15분마다 오늘 움직임까지 넣어 다시 계산</b>하고, 이 화면은 3분마다 새 결과를 확인해 판정이 바뀐 종목을 알려줘요(시세 반영까지 최대 15~25분 지연). 「강력 매수 +55↑ · 매수 우위 +28↑ · 약한 매수 +8↑ · 중립 · 약한 매도 · 매도 우위 −28↓ · 강력 매도 −55↓」</p>
+    <p class="hint">추세(26%)·모멘텀(20%)·거래량(16%)·구조/지지저항(20%)·패턴(12%)·주봉 정합(6%)을 각각 −1~+1로 매겨 더한 종합 점수(−100~+100)와 7단계 판정, 진입·손절·목표·손익비·권장 비중을 전 종목에 계산합니다. <b>장중(평일 9:00~15:45)에는 15분마다 오늘 움직임까지 넣어 다시 계산</b>하고, 이 화면은 <b>1분마다</b> 새 결과를 확인해 표를 자동으로 바꾸고, 판정이 바뀐 종목·점수가 움직인 종목(노란 줄)·오늘 아침 대비 변화(「오늘 변화」 열)를 보여줘요. 종목을 검색하면 그 종목의 <b>지금 가격을 20초마다</b> 받아 손절선·목표가와 비교해 줘요. 「강력 매수 +55↑ · 매수 우위 +28↑ · 약한 매수 +8↑ · 중립 · 약한 매도 · 매도 우위 −28↓ · 강력 매도 −55↓」</p>
     <div id="clxIdx" class="clx-idxs mt"></div>
     <div id="clxChanges" class="mt"></div>
     <div class="row gap wrap mt clx-search"><input id="clxQ" class="inp" list="stockNames" placeholder="종목 검색 (이름 또는 6자리 코드) — 예) 삼성전자, 005930" autocomplete="off"><button class="btn primary small" id="clxQGo">검색</button><button class="btn ghost small" id="clxQClear">지우기</button></div>
@@ -149,11 +149,12 @@
       <select id="clxV" class="inp"><option value="">모든 판정</option><option value="buy">매수 쪽(+8 이상)</option><option>강력 매수</option><option>매수 우위</option><option>약한 매수</option><option>중립·관망</option><option>약한 매도</option><option>매도 우위</option><option>강력 매도</option><option value="sell">매도 쪽(−8 이하)</option></select>
       <select id="clxP" class="inp"></select>
       <select id="clxM" class="inp"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select>
-      <select id="clxSort" class="inp"><option value="score">점수 높은 순</option><option value="rr">손익비 높은 순</option><option value="ck">체크리스트 많은 순</option><option value="week">주봉 점수 순</option><option value="low">점수 낮은 순</option></select>
+      <select id="clxSort" class="inp"><option value="score">점수 높은 순</option><option value="rr">손익비 높은 순</option><option value="ck">체크리스트 많은 순</option><option value="week">주봉 점수 순</option><option value="low">점수 낮은 순</option><option value="up">오늘 점수 많이 오른 순</option><option value="dn">오늘 점수 많이 내린 순</option></select>
       <label class="small"><input type="checkbox" id="clxCk"> 5초 체크리스트 통과</label>
       <label class="small"><input type="checkbox" id="clxRR"> 손익비 1.5 이상</label>
       <label class="small"><input type="checkbox" id="clxW"> 주봉·일봉 같은 상승</label>
       <label class="small"><input type="checkbox" id="clxNW"> 10계명 경고 없음</label>
+      <label class="small"><input type="checkbox" id="clxTd"> 오늘 판정 바뀐 종목만</label>
     </div>
     <div class="hint mt-s" id="clxMeta"></div>
     <div id="clxList" class="mt-s" style="overflow-x:auto"></div>

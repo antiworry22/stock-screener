@@ -651,3 +651,11 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ld-new { display: inline-block; font-size: 10px; font-weight: 800; color: #fff; background: var(--up); border-radius: 4px; padding: 0 5px; vertical-align: 1px; }
 .ld-hl { box-shadow: 0 0 0 2px color-mix(in srgb, var(--up) 45%, transparent); }
 .ld-foot { margin-top: 6px; font-size: 11.5px; }
+
+/* 차트 종합판정 실시간 */
+@keyframes clxFlash { 0% { background: color-mix(in srgb, #f5c400 45%, transparent); } 100% { background: color-mix(in srgb, #f5c400 14%, transparent); } }
+.clx-tb tr.clx-flash td { animation: clxFlash 2.5s ease-out forwards; }
+.clx-q { margin: 6px 0 8px; }
+.clx-qbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); font-size: 13px; }
+.clx-log summary { cursor: pointer; font-weight: 700; font-size: 13px; padding: 4px 0; }
+.clx-log-row { padding: 4px 0; border-top: 1px dashed var(--line); }
