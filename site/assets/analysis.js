@@ -90,7 +90,7 @@ function analysisHtml(s) {
 
 function showAnalysis(code, quiet) {
   const s = S.data.stocks.find(x => x.code === code); if (!s) return;
-  if (!quiet && typeof switchTab === 'function') switchTab('analysis');
+  if (!quiet && typeof switchTab === 'function') { switchTab('analysis', true); try { if (!(history.state && history.state.an === code)) history.pushState({ tab: 'analysis', an: code }, '', '#analysis/' + code); } catch (e) {} if (typeof navDraw === 'function') navDraw(); }
   $('#anInput').value = s.name;
   $('#anOut').innerHTML = analysisHtml(s);
   $('#anDetail').onclick = () => openDetail(s.code);

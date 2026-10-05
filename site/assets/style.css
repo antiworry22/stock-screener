@@ -643,3 +643,8 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .sr-mini { display: inline-block; width: 54px; height: 7px; border-radius: 4px; background: var(--panel2); overflow: hidden; vertical-align: middle; }
 .sr-mini i { display: block; height: 100%; background: var(--muted); } .sr-mini i.g { background: var(--ok); } .sr-mini i.b { background: var(--bad); }
 .sr-dash h4 { margin: 0 0 6px; } .sr-dash .tbl { font-size: 12.5px; }
+/* ── 뒤로 / 처음으로 버튼 ── */
+.nav-fab { position: fixed; left: 16px; bottom: 18px; z-index: 60; display: flex; gap: 8px; }
+.nav-fab .btn { box-shadow: 0 4px 14px rgba(0,0,0,.18); border-radius: 999px; padding: 8px 16px; font-weight: 600; }
+.nav-fab .btn:not(.primary) { background: var(--panel); }
+@media (max-width: 600px) { .nav-fab { left: 10px; bottom: 12px; } .nav-fab .btn { padding: 7px 13px; font-size: 13px; } }

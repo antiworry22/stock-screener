@@ -51,7 +51,7 @@ async function boot() {
   S.capital = saved.capital || 30000000;
   S.conds = store.get('conds', []);
   S.logic = store.get('logic', 'AND');
-  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis(); if (typeof initVolume === 'function') initVolume(); if (typeof initClx === 'function') initClx(); if (typeof initHold === 'function') initHold();
+  initTheme(); initTabs(); initModeSel(); initSearch(); initSettings(); initAllTable(); initExtra(); if (typeof initPattern === 'function') initPattern(); if (typeof initAnalysis === 'function') initAnalysis(); if (typeof initVolume === 'function') initVolume(); if (typeof initClx === 'function') initClx(); if (typeof initHold === 'function') initHold(); initNav();
   refresh();
   if (S.conds.length) runSearch();
 }
@@ -691,10 +691,49 @@ function renderGuide() {
 }
 
 /* ═════════════ 공통 UI ═════════════ */
-function switchTab(t) {
+function switchTab(t, noPush) {
+  if (!$('#tab-' + t)) t = 'dash';
+  const was = ($('.tab.on') || {}).id;
   $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   $$('.tab').forEach(s => s.classList.toggle('on', s.id === 'tab-' + t));
+  // 뒤로가기: 탭을 옮길 때마다 브라우저 기록에 남김 (브라우저·휴대폰 '뒤로' 버튼으로 이전 화면)
+  if (!noPush && was !== 'tab-' + t) { try { history.pushState({ tab: t }, '', '#' + t); } catch (e) {} }
+  const tb = $('#tabs button.on'); if (tb && tb.scrollIntoView) try { tb.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {}
+  if (typeof navDraw === 'function') navDraw();
   if (t === 'bt' && btChart) btChart.resize();
+}
+/* ── 뒤로 / 처음으로 ── */
+function goHome() {
+  const m = $('#modal'); if (m) m.classList.add('hidden');
+  switchTab('dash'); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function goBack() {
+  const m = $('#modal');
+  if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); return; }
+  if (history.state && (history.state.tab || history.state.an)) history.back(); else goHome();
+}
+function navDraw() {
+  const b = $('#navBack'); if (!b) return;
+  const home = ($('.tab.on') || {}).id === 'tab-dash';
+  b.classList.toggle('hidden', home && !(history.state && history.state.an));
+  $('#navHome').classList.toggle('hidden', home);
+}
+function initNav() {
+  window.addEventListener('popstate', e => {
+    const st = e.state || {};
+    const m = $('#modal'); if (m) m.classList.add('hidden');
+    if (st.an && typeof showAnalysis === 'function') { showAnalysis(st.an, true); switchTab('analysis', true); }
+    else switchTab(st.tab || 'dash', true);
+    navDraw();
+  });
+  const h = decodeURIComponent((location.hash || '').slice(1));  // 주소 끝 #탭 으로 바로 열기 (예: #hold, #analysis/005930)
+  try { history.replaceState({ tab: 'dash' }, '', location.pathname + location.search); } catch (e) {}
+  if (h.startsWith('analysis/') && typeof showAnalysis === 'function') setTimeout(() => showAnalysis(h.split('/')[1]), 300);
+  else if (h && $('#tab-' + h)) switchTab(h);
+  $('#navBack').onclick = goBack; $('#navHome').onclick = goHome;
+  const brand = $('.brand h1'); if (brand) { brand.style.cursor = 'pointer'; brand.title = '처음으로'; brand.onclick = goHome; }
+  document.addEventListener('keydown', e => { if (e.altKey && e.key === 'Home') goHome(); });
+  navDraw();
 }
 function initTabs() {
   $$('#tabs button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
