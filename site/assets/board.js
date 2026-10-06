@@ -96,7 +96,10 @@ async function bdLoadChart(force) {
 /* 분봉 거래량이 누적값으로 오면 1분 거래량으로 바꿈 */
 function bdMinFix(rows) {
   const v = rows.map(r => r[5]); let inc = 0; for (let i = 1; i < v.length; i++) if (v[i] >= v[i - 1]) inc++;
-  if (v.length > 10 && inc / (v.length - 1) > 0.97) return rows.map((r, i) => [r[0], r[1], r[2], r[3], r[4], i ? Math.max(0, v[i] - v[i - 1]) : v[0]]);
+  if (v.length > 10 && inc / (v.length - 1) > 0.97) rows = rows.map((r, i) => [r[0], r[1], r[2], r[3], r[4], i ? Math.max(0, v[i] - v[i - 1]) : v[0]]);
+  // 분봉이 종가만 올 때(시가=고가=저가=종가): 직전 분 종가를 시가로 삼아 몸통이 보이는 캔들로
+  const flat = rows.filter(r => r[1] === r[4] && r[2] === r[4] && r[3] === r[4]).length;
+  if (rows.length > 10 && flat / rows.length > 0.8) rows = rows.map((r, i) => { const o = i ? rows[i - 1][4] : r[4]; return [r[0], o, Math.max(o, r[4]), Math.min(o, r[4]), r[4], r[5]]; });
   return rows;
 }
 

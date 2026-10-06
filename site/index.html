@@ -35,6 +35,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="rank4">실시간 순위</button>
   <button data-tab="board">실시간 현황판</button>
   <button data-tab="mood">지수 온도</button>
   <button data-tab="secflow">섹터 흐름</button>
@@ -65,6 +66,7 @@
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
   <div class="panel md-dash" id="moodDash"></div>
+  <div class="panel r4-dash" id="r4Dash"></div>
   <div class="panel sf-dash" id="sfDash"></div>
   <div class="panel hidden" id="holdDash"></div>
   <div class="panel lv-panel" id="liveDash"></div>
@@ -92,6 +94,17 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 실시간 종목 순위 (거래대금 30 · 차트 패턴 30 · 주도주 25 · 뉴스 15) ═══ -->
+<section id="tab-rank4" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>실시간 종목 순위 <small class="muted">거래대금 30% · 차트 패턴 30% · 주도주 25% · 관련 뉴스 15%</small></h2><span class="hint" id="r4Meta"></span></div>
+    <div class="row gap wrap"><button class="chip on" data-r4m="KOSPI">코스피</button><button class="chip" data-r4m="KOSDAQ">코스닥</button><input id="r4Q" class="inp" placeholder="순위에서 종목 찾기" style="max-width:200px" aria-label="순위에서 종목 찾기"></div>
+    <div id="r4Sum" class="mt-s"></div>
+    <div id="r4Body" class="mt-s"></div>
+    <details class="hint mt"><summary>점수 계산 방법</summary><b>거래대금(30%)</b> 평소(20일 평균) 대비 오늘 거래대금 배수(장중은 하루치로 환산) — 오르면서 늘면 가산, 크게 내리면서 늘면 감산 · 거래대금 흐름(시가 위 유입·지지 / 시가 아래 이탈·대량 매도) · 거래대금 규모. <b>차트 패턴(30%)</b> 차트 종합판정(6축) · 눌림목 반등/박스권 돌파/바닥 탈출/신고가 돌파 패턴 · 이중바닥 같은 구조 패턴 방향 · 진입 체크리스트 · RSI 과열 감점. <b>주도주(25%)</b> 소속 업종의 오늘 순위와 상태(주도·상승·하락·약세 심화) · 업종 안 주도주 순위(대장주·탄력 1위) · 업종 거래대금 비중 · 업종 대비 초과 상승. <b>관련 뉴스(15%)</b> 실시간 뉴스·공공기관 점수(최근일수록 크게) · 호재/악재 건수 · 직접 언급 · 공시 · 시장경보(큰 감점). 각 0~100점을 비중대로 더해요. S 80↑ · A 70↑ · B 58↑ · C 45↑ · D. 순위 변화(▲▼)는 이 기기에서 약 10분 전 순위와 비교해요. 줄을 누르면 항목별 이유가 펼쳐져요.</details>
   </div>
 </section>
 
@@ -586,6 +599,7 @@
 <script src="assets/secflow.js"></script>
 <script src="assets/board.js"></script>
 <script src="assets/mktstate.js"></script>
+<script src="assets/rank4.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>

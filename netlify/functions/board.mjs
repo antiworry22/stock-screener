@@ -85,7 +85,7 @@ export default async (req) => {
     (async () => { try { const r = await get(`https://fchart.stock.naver.com/sise.nhn?symbol=${c}&timeframe=day&count=250&requestType=0`, UA_PC); if (r.status === 200) { out.day = fchart(r.txt); D.day = `ok ${out.day.length}개`; } else D.day = `HTTP ${r.status}`; } catch (e) { D.day = '실패 ' + String(e).slice(0, 80); } })(),
     (async () => {
       const all = [];
-      for (const pg of [1, 2]) {
+      for (const pg of []) {   // 네이버 PC 「시간대별 체결」 화면이 없어짐(HTTP 410) — 체결은 화면이 호가를 받을 때마다 직접 기록
         try { const r = await get(`https://finance.naver.com/item/sise_time.naver?code=${c}&thistime=${day}235959&page=${pg}`, { ...UA_PC, Referer: `https://finance.naver.com/item/sise.naver?code=${c}` }); if (r.status === 200) all.push(...ticks(r.txt)); else D['tick' + pg] = `HTTP ${r.status}`; } catch (e) { D['tick' + pg] = '실패'; }
       }
       out.ticks = all; D.ticks = `${all.length}행`;
