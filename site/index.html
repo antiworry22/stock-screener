@@ -35,6 +35,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="kc">조건검색 추천</button>
   <button data-tab="rank4">실시간 순위</button>
   <button data-tab="board">실시간 현황판</button>
   <button data-tab="mood">지수 온도</button>
@@ -66,6 +67,7 @@
 <!-- ═══ 대시보드 ═══ -->
 <section id="tab-dash" class="tab on">
   <div class="panel md-dash" id="moodDash"></div>
+  <div class="panel kc-dash" id="kcDash"></div>
   <div class="panel r4-dash" id="r4Dash"></div>
   <div class="panel sf-dash" id="sfDash"></div>
   <div class="panel hidden" id="holdDash"></div>
@@ -94,6 +96,25 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 조건검색 추천 (키움 조건식 A~H + 가능성 순위) ═══ -->
+<section id="tab-kc" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>조건검색 추천 <small class="muted">5일선 돌파 · +5% · 거래 증가 · 20일선 위 조건식(A and B and C and D and E and F and G and H)</small></h2><span class="hint" id="kcMeta"></span></div>
+    <details class="kc-set"><summary>조건식 보기 · 바꾸기</summary><div id="kcCfg"></div>
+      <p class="hint">A 오늘 5일선 &gt; 시가 · B 5일선 ≤ 종가 · C 20일선 ≤ 종가 · D 어제 대비 거래량 100%↑ · E 전일 대비 +5%↑ · F 거래량 30만~9.99억주 · G 종가 1천~5만원 · H 20거래일 전 5일선 ≥ 그날 저가. 체크를 끄면 그 조건을 빼고, 숫자를 바꾸면 바로 다시 계산해요(이 기기에 저장).</p></details>
+    <div id="kcTop" class="mt-s"></div>
+    <div class="row gap wrap mt kc-flt">
+      <label class="small">시장 <select id="kcMkt"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
+      <label class="small">충족 <select id="kcLvl"><option value="all">조건 모두 충족</option><option value="n1">1개 부족까지</option><option value="n2">2개 부족까지</option></select></label>
+      <label class="small">정렬 <select id="kcSort"><option value="score">가능성 높은 순</option><option value="chg">등락률 높은 순</option><option value="tvr">거래대금 배수 높은 순</option><option value="hist">과거 성적 좋은 순</option></select></label>
+      <label class="small">거래대금 배수 <select id="kcTv"><option value="0">전체</option><option value="1.5">1.5배↑</option><option value="2">2배↑</option><option value="3">3배↑</option></select></label>
+      <input id="kcQ" class="inp" placeholder="종목·업종 찾기" style="max-width:180px" aria-label="조건검색 결과에서 찾기">
+    </div>
+    <div id="kcBody" class="mt-s"></div>
+    <details class="hint mt"><summary>가능성 점수 계산 방법</summary><b>조건 충족도(35점)</b> 8개를 모두 만족하면 35점, 못 미치면 얼마나 가까운지로 부분 점수. <b>과거 성적(25점)</b> 최근 약 120거래일 일봉으로 분석 대상 전 종목에서 같은 조건이 맞았던 날을 모두 찾아, 그 뒤 3거래일 안에 +3% 이상 오른 비율을 계산하고 이 종목 자신의 과거 신호 성적을 섞어요(신호가 적으면 전체 평균 쪽으로). <b>신호의 질(40점)</b> 거래대금이 평소의 몇 배인지 · 고가 근처 마감인지(윗꼬리) · 20일선과의 거리(과열 감점) · 20일선이 오르는지 · 60일 고점 돌파 · 외국인·기관 수급 · 업종 강도 · 시장경보 감점. S 86↑ · A 78↑ · B 70↑ · C. 장중에는 거래량을 「지금까지 누적」으로 보고 키움 조건검색처럼 실시간으로 다시 판정해요. 과거 성적은 앞으로를 보장하지 않아요.</details>
   </div>
 </section>
 
@@ -600,6 +621,7 @@
 <script src="assets/board.js"></script>
 <script src="assets/mktstate.js"></script>
 <script src="assets/rank4.js"></script>
+<script src="assets/kcond.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
