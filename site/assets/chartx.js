@@ -521,7 +521,7 @@ function initClxLive() {
   clxLive();
   setInterval(() => clxLive(), 60e3);
   setInterval(clxStatus, 1000);
-  setInterval(() => clxQuote(false), 20e3);
+  setInterval(() => { if (document.hidden) return; CLX.qn = (CLX.qn || 0) + 1; if (!(typeof svOn === 'function' && svOn()) || CLX.qn % 3 === 0) clxQuote(false); }, 20e3);   // 절약 모드: 1분마다
   // 다른 창에 있다가 돌아오면 바로 새 결과 확인
   document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() > CLX.next - 45e3) clxLive(); });
 }

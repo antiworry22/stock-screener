@@ -32,7 +32,7 @@ async function invLoad() {
 async function invMarketLive(force) {
   const k = new Date(Date.now() + 9 * 3600e3), m = k.getUTCHours() * 60 + k.getUTCMinutes(), wd = k.getUTCDay();
   const open = wd >= 1 && wd <= 5 && m >= 535 && m <= 960;
-  if (!force && Date.now() - INV.mt < (open ? 55e3 : 600e3)) return;
+  if (!force && Date.now() - INV.mt < (open ? (typeof svGap === 'function' ? svGap(55e3, 120e3) : 55e3) : 600e3)) return;
   INV.mt = Date.now();
   try { const r = await fetch('/api/mflow', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j.ok) { ivMfSeries(j); INV.m = j; } } } catch (e) {}
   renderInvMarket();

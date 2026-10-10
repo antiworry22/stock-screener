@@ -16,12 +16,12 @@ function renderMktState() {
   const el = $('#mktState'); if (!el) return;
   const s = msState(), last = msLastDay(), left = (to) => { const r = to - s.m; return r >= 60 ? `${Math.floor(r / 60)}시간 ${r % 60}분` : `${r}분`; };
   let cls = 'ms-off', txt;
-  if (s.st === 'open') { cls = 'ms-on'; txt = `<b><span class="gov-live"></span>장중</b> 정규장 09:00~15:30 · 시세 5초 · 호가 3초 · 수급 1분마다 실시간 갱신 중`; }
+  if (s.st === 'open') { cls = 'ms-on'; txt = `<b><span class="gov-live"></span>장중</b> 정규장 09:00~15:30 · ${typeof svOn === 'function' && svOn() ? '시세 15초 · 호가 10초 · 수급 2분' : '시세 5초 · 호가 3초 · 수급 1분'}마다 실시간 갱신 중`; }
   else if (s.st === 'pre') txt = `<b>장 시작 전</b> 정규장은 09:00에 열려요(${left(540)} 남음). 지금 화면의 시세·호가·차트는 마지막 거래일 ${last} 값이라 바뀌지 않아요 — 9시부터 자동으로 실시간 갱신돼요.`;
   else if (s.st === 'after') { cls = 'ms-after'; txt = `<b>정규장 마감</b> 15:30에 끝났어요. 지금 움직이는 값은 대체거래소(NXT) 시간외 거래(~20:00)라 거래가 적어요. 판정은 오늘 종가 기준이에요.`; }
   else if (s.st === 'closed') txt = `<b>${s.hol ? '휴장일' : '주말'}</b> 오늘은 장이 열리지 않아요. 화면 값은 마지막 거래일 ${last} 기준이에요.`;
   else txt = `<b>장 마감</b> 화면 값은 마지막 거래일 ${last} 기준이에요. 다음 정규장은 09:00에 열려요.`;
-  el.className = 'ms-bar ' + cls; el.innerHTML = txt;
+  el.className = 'ms-bar ' + cls; el.innerHTML = txt + (typeof svChipHtml === 'function' ? svChipHtml() : '');
 }
 (function waitMs() {
   if (typeof $ === 'function' && document.readyState !== 'loading') { renderMktState(); setInterval(renderMktState, 30e3); }

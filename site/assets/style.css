@@ -1281,3 +1281,4 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .kc-y{margin-top:8px;font-size:12.5px}.kc-y summary{cursor:pointer}.kc-ys{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 @media (max-width:900px){.kc-top{grid-template-columns:1fr 1fr}.kc-det{grid-template-columns:1fr}}
 .kc-open td,.kc-open td *{white-space:normal}.kc-det{word-break:keep-all;overflow-wrap:anywhere}
+.sv-chip{font:inherit;font-size:11.5px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:12px;padding:1px 9px;margin-left:8px;cursor:pointer;white-space:nowrap}.sv-chip.on{border-color:var(--ok);color:var(--ok);font-weight:600}

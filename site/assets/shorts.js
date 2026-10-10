@@ -237,7 +237,7 @@ function shortChip() {
 }
 function initShort() {
   shortLoad(); setInterval(shortLoad, 300e3);
-  setInterval(shLiveTick, 20e3);
+  setInterval(() => { if (document.hidden) return; window.SH_TK = (window.SH_TK || 0) + 1; if (!(typeof svOn === 'function' && svOn()) || window.SH_TK % 3 === 0) shLiveTick(); }, 20e3);   // 절약 모드: 1분마다
   const go = () => { const q = ($('#shQ').value || '').trim(); if (!q) return; const h = findStocks(q); if (!h.length) { alert(`"${q}"과(와) 맞는 종목이 없어요`); return; } shSelect(h[0].code); };
   if ($('#shQ')) { $('#shGo').onclick = go; $('#shQ').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } }; }
   const tb = $('button[data-tab="short"]'); if (tb) tb.addEventListener('click', () => { renderShortTab(); setTimeout(shLiveTick, 300); });

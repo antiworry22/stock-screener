@@ -896,10 +896,10 @@ async function tmLoop() {
     // 15분마다 새 일봉
     for (const c of [TM.sel, ...all].filter(Boolean)) { const st = TM.st.get(c); const t = (typeof CLX !== 'undefined' && CLX.live && CLX.live.meta.time) || ''; if (!st || !st.f || st.ft !== t) { await tmLoadBars(c); } }
     // 선택 종목: 장중 10초, 그 밖엔 3분
-    if (TM.sel) { const st = TM.st.get(TM.sel); if (!st || !st.qt || now - st.qt >= (live ? 5e3 : 180e3)) { await tmQuote(TM.sel); tmRenderOne(); } tmEvents(TM.sel).then(() => {}); }
+    if (TM.sel) { const st = TM.st.get(TM.sel); if (!st || !st.qt || now - st.qt >= (live ? (typeof svGap === 'function' ? svGap(5e3, 15e3) : 5e3) : 180e3)) { await tmQuote(TM.sel); tmRenderOne(); } tmEvents(TM.sel).then(() => {}); }
     // 목록: 한 번에 한 종목씩 돌아가며 (장중 1종목/5초)
     const others = all.filter(c => c !== TM.sel);
-    if (others.length) { const c = others[TM.rot++ % others.length], st = TM.st.get(c); if (!st || !st.qt || now - st.qt >= (live ? 30e3 : 600e3)) await tmQuote(c); }
+    if (others.length) { const c = others[TM.rot++ % others.length], st = TM.st.get(c); if (!st || !st.qt || now - st.qt >= (live ? (typeof svGap === 'function' ? svGap(30e3, 120e3) : 30e3) : 600e3)) await tmQuote(c); }
     tmRenderList();
   } catch (e) { console.error(e); }
   TM.busy = false;

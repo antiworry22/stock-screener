@@ -341,7 +341,7 @@ function obStart(code, mount) {
   box.dataset.code = code;
   box.innerHTML = '<div class="hint">호가 불러오는 중…</div>';
   obPoll();
-  OB.timer = setInterval(obPoll, 3000);
+  OB.timer = setInterval(obPoll, typeof svGap === 'function' ? svGap(3000, 10000) : 3000);
   OB.idle = setTimeout(obStop, 30 * 60e3);  // 30분 지나면 자동 멈춤(서버 사용량 절약)
 }
 function obStop() { clearInterval(OB.timer); clearTimeout(OB.idle); OB.timer = null; try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }

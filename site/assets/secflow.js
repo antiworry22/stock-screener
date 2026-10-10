@@ -23,7 +23,7 @@ const sfP = v => v == null ? '–' : `${v > 0 ? '+' : ''}${fmt(v, Math.abs(v) < 
 const sfC = (v, a, b) => Math.max(a, Math.min(b, v));
 
 async function sfLoad(force) {
-  const gap = sfOpen() ? 55e3 : 600e3;
+  const gap = sfOpen() ? (typeof svGap === 'function' ? svGap(55e3, 180e3) : 55e3) : 600e3;
   if (!force && Date.now() - SF.nt < gap) return;
   SF.nt = Date.now();
   try { const r = await fetch('/api/sectors', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j && j.ok && j.list && j.list.length) SF.net = j; } } catch (e) {}

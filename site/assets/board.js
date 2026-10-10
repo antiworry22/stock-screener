@@ -38,7 +38,7 @@ function bdHold(code) {
 async function bdLoadQuotes(force) {
   const L = bdList().map(x => x.code); if (BD.sel && !L.includes(BD.sel)) L.unshift(BD.sel);
   if (!L.length) return;
-  const gap = bdOpen() ? 4500 : 60e3;
+  const gap = bdOpen() ? (typeof svGap === 'function' ? svGap(4500, 15000) : 4500) : 60e3;
   if (!force && Date.now() - BD.qt < gap) return;
   BD.qt = Date.now();
   try {
@@ -49,7 +49,7 @@ async function bdLoadQuotes(force) {
 async function bdLoadBook() {
   const c = BD.sel; if (!c || BD.hbusy) return;
   const st = BD.st[c] = BD.st[c] || { ticks: [], buyV: 0, sellV: 0, book: null };
-  if (st.bt && Date.now() - st.bt < (bdOpen() ? 2800 : 60e3)) return;
+  if (st.bt && Date.now() - st.bt < (bdOpen() ? (typeof svGap === 'function' ? svGap(2800, 10000) : 2800) : 60e3)) return;
   BD.hbusy = true; st.bt = Date.now();
   try {
     const r = await fetch('/api/hoga?code=' + c, { cache: 'no-store' });
@@ -79,7 +79,7 @@ async function bdLoadBook() {
 async function bdLoadChart(force) {
   const c = BD.sel; if (!c || BD.cbusy) return;
   const st = BD.st[c] = BD.st[c] || { ticks: [], buyV: 0, sellV: 0, book: null };
-  if (!force && st.ct && Date.now() - st.ct < (bdOpen() ? 30e3 : 300e3)) return;
+  if (!force && st.ct && Date.now() - st.ct < (bdOpen() ? (typeof svGap === 'function' ? svGap(30e3, 120e3) : 30e3) : 300e3)) return;
   BD.cbusy = true; st.ct = Date.now();
   try {
     const r = await fetch('/api/board?c=' + c, { cache: 'no-store' });
@@ -273,7 +273,7 @@ function renderBoard(part) {
     $$('#bdRoot [data-bdtf]').forEach(b => b.onclick = () => { BD.tf = b.dataset.bdtf; $$('#bdRoot [data-bdtf]').forEach(x => x.classList.toggle('on', x === b)); set('bdChart', bdChartHtml(BD.st[BD.sel], BD.q[BD.sel])); });
   }
   set('bdWl', bdQuoteRows());
-  const wt = $('#bdWlT'); if (wt) wt.innerHTML = `${bdOpen() ? '<span class="gov-live"></span> 5초마다' : typeof msState === 'function' && msState().st === 'pre' ? '장 시작 전 — 09:00부터 실시간' : '장 마감 — 마지막 값'}${Object.values(BD.q)[0] ? ` · ${esc(String(Object.values(BD.q)[0].at || '').slice(11, 19))}` : ''}`;
+  const wt = $('#bdWlT'); if (wt) wt.innerHTML = `${bdOpen() ? `<span class="gov-live"></span> ${typeof svOn === 'function' && svOn() ? '15초' : '5초'}마다` : typeof msState === 'function' && msState().st === 'pre' ? '장 시작 전 — 09:00부터 실시간' : '장 마감 — 마지막 값'}${Object.values(BD.q)[0] ? ` · ${esc(String(Object.values(BD.q)[0].at || '').slice(11, 19))}` : ''}`;
   set('bdHead', c ? bdHeadHtml(c, q) : '<p class="hint">왼쪽 목록에서 종목을 고르세요.</p>');
   set('bdBook', c ? bdBookHtml(st, q) : '');
   set('bdTicks', c ? bdTicksHtml(st) : '');

@@ -18,7 +18,7 @@ function mdLabel(t) {
 
 /* ── 자료 받기 ── */
 async function mdLoadQuote(force) {
-  const gap = mdOpen() ? 18e3 : 300e3;
+  const gap = mdOpen() ? (typeof svGap === 'function' ? svGap(18e3, 60e3) : 18e3) : 300e3;
   if (!force && Date.now() - MOOD.qt < gap) return;
   MOOD.qt = Date.now();
   try { const r = await fetch('/api/idx', { cache: 'no-store' }); if (r.ok) { const j = await r.json(); if (j && j.ok) MOOD.q = j; } } catch (e) {}
