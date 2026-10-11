@@ -35,6 +35,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
+  <button data-tab="ov">공통 종목</button>
   <button data-tab="kc">조건검색 추천</button>
   <button data-tab="rank4">실시간 순위</button>
   <button data-tab="board">실시간 현황판</button>
@@ -96,6 +97,18 @@
   <div class="panel">
     <div class="ph"><h2>섹터 강도 (5일, 코스피 대비)</h2><span class="hint">상위 섹터 종목만 후보로 우선</span></div>
     <div id="sectorBars" class="sector-bars"></div>
+  </div>
+</section>
+
+<!-- ═══ 공통 종목 (조건검색·실시간 순위·실시간 종합·차트 판정·전체 종목에서 겹치는 종목) ═══ -->
+<section id="tab-ov" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>공통 종목 <small class="muted">조건검색 추천 · 실시간 순위 · 실시간 종합 · 차트 종합판정 · 전체 종목에서 함께 뽑힌 종목</small></h2><span class="hint" id="ovMeta"></span></div>
+    <p class="hint">다섯 화면이 서로 다른 방식(조건식 · 4요소 점수 · 뉴스×거래대금×차트 · 6축 차트 · 종합점수)으로 고른 종목 중 여러 곳에 동시에 나온 종목이에요. 겹친 곳이 많을수록 여러 근거가 같은 방향을 가리킨다는 뜻이라 위에 올려요. 같은 수면 각 화면 순위를 합친 「합의 점수」(0~100) 순이에요. 종목을 누르면 종목 분석이 열려요.</p>
+    <div id="ovSum"></div>
+    <details class="kc-set mt-s"><summary>화면별 「뽑힘」 기준 바꾸기</summary><div id="ovCfg"></div></details>
+    <div class="row gap mt-s"><input id="ovQ" class="inp" placeholder="종목 찾기(겹침 수와 관계없이)" style="max-width:240px" aria-label="공통 종목에서 찾기"></div>
+    <div id="ovBody" class="mt-s"></div>
   </div>
 </section>
 
@@ -623,6 +636,7 @@
 <script src="assets/mktstate.js"></script>
 <script src="assets/rank4.js"></script>
 <script src="assets/kcond.js"></script>
+<script src="assets/overlap.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
