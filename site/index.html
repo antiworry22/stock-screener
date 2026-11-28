@@ -36,6 +36,7 @@
 <nav class="tabs" id="tabs">
   <button data-tab="dash" class="on">대시보드</button>
   <button data-tab="ov">공통 종목</button>
+  <button data-tab="kjb">주도주 찾기</button>
   <button data-tab="kc">조건검색 추천</button>
   <button data-tab="rank4">실시간 순위</button>
   <button data-tab="board">실시간 현황판</button>
@@ -109,6 +110,29 @@
     <details class="kc-set mt-s"><summary>화면별 「뽑힘」 기준 바꾸기</summary><div id="ovCfg"></div></details>
     <div class="row gap mt-s"><input id="ovQ" class="inp" placeholder="종목 찾기(겹침 수와 관계없이)" style="max-width:240px" aria-label="공통 종목에서 찾기"></div>
     <div id="ovBody" class="mt-s"></div>
+  </div>
+</section>
+
+<!-- ═══ 주도주 찾기(김종봉식) ═══ -->
+<section id="tab-kjb" class="tab">
+  <div class="panel">
+    <div class="ph"><h2>주도주 찾기 <small class="muted">김종봉식 — 지수를 먼저 보고, 지수보다 강한 종목을 20일선 눌림에서</small></h2><span class="hint" id="kjMeta"></span></div>
+    <details class="kc-set"><summary>영상 핵심 원칙 9가지 (김작가TV · 김종봉 「월 1억 버는 투자자의 주식투자 매수 타이밍」)</summary><div id="kjRules" class="kj-rules"></div>
+      <p class="hint">영상 내용과 저자 인터뷰·책 소개 자료를 바탕으로 정리한 원칙이에요. 숫자 기준(1,000억·−5%·60% 등)은 아래 계산에 그대로 쓰였고, 화면 위 선택으로 바꿀 수 있는 부분도 있어요. 투자 권유가 아니에요.</p></details>
+    <h3 class="mt">① 지수 먼저 확인</h3><div id="kjMkt"></div>
+    <h3 class="mt">② 주도 섹터 기록 · 순환</h3><div id="kjSec"></div>
+    <h3 class="mt">③ 지수보다 강한 종목 · 대장주 후보 · 매수 타이밍</h3>
+    <p class="hint" id="kjCnt"></p>
+    <div class="row gap wrap kc-flt">
+      <label class="small">시장 <select id="kjFm"><option value="all">코스피+코스닥</option><option value="KOSPI">코스피</option><option value="KOSDAQ">코스닥</option></select></label>
+      <label class="small">매수 타이밍 <select id="kjFs"><option value="all">전체</option><option value="pull">20일선 눌림 — 매수 구간</option><option value="buy">매수 구간 + 박스권 분할</option><option value="near">눌림 진행 중</option><option value="chase">추격 금지(급등·돌파 직후)</option><option value="box">박스권</option><option value="weak">20일선 이탈</option></select></label>
+      <label class="small">대장주 조건 <select id="kjFc"><option value="all">전체</option><option value="lead">조건 2개 이상(거래대금·양봉·재무)</option><option value="tv">거래대금 1,000억 이상 터짐</option></select></label>
+      <label class="small">정렬 <select id="kjFo"><option value="capt">대장주 점수</option><option value="st">지수 대비 강도</option><option value="rs">20일 초과수익</option><option value="tv">거래대금</option><option value="fin">재무</option></select></label>
+      <input id="kjQ" class="inp" placeholder="종목·업종 찾기(강하지 않은 종목도)" style="max-width:220px" aria-label="종목 찾기">
+    </div>
+    <div id="kjBody" class="mt-s"></div>
+    <h3 class="mt">④ 확률 검증 — 승률 60% 이상일 때만</h3><div id="kjBtBox"></div>
+    <h3 class="mt">⑤ 투자 노트 — 실력인지 지수 덕인지</h3><div id="kjNote"></div>
   </div>
 </section>
 
@@ -637,6 +661,7 @@
 <script src="assets/rank4.js"></script>
 <script src="assets/kcond.js"></script>
 <script src="assets/overlap.js"></script>
+<script src="assets/kjb.js"></script>
 <script src="assets/livediff.js"></script>
 <script src="assets/holdings.js"></script>
 <script src="assets/timing.js"></script>
