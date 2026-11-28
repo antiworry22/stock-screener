@@ -6,7 +6,8 @@
   # → 화면 파일(site/index.html, site/assets, site/config)을 고쳤을 때만 배포
   # (사이트는 최신 데이터를 GitHub에서 직접 읽으므로 배포 없이도 매일 갱신됨)
   # 사이트 서버 기능(netlify/functions — 실시간 호가 중계)을 고쳤을 때도 배포
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- site netlify netlify.toml ':(exclude)site/data'"
+  # 단, 비교 기준(이전 빌드 기록)이 없으면 CACHED_COMMIT_REF가 COMMIT_REF와 같아져 '변경 없음'으로 잘못 판단하므로 그때는 항상 배포
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && [ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- site netlify netlify.toml ':(exclude)site/data'"
 
 [functions]
   directory = "netlify/functions"
