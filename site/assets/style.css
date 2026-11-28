@@ -1301,3 +1301,28 @@ a.news-item[href]:hover{border-color:var(--accent)}
 .ov-s{font-size:11.5px;white-space:nowrap;color:var(--muted)}.ov-s.on{color:var(--text);font-weight:600}
 .ov-why{min-width:220px;max-width:380px;white-space:normal;word-break:keep-all;font-size:12px;color:var(--muted)}
 @media (max-width:900px){.ov-src{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* 주도주 찾기(김종봉식) */
+.kj-rules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0}
+.kj-rule{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--panel2)}.kj-rule b{font-size:13px}.kj-rule p{margin:4px 0 0;font-size:12.5px;word-break:keep-all;line-height:1.55}
+.kj-mk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kj-mc{border:1px solid var(--line);border-left:5px solid var(--muted);border-radius:10px;padding:9px 12px}.kj-mc.up{border-left-color:var(--up)}.kj-mc.down{border-left-color:var(--down)}.kj-mc.mid{border-left-color:var(--warn)}
+.kj-mh{display:flex;justify-content:space-between;font-size:14px}.kj-mv{margin:4px 0 2px;font-weight:700;font-size:13.5px}.kj-mc small{color:var(--muted);font-size:12px}
+.kj-cr{margin:6px 0 0;padding:6px 9px;border-radius:7px;font-size:12.5px;word-break:keep-all}.kj-cr.crisis{background:color-mix(in srgb,var(--up) 14%,var(--panel));color:var(--up);font-weight:700}.kj-cr.warn{background:var(--warn-soft);color:var(--warn)}
+.kj-secs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.kj-sc{border:1px solid var(--line);border-top:3px solid var(--up);border-radius:9px;padding:7px 9px;display:flex;flex-direction:column;gap:2px}.kj-sc b{font-size:13.5px}.kj-sc span{font-size:12px;font-weight:600}.kj-sc small{font-size:11px;color:var(--muted);word-break:keep-all}
+.kj-rot{margin-top:8px}
+.kj-tb td,.kj-tb th{font-size:12.5px;vertical-align:middle}.kj-tb tr.kj-r{cursor:pointer}.kj-tb tr.kj-r:hover,.kj-tb tr.open{background:var(--accent-soft)}
+.kj-tb td.l small,.kj-tb td.mono small{display:block;font-size:11px}.kj-tb td.l small{color:var(--muted)}
+.kj-nm{cursor:pointer}.kj-nm:hover{text-decoration:underline}
+.kj-sc2{display:inline-block;min-width:36px;text-align:center;font-weight:800;border-radius:7px;padding:1px 6px;background:var(--panel2)}.kj-sc2.hi{background:var(--up);color:#fff}.kj-sc2.md{background:color-mix(in srgb,var(--up) 18%,var(--panel));color:var(--up)}
+.kj-tg{font-size:11px;border:1px solid var(--line);border-radius:10px;padding:1px 7px;white-space:nowrap}.kj-tg.good{border-color:var(--up);color:var(--up)}
+.kj-st{font-size:12px;font-weight:600;white-space:nowrap}.kj-st.good{color:var(--up)}.kj-st.warn{color:var(--warn)}.kj-st.bad{color:var(--down)}.kj-st.mid{color:var(--accent)}
+.kj-open td{text-align:left;white-space:normal}.kj-det{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:14px}.kj-det h5{margin:0 0 5px;font-size:13px}.kj-det ul{margin:0;padding-left:17px}.kj-det li{font-size:12.5px;margin:2px 0;word-break:keep-all}
+.kj-plan{display:grid;gap:4px}.kj-plan div{display:grid;grid-template-columns:70px 170px 1fr;gap:8px;align-items:baseline;font-size:12.5px;padding:4px 8px;border-radius:7px;background:var(--panel2)}.kj-plan span{color:var(--muted)}.kj-plan small{color:var(--muted);word-break:keep-all}.kj-plan .bad b{color:var(--down)}.kj-plan .good b{color:var(--up)}
+.kj-bt{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px}
+.kj-btc{border:1px solid var(--line);border-radius:9px;padding:8px 10px;display:flex;flex-direction:column}.kj-btc small{color:var(--muted);font-size:11.5px}.kj-btc b{font-size:22px;font-variant-numeric:tabular-nums}.kj-btc span{font-size:11px;color:var(--muted)}
+.kj-btc.ok{border-color:var(--ok);background:var(--ok-soft)}.kj-btc.ok b{color:var(--ok)}.kj-btc.no{border-color:var(--down)}.kj-btc.no b{color:var(--down)}
+.kj-ns{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:8px}.kj-ns div{background:var(--panel2);border-radius:8px;padding:7px 10px}.kj-ns small{display:block;font-size:11px;color:var(--muted)}.kj-ns b{font-size:16px}
+.kj-nf{margin:8px 0}.kj-nt td,.kj-nt th{font-size:12.5px}
+@media (max-width:900px){.kj-rules,.kj-mk,.kj-det{grid-template-columns:1fr}.kj-secs,.kj-bt,.kj-ns{grid-template-columns:repeat(2,minmax(0,1fr))}.kj-plan div{grid-template-columns:60px 1fr}.kj-plan small{grid-column:1/-1}}
